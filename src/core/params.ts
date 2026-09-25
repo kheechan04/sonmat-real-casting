@@ -31,7 +31,9 @@ export const SPECIES_NAME: Record<Species, string> = { crucian: '붕어', carp: 
 const DEFS = {
   // ---- recognition (M0 recordings)
   minVis: [0.5, m('인식', '관절 신뢰도 최소', 0.2, 0.9, 0.05)],
-  'cast.speedMin': [5, m('캐스팅', '최소 속도', 2, 12, 0.5, '몸통/s')], // casts 6.3–12.5, hook-set returns 2–7 (state-gated)
+  // casts 6.3–12.5 at normal distance; framed close at 15 fps (F1) the first cast measured 4.4 → 4.5.
+  // Only counted in the 'ready' phase, where the fastest non-cast movement seen was 1.98 (E3 fidgeting).
+  'cast.speedMin': [4.5, m('캐스팅', '최소 속도', 2, 12, 0.5, '몸통/s')],
   'cast.moveMin': [0.6, m('캐스팅', '최소 이동 (0.45초)', 0.2, 1.5, 0.05, '몸통')], // casts ≥ 0.63
   'cast.dropMin': [0.3, m('캐스팅', '최소 하강 (0.45초)', 0, 1, 0.05, '몸통')], // side casts drop 0.45+
   'cast.speedFull': [12, m('캐스팅', '최대 세기 속도', 6, 20, 0.5, '몸통/s')],

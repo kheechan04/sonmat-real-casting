@@ -35,6 +35,21 @@ function count(rec: Recording, step = 1) {
 
 const has = (...ids: string[]) => ids.every((id) => recs.has(id));
 
+// Framed from the navel up (hips out of frame 96–100%), recorded at 15 fps — the user's closer stance.
+describe.skipIf(!has('F1', 'F2', 'F3'))('M1.5 recordings, standing close (hips out of frame)', () => {
+  it('casts, hook-sets and reeling still register', () => {
+    expect(count(recs.get('F1')!).cast).toBe(10);
+    expect(count(recs.get('F2')!).hookset).toBe(14);
+    expect(count(recs.get('F2')!).cast).toBe(0);
+    expect(count(recs.get('F3')!).reel).toBeGreaterThanOrEqual(50); // 20 s, normal then fast
+  });
+  it.skipIf(!has('F4'))('no cast or hook-set while fidgeting close to the camera', () => {
+    const c = count(recs.get('F4')!);
+    expect(c.cast).toBe(0);
+    expect(c.hookset).toBe(0);
+  });
+});
+
 describe.skipIf(!has('B1', 'B3', 'E2', 'C1', 'C2', 'C3', 'E1', 'E3', 'D1', 'D3'))('M0 recordings', () => {
   // 30 fps as recorded, and thinned to 15 fps (dark rooms drop webcams to 15 fps — Shadow Mitts)
   for (const step of [1, 2]) {
