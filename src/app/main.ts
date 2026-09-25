@@ -128,6 +128,11 @@ async function start(withCamera: boolean): Promise<void> {
   show('tally', true);
   renderTally();
   game.toPlaces(performance.now());
+  // the how-to opens by itself once, the first time (after that: the ? button)
+  if (store.get('howto.v1') !== '1') {
+    show('helpBox', true);
+    store.set('howto.v1', '1');
+  }
 }
 
 $('start').addEventListener('click', () => void start(true));
@@ -448,10 +453,7 @@ function onGameEvent(e: GameEvent, now: number): void {
       } else if (e.result === 'near') popText('포인트 근처', '', true);
       break;
     case 'counter':
-      if (e.on) {
-        sfx.strain();
-        popText('버텨요!', 'gold', true);
-      }
+      if (e.on) sfx.strain(); // the tug bar turns green — no extra popup
       break;
     case 'pump':
       if (e.ok) {
@@ -586,10 +588,24 @@ const BITE_MSG: Record<string, string> = {
   tap: '초릿대가 휘었어요! 지금!',
 };
 
+/** Fish landed so far on this device — the long how-to lines are shown only while this is small. */
+const LEARNING_CATCHES = 5;
+const learning = () => Object.values(records.count).reduce((a, b) => a + (b ?? 0), 0) < LEARNING_CATCHES;
+
+/**
+ * The one line at the top: what to do right now. A short second line explains it, but only for the
+ * first few fish (user: "기능이 추가될수록 화면이 좀 복잡해진 거 같은데 … 최대한 덜 복잡해 보이게").
+ */
 function instruction(now: number): { msg: string; sub: string; tone?: 'alert' | 'danger' } {
+  const r = instructionFull(now);
+  const keep = game.thief !== null; // the thief countdown is information, not a how-to
+  return learning() || keep ? r : { ...r, sub: '' };
+}
+
+function instructionFull(now: number): { msg: string; sub: string; tone?: 'alert' | 'danger' } {
   switch (game.phase) {
     case 'ready':
-      return { msg: '던지세요', sub: game.spots.length ? `${spotText()} — 그쪽으로 휘둘러 던져요` : '대 든 손을 머리 뒤로 젖혔다가 앞으로 휘둘러요' };
+      return { msg: '던지세요', sub: game.spots.length ? '표시된 곳 쪽으로 손을 휘둘러요 — 세게 휘두를수록 멀리' : '대 든 손을 머리 뒤로 젖혔다가 앞으로 휘둘러요' };
     case 'flight':
       return { msg: '', sub: '' };
     case 'waiting':
@@ -607,19 +623,16 @@ function instruction(now: number): { msg: string; sub: string; tone?: 'alert' | 
         };
       if (game.running) {
         const t = RUN_TEXT[game.runKind];
-        if (game.countering) return { msg: '버텨요!', sub: '그대로 — 줄이 덜 풀리고 물고기가 지쳐 가요', tone: 'alert' };
-        if (game.mustStop)
-          return { msg: t.now, sub: `${dirWord(game.runDir)}으로 차고 나가요 — 대 든 팔을 ${dirWord(-game.runDir)} 옆으로 옮겨 버텨요`, tone: 'danger' };
+        if (game.countering) return { msg: '버텨요!', sub: '그대로 — 물고기가 지쳐 가요', tone: 'alert' };
+        if (game.mustStop) return { msg: t.now, sub: `감지 말고, 대 든 팔을 ${dirWord(-game.runDir)} 옆으로 — 아래 막대의 "여기로!"`, tone: 'danger' };
         return { msg: t.now, sub: t.sub, tone: 'alert' };
       }
-      if (game.runSoon) {
-        const stop = game.runKind !== 'dig' && game.runKind !== 'shock';
-        return { msg: RUN_TEXT[game.runKind].soon, sub: stop ? `${dirWord(game.runDir)}으로 갈 거예요` : '', tone: 'alert' };
-      }
-      // M3: a heavy fish slips drag — ask for pumping; right after a pump, reel
+      if (game.runSoon) return { msg: RUN_TEXT[game.runKind].soon, sub: '', tone: 'alert' };
+      // M3 pumping as a two-step loop — only ever one arrow to follow (user: "들어올리고 언제 다시 내려야하는지 헷갈리네")
       if (game.fish && game.fish.heavy > 0.3) {
-        if (game.reelEfficiency(now) > 1) return { msg: '지금 감아요!', sub: '대를 내리면서 빠르게 감아요', tone: 'alert' };
-        if (game.pumpReady) return { msg: '무거워요 — 들어 올려요!', sub: '대 든 손을 쭉 들어 올려 끌어오고, 내리면서 감아요 (펌핑)' };
+        if (!game.pumpReady || game.reelEfficiency(now) > 1)
+          return { msg: '↓ 내리면서 감아요', sub: '대 든 손을 천천히 내리면서 릴을 감아요 — 다음 ↑가 뜰 때까지', tone: 'alert' };
+        return { msg: '↑ 들어 올려요', sub: '무거운 물고기예요 — 대 든 손을 쭉 들어 올려 끌어와요 (펌핑)' };
       }
       return { msg: '감아요', sub: now - game.phaseT < 4000 ? '릴 손으로 작은 원을 계속 돌려요' : '' };
     default:
@@ -675,17 +688,6 @@ function updateTug(): void {
 /** 1 = the player's left, −1 = right */
 const dirWord = (d: number) => (d > 0 ? '왼쪽' : '오른쪽');
 
-/** "왼쪽 멀리 새 떼 · 오른쪽 가까이 물 끓음" (M3 spots, for the ready prompt). */
-function spotText(): string {
-  return game.spots
-    .map((sp) => {
-      const side = sp.angleDeg > 6 ? '왼쪽' : sp.angleDeg < -6 ? '오른쪽' : '정면';
-      const dist = sp.distM < 14 ? '가까이' : sp.distM < 21 ? '조금 멀리' : '멀리';
-      return `${side} ${dist} ${sp.kind === 'birds' ? '새 떼' : '물 끓는 곳'}`;
-    })
-    .join(' · ');
-}
-
 function postureWarning(): string {
   if (!source.running) return '';
   const f = lastFrame;
@@ -727,10 +729,7 @@ function updateHud(now: number): void {
     gFill.style.strokeDasharray = `${t * 100} 100`;
     gFill.classList.toggle('hot', t >= 0.75);
     $('tensionText').textContent = t >= 0.75 ? '위험!' : t >= 0.3 ? '팽팽' : '여유';
-    const alert = $('runAlert');
-    alert.className = `runAlert${game.mustStop ? ' run' : game.running || game.runSoon ? ' soon' : ''}`;
-    alert.textContent = game.running ? RUN_TEXT[game.runKind].now : game.runSoon ? RUN_TEXT[game.runKind].soon : '';
-    updateTug();
+    updateTug(); // (the red pill above the console repeated the top line — removed)
   }
   updateSpotTags();
 

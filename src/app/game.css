@@ -1396,3 +1396,83 @@ a {
 .help .credits a {
   color: inherit;
 }
+
+/* start screen: step number / "큰 고기" tag, and the two advanced moves */
+.step {
+  position: relative;
+}
+.step .n {
+  position: absolute;
+  top: 7px;
+  left: 9px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--gold-2);
+  opacity: 0.8;
+}
+.step.pro {
+  border-color: rgba(244, 213, 141, 0.35);
+  background: rgba(244, 213, 141, 0.06);
+}
+
+/* help: icon rows */
+.help {
+  text-align: left;
+}
+.help h2 {
+  text-align: center;
+}
+.howH {
+  margin: 18px 0 8px;
+  font-size: 14px;
+  color: var(--gold-2);
+  letter-spacing: 0.02em;
+}
+.how {
+  display: grid;
+  gap: 8px;
+}
+.howRow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--hair);
+}
+.howRow svg {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  fill: none;
+  stroke: var(--gold-2);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+.howRow svg circle[r='2.5'],
+.howRow svg circle[r='3'],
+.howRow svg rect {
+  fill: var(--gold-2);
+  stroke: none;
+}
+.howRow svg .dash {
+  stroke-dasharray: 3 4;
+}
+.howRow p {
+  margin: 3px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.howList {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+.help #helpClose {
+  display: block;
+  margin: 18px auto 0;
+}
