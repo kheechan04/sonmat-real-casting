@@ -7,9 +7,12 @@
 // Hook-set differences between species are timing only (bite window + fake nibbles); strength
 // is never judged (user decision, docs/VERIFICATION.md). Reeling length grows with size / rarity.
 //
-// Reeling fight: progress fills at the player's reel rate. Every few seconds the fish RUNS —
-// announced by a splash `fight.warnS` earlier — and takes line back. Reeling during a run builds
-// line tension; full tension snaps the line.
+// Reeling fight, in metres of line: every reel turn brings in fish.mPerTurn (heavier fish a little
+// less), and the fish is landed when no line is left. Every few seconds the fish RUNS — announced by
+// a splash `fight.warnS` earlier — and strips line (fish.pullMps). Reeling during a run builds line
+// tension; full tension snaps the line. A heavy fish also tears off fish.openM of line right after
+// the hook-set (the opening run). Big fish fight longer through that extra line, not through dead
+// turns (user, M2 playtest: "큰 물고기일수록 줄 감기는 속도가 느려서 릴링이 반영이 잘 안 되는 느낌").
 //
 // Interference (M2, user: animals only rarely and realistically): a THIEF (otter / orca / crocodile)
 // may come for the hooked fish once per fight — reel `event.escapeTurns` turns within `event.warnS`
@@ -66,7 +69,12 @@ export interface Fish {
   weightG: number;
   /** 0 = smallest of its species, 1 = largest */
   size: number;
-  turnsNeeded: number;
+  /** line one reel turn brings in, m */
+  mPerTurn: number;
+  /** line a plain run strips, m/s */
+  pullMps: number;
+  /** line the opening run strips right after the hook-set, m (0 = no opening run) */
+  openM: number;
   fakeNibbles: number;
   biteWindowS: number;
 }
@@ -97,6 +105,8 @@ const DEFAULT_TABLES: Tables = { species: SPECIES, baits: BAITS, locations: LOCA
 export const FLIGHT_S = 1.2;
 const MIN_DISTANCE_M = 8;
 const MAX_DISTANCE_M = 28;
+/** How long the opening run of a heavy fish lasts, s. */
+export const OPEN_RUN_S = 2.5;
 const TIER_KEY: Record<Tier, 'tier.common' | 'tier.uncommon' | 'tier.rare' | 'tier.legend'> = {
   common: 'tier.common',
   uncommon: 'tier.uncommon',
@@ -116,8 +126,10 @@ export class FishingGame {
   missReason: MissReason | null = null;
   /** the animal that stole the fish (missReason 'stolen') */
   stolenBy: EventKind | null = null;
-  /** reeling: turns reeled so far (fractional) */
-  progress = 0;
+  /** line out, m (the cast distance, less what was reeled in, plus what the fish took) */
+  lineM = 0;
+  /** most line out during this fight, m (for the progress bar) */
+  peakLineM = 0;
   /** reeling: line tension 0–1 (1 = snap) */
   tension = 0;
   /** reeling: the fish is running (taking line) */
@@ -127,7 +139,7 @@ export class FishingGame {
   /** what the current / next run is (plain run or the species' behaviour) */
   runKind: RunKind = 'run';
   /** reeling: an animal is coming for the fish */
-  thief: { kind: EventKind; until: number; from: number } | null = null;
+  thief: { kind: EventKind; until: number; turns: number } | null = null;
   /** the reel rate the game last saw, turns/s (for the HUD) */
   reelRate = 0;
   /** in the nibble phase: is a fake nibble showing right now */
@@ -145,9 +157,11 @@ export class FishingGame {
   private runUntil = 0;
   private runStart = 0;
   private lastReelT = 0;
+  /** the current run is the opening run after the hook-set */
+  private openRun = false;
   private lastT = 0;
-  /** progress at which the thief shows up this fight (Infinity = not this time) */
-  private thiefAt = Infinity;
+  /** line left (m) at which the thief shows up this fight (-Infinity = not this time) */
+  private thiefAt = -Infinity;
 
   constructor(
     private params: () => Params,
@@ -219,7 +233,8 @@ export class FishingGame {
     this.fish = null;
     this.missReason = null;
     this.stolenBy = null;
-    this.progress = 0;
+    this.lineM = 0;
+    this.peakLineM = 0;
     this.tension = 0;
     this.running = false;
     this.runSoon = false;
@@ -251,7 +266,8 @@ export class FishingGame {
 
   private hook(now: number): void {
     const P = this.params();
-    this.progress = 0;
+    this.lineM = this.distanceM;
+    this.peakLineM = this.distanceM;
     this.tension = 0;
     this.running = false;
     this.runSoon = false;
@@ -259,11 +275,21 @@ export class FishingGame {
     this.thief = null;
     this.lastReelT = now;
     this.scheduleRun(now);
+    this.openRun = false;
+    const fish = this.fish!;
     // a thief may come once this fight, somewhere in the middle of it
     this.thiefAt =
-      this.location.thief && this.rng() < P['event.thief'] ? this.fish!.turnsNeeded * this.uniform(0.3, 0.75) : Infinity;
+      this.location.thief && this.rng() < P['event.thief'] ? (this.distanceM + fish.openM) * this.uniform(0.25, 0.7) : -Infinity;
     this.emit({ type: 'hooked' });
     this.setPhase('reeling', now);
+    // a heavy fish runs the moment it feels the hook (HIT is the warning)
+    if (fish.openM > 0.5) {
+      this.openRun = true;
+      this.running = true;
+      this.runStart = now;
+      this.runUntil = now + OPEN_RUN_S * 1000;
+      this.emit({ type: 'run', on: true, kind: 'run' });
+    }
   }
 
   private scheduleRun(now: number): void {
@@ -316,13 +342,16 @@ export class FishingGame {
     const bias = b.sizeBias;
     const size = bias >= 0 ? 1 - (1 - u) ** (1 + bias) : u ** (1 - bias);
     const lengthCm = Math.round((def.lenMin + (def.lenMax - def.lenMin) * size) * 10) / 10;
-    const factor = P['size.turnsMin'] + (P['size.turnsMax'] - P['size.turnsMin']) * size;
+    // 0 = the lightest fight (small 붕어), 1 = the heaviest (a big 백상아리)
+    const heavy = Math.min(1, Math.max(0, ((def.power - 15) / 45) * 0.75 + size * 0.25));
     return {
       def,
       lengthCm,
       weightG: Math.round(def.weightK * lengthCm ** 3),
       size,
-      turnsNeeded: Math.max(1, Math.round(def.reelTurns * factor * P['scale.reel'])),
+      mPerTurn: (P['reel.mPerTurn'] * (1 - P['fight.heavy'] * heavy)) / P['scale.reel'],
+      pullMps: P['fight.takeRate'] * (0.4 + 0.6 * heavy),
+      openM: P['fight.openM'] * Math.max(0, (heavy - 0.3) / 0.7),
       fakeNibbles: Math.floor(this.rng() * (def.fakeMax + 1)),
       biteWindowS: def.biteWindowS * P['scale.biteWindow'],
     };
@@ -401,17 +430,18 @@ export class FishingGame {
     const fish = this.fish!;
 
     // ---- a thief comes for the fish: reel hard to get away, or lose it
-    if (!this.thief && this.progress >= this.thiefAt) {
-      this.thiefAt = Infinity;
-      this.thief = { kind: this.location.thief!, until: now + P['event.warnS'] * 1000, from: this.progress };
+    if (!this.thief && this.lineM <= this.thiefAt) {
+      this.thiefAt = -Infinity;
+      this.thief = { kind: this.location.thief!, until: now + P['event.warnS'] * 1000, turns: 0 };
       this.running = false;
       this.runSoon = false;
       this.emit({ type: 'thief', kind: this.thief.kind });
     }
     if (this.thief) {
-      this.progress += rate * dt;
+      this.lineM -= rate * fish.mPerTurn * dt;
+      this.thief.turns += rate * dt;
       this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
-      if (this.progress - this.thief.from >= P['event.escapeTurns']) {
+      if (this.thief.turns >= P['event.escapeTurns']) {
         this.emit({ type: 'thiefEscaped', kind: this.thief.kind });
         this.thief = null;
         this.lastReelT = now;
@@ -436,13 +466,16 @@ export class FishingGame {
       } else if (this.running && now >= this.runUntil) {
         const kind = this.runKind;
         this.running = false;
+        this.openRun = false;
         this.lastReelT = now; // the player was told to wait — don't count the run as slack
         this.scheduleRun(now);
         this.emit({ type: 'run', on: false, kind });
       }
 
       if (this.running) {
-        this.progress = Math.max(0, this.progress - P['fight.takeRate'] * rule.take * dt + rate * rule.progress * dt);
+        const take = this.openRun ? fish.openM / OPEN_RUN_S : fish.pullMps * rule.take;
+        this.lineM += (take - rate * fish.mPerTurn * rule.progress) * dt;
+        this.peakLineM = Math.max(this.peakLineM, this.lineM);
         this.tension += P['fight.tensionPerTurn'] * rule.tension * rate * dt;
         if (rate === 0 || rule.tension === 0) this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
         if (rate > 0) this.lastReelT = now;
@@ -452,7 +485,7 @@ export class FishingGame {
           return;
         }
       } else {
-        this.progress += rate * dt;
+        this.lineM -= rate * fish.mPerTurn * dt;
         this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
         if (rate > 0) this.lastReelT = now;
         else if (now - this.lastReelT >= P['fight.slackS'] * 1000) {
@@ -461,8 +494,8 @@ export class FishingGame {
         }
       }
     }
-    if (this.progress >= fish.turnsNeeded) {
-      this.progress = fish.turnsNeeded;
+    if (this.lineM <= 0) {
+      this.lineM = 0;
       this.running = false;
       this.runSoon = false;
       this.thief = null;
@@ -503,7 +536,11 @@ export class FishingGame {
 
   /** Line still out while reeling, m (for the HUD and the scene). */
   lineOutM(): number {
-    if (!this.fish) return this.distanceM;
-    return this.distanceM * (1 - this.progress / this.fish.turnsNeeded);
+    return this.phase === 'reeling' || this.phase === 'caught' ? this.lineM : this.distanceM;
+  }
+
+  /** How far the fight is, 0–1 (the progress bar): line reeled in out of the most that was out. */
+  reelFrac(): number {
+    return this.fish && this.peakLineM > 0 ? 1 - this.lineM / this.peakLineM : 0;
   }
 }

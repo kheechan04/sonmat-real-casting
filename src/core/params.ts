@@ -37,8 +37,8 @@ const DEFS = {
   // still 95% ≤ 0.39, slow reeling median 1.3–1.6 → rate = speed × turnsPerTorso, capped at maxRate.
   'reel.speedMin': [0.6, m('릴링', '감는 중으로 볼 최소 손 속도', 0.2, 2, 0.05, '몸통/s')],
   'reel.turnsPerTorso': [2.2, m('릴링', '손 속도 → 회/초 배율', 0.5, 5, 0.1)], // D1: 3.5 turns/s at 1.56
-  'reel.maxRate': [4, m('릴링', '최대 감기 속도 (이보다 빨라도 같음)', 1, 8, 0.25, '회/초')],
-  'reel.windowMs': [400, m('릴링', '속도 평균 창', 150, 1000, 50, 'ms')],
+  'reel.maxRate': [6, m('릴링', '최대 감기 속도 (이보다 빨라도 같음)', 1, 10, 0.25, '회/초')], // was 4: fast reeling (D3 ~5/s) looked no faster than normal (~3.5)
+  'reel.windowMs': [300, m('릴링', '속도 평균 창', 150, 1000, 50, 'ms')],
 
   // ---- how often each rarity shows up (weights; each bait multiplies them — species.ts)
   // per rarity TIER (shared by the tier's species at a place): ≈ 55 / 25 / 12 / 8 % before bait bonuses.
@@ -54,11 +54,13 @@ const DEFS = {
   'scale.wait': [0.6, m('전체 배율', '대기 시간', 0.2, 3, 0.05)], // user (M2): shorter waits — a game, not a stakeout
   'wait.maxS': [25, m('전체 배율', '최대 대기 (넘으면 무조건 입질)', 5, 90, 1, '초')], // DESIGN §3: never over 40 s
   'scale.biteWindow': [1, m('전체 배율', '챔질 제한 시간', 0.3, 3, 0.05)],
-  'scale.reel': [1, m('전체 배율', '릴링 길이', 0.2, 3, 0.05)],
+  'scale.reel': [1, m('전체 배율', '릴링 길이 (1회당 감기는 줄 ÷)', 0.2, 3, 0.05)],
   'scale.runEvery': [1, m('전체 배율', '차고 나가는 간격', 0.3, 3, 0.05)],
-  // Reeling length = species reelTurns × size factor (bigger / rarer → longer, user suggestion).
-  'size.turnsMin': [0.7, m('전체 배율', '가장 작을 때 릴링 배율', 0.2, 1.5, 0.05)],
-  'size.turnsMax': [1.3, m('전체 배율', '가장 클 때 릴링 배율', 0.5, 3, 0.05)],
+  // Reeling is in metres of line: every turn brings in reel.mPerTurn, at most fight.heavy less for
+  // the heaviest fish (was: more turns for bigger fish — "릴링이 반영이 잘 안 되는 느낌"). Big fish
+  // fight longer by stripping line on their runs (fight.takeRate, scaled by power and size).
+  'reel.mPerTurn': [0.9, m('릴링', '1회 감으면 들어오는 줄', 0.2, 3, 0.05, 'm')],
+  'fight.heavy': [0.45, m('릴링 밀당', '가장 무거운 물고기는 1회당 이만큼 덜 감김', 0, 0.9, 0.05)],
 
   // ---- interference events (user: otters / crocodiles / hippos only rarely and realistically)
   // thief (수달·범고래·악어): once per fight at most, comes for the hooked fish — reel fast to get away.
@@ -72,7 +74,8 @@ const DEFS = {
   // A fish run ("차고 나감"): announced by a splash warnS before it starts, the fish takes line back
   // (distance grows) and reeling against it builds line tension — full tension snaps the line.
   'fight.warnS': [0.8, m('릴링 밀당', '차고 나가기 전 예고', 0, 2, 0.1, '초')],
-  'fight.takeRate': [0.9, m('릴링 밀당', '차고 나갈 때 풀리는 줄', 0, 5, 0.1, '회/초')],
+  'fight.takeRate': [0.6, m('릴링 밀당', '차고 나갈 때 풀리는 줄 (가장 센 물고기)', 0, 5, 0.05, 'm/초')],
+  'fight.openM': [15, m('릴링 밀당', '챔질 직후 큰 물고기가 끌고 가는 줄 (가장 클 때)', 0, 80, 1, 'm')],
   'fight.tensionPerTurn': [0.12, m('릴링 밀당', '차고 나갈 때 1회 감으면 긴장 +', 0.02, 0.6, 0.01)],
   'fight.tensionDecay': [0.6, m('릴링 밀당', '긴장 회복 /초', 0.05, 2, 0.05)],
   'fight.slackS': [10, m('릴링 밀당', '안 감으면 빠져나감', 3, 60, 1, '초')],

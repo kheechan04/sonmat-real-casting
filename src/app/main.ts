@@ -80,6 +80,13 @@ function showBanner(text: string, ok = false): void {
 source.onStatus = showBanner;
 scene.ready.catch((e) => showBanner(`배경을 불러오지 못했어요: ${e instanceof Error ? e.message : String(e)}`));
 
+/** Build + compile the current place's fish and animals ahead of the first hook (no mid-fight stalls). */
+function prepareScene(): void {
+  const loc = game.location;
+  const animals = [loc.thief, loc.spooker].filter((k): k is EventKind => !!k);
+  scene.prepare(game.speciesHere().map((s) => s.id), animals).catch((e) => console.warn('prepare failed', e));
+}
+
 const rodSel = $<HTMLSelectElement>('rodHand');
 rodSel.value = rodHand;
 rodSel.addEventListener('change', () => {
@@ -403,7 +410,8 @@ function onGameEvent(e: GameEvent, now: number): void {
       if (e.phase === 'reeling') almostShown = false;
       if (e.phase === 'bait') {
         fillBaits();
-        void scene.setPlace(game.location.id); // photos load while the bait is chosen
+        // photos load and this place's fish / animals get built and compiled while the bait is chosen
+        void scene.setPlace(game.location.id).then(() => prepareScene());
       }
       if (e.phase === 'waiting') {
         sfx.plop();
@@ -610,7 +618,7 @@ function updateHud(now: number): void {
 
   if (game.phase === 'reeling' && game.fish) {
     $('lineOut').textContent = game.lineOutM().toFixed(1);
-    ($('progFill') as HTMLElement).style.width = `${(100 * game.progress) / game.fish.turnsNeeded}%`;
+    ($('progFill') as HTMLElement).style.width = `${100 * game.reelFrac()}%`;
     $('rateText').textContent = game.reelRate.toFixed(1);
     const lit = Math.round((game.reelRate / params['reel.maxRate']) * 8);
     $('rateDots').querySelectorAll('i').forEach((d, i) => d.classList.toggle('on', i < lit));
@@ -732,7 +740,7 @@ function loop(): void {
       sfx.reel(rate, dt);
       sfx.tension(game.tension, dt);
       // the fish splashes more as it comes close; the last stretch gets a drum roll
-      const frac = game.fish ? game.progress / game.fish.turnsNeeded : 0;
+      const frac = game.reelFrac();
       if (frac > 0.75 && Math.random() < dt * 0.8) sfx.nearSplash();
       if (frac >= 0.85 && !almostShown) {
         almostShown = true;

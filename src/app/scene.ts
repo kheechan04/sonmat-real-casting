@@ -171,6 +171,8 @@ export class FishingScene {
   private rodBase = new THREE.Group();
   private rodSegs: THREE.Group[] = [];
   private rodTip = new THREE.Object3D();
+  private crank = new THREE.Group();
+  private spool = new THREE.Object3D();
   private float = new THREE.Group();
   private line: THREE.Line;
   private linePos: Float32Array;
@@ -317,6 +319,74 @@ export class FishingScene {
     this.groups.rock.visible = cfg.ground === 'rock';
     this.groups.boat.visible = cfg.ground === 'boat';
     this.groups.grass.visible = cfg.grass;
+  }
+
+  /**
+   * Build the models this place can show (its species, its animals) and compile every shader and
+   * upload every texture now, while the player picks a bait — the first HIT / jump / catch used to
+   * stall on this (M2 playtest: "물고기 낚아챌 때쯤 버벅거림"). One model per frame so the menu stays smooth.
+   */
+  async prepare(species: readonly string[], animals: readonly EventKind[]): Promise<void> {
+    const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+    for (const id of species) {
+      if (this.fishes.has(id)) continue;
+      const m = buildSpecies(id);
+      m.visible = false;
+      this.fishes.set(id, m);
+      this.scene.add(m);
+      await nextFrame();
+    }
+    for (const kind of animals) {
+      if (this.animals.has(kind)) continue;
+      const m = buildAnimal(kind);
+      m.scale.setScalar(ANIMAL_SCALE[kind]);
+      m.visible = false;
+      this.scene.add(m);
+      this.animals.set(kind, m);
+      await nextFrame();
+    }
+    // a ripple too (made fresh on every splash), then everything hidden is shown for one compile only
+    const ripple = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({ map: this.ringTex, transparent: true, depthWrite: false, opacity: 0.8 }),
+    );
+    this.scene.add(ripple);
+    // Not lights, and not the other places' grounds (the boat's lamps): shader variants depend on the
+    // number of lights, so showing those would compile everything for the wrong lighting.
+    const hidden: THREE.Object3D[] = [];
+    const otherPlaces = new Set<THREE.Object3D>(Object.values(this.groups).filter((g) => !g.visible));
+    const unhide = (o: THREE.Object3D): void => {
+      if (otherPlaces.has(o) || (o as THREE.Light).isLight) return;
+      if (!o.visible) {
+        hidden.push(o);
+        o.visible = true;
+      }
+      o.children.forEach(unhide);
+    };
+    unhide(this.scene);
+    const textures = new Set<THREE.Texture>();
+    this.scene.traverse((o) => {
+      const mat = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      for (const m of mat ? ([] as THREE.Material[]).concat(mat) : []) {
+        for (const v of Object.values(m)) if (v instanceof THREE.Texture) textures.add(v);
+      }
+    });
+    // compileAsync compiles synchronously first, so the objects can be hidden again straight away.
+    // Twice: for the screen, and for the water's reflection, which renders into a texture — linear,
+    // no tone mapping, so every material needs a second shader (the leaping fish stalled on that one).
+    const done = this.renderer.compileAsync(this.scene, this.camera);
+    const rt = new THREE.WebGLRenderTarget(4, 4);
+    const prevTarget = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(rt);
+    const doneReflection = this.renderer.compileAsync(this.scene, this.camera);
+    this.renderer.setRenderTarget(prevTarget);
+    for (const o of hidden) o.visible = false;
+    this.scene.remove(ripple);
+    ripple.geometry.dispose();
+    ripple.material.dispose();
+    for (const t of textures) this.renderer.initTexture(t);
+    await Promise.all([done, doneReflection]);
+    rt.dispose();
   }
 
   /** Turn the panorama (tuning aid; also used by setPlace). */
@@ -523,12 +593,19 @@ export class FishingScene {
     bodyR.position.set(0, 0, -0.08);
     const spool = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.028, 0.035, 24), gold);
     spool.position.set(0, 0.04, -0.08);
-    const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.07, 10), metal);
-    knob.rotation.z = Math.PI / 2;
-    knob.position.set(0.045, 0, -0.08);
-    reel.add(stem, bodyR, spool, knob);
+    // crank: arm + grip, turns at the player's reel rate (visible feedback for every turn)
+    const crank = new THREE.Group();
+    crank.position.set(0.034, 0, -0.08);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.07, 0.01), metal);
+    arm.position.y = 0.03;
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.03, 12), cork);
+    grip.rotation.z = Math.PI / 2;
+    grip.position.set(0.016, 0.062, 0);
+    crank.add(arm, grip);
+    reel.add(stem, bodyR, spool, crank);
     reel.position.y = 0.08;
-    reel.userData.knob = knob;
+    this.crank = crank;
+    this.spool = spool;
     this.rodBase.add(handle, seat, reel);
 
     // blank as a chain of segments so it can bend
@@ -856,6 +933,10 @@ export class FishingScene {
     this.lastRenderT = now;
     const since = now - g.phaseT;
     const side = this.rodHand === 'right' ? 1 : -1;
+    // the reel turns with the player's hand; line pulled out spins the spool backwards
+    const turning = g.phase === 'reeling' && !g.mustStop ? g.reelRate : 0;
+    this.crank.rotation.x -= turning * Math.PI * 2 * dt;
+    this.spool.rotation.y += (turning * 5 - (g.mustStop ? 12 : 0)) * dt;
 
     // ---- rod
     let elev = 0.5;

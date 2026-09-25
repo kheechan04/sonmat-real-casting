@@ -15,7 +15,7 @@ const hook = (t: number): GestureEvent => ({ type: 'hookset', t, peakSpeed: 6, r
 
 const fishDef = (over: Partial<SpeciesDef>): SpeciesDef => ({
   id: 'small', name: '작은고기', loc: 'reservoir', tier: 'common', lenMin: 10, lenMax: 30, weightK: 0.02,
-  biteWindowS: 1, fakeMax: 0, bite: 'sink', reelTurns: 10, runEveryS: 100, runS: 1,
+  biteWindowS: 1, fakeMax: 0, bite: 'sink', power: 15, runEveryS: 100, runS: 1,
   trophyCm: 25, trophyLabel: '대물!', blurb: '', ...over,
 });
 
@@ -76,8 +76,9 @@ describe('fishing loop', () => {
     expect(s.g.phase).toBe('bite');
     s.act(hook(0));
     expect(s.g.phase).toBe('reeling');
-    const need = s.g.fish!.turnsNeeded;
-    s.step((need / 3) * 1000 - 300, 3);
+    // no runs (runEveryS 100): 28 m of line at 3 turns/s × mPerTurn
+    const needS = s.g.lineM / (3 * s.g.fish!.mPerTurn);
+    s.step(needS * 1000 - 300, 3);
     expect(s.g.phase).toBe('reeling');
     expect(s.g.lineOutM()).toBeGreaterThan(0);
     s.step(600, 3);
@@ -150,16 +151,16 @@ describe('fishing loop', () => {
     expect(s.g.runSoon).toBe(true);
     s.step(800, 3);
     expect(s.g.running).toBe(true);
-    const before = s.g.progress;
+    const before = s.g.lineM;
     s.step(500, 0);
-    expect(s.g.progress).toBeLessThan(before);
+    expect(s.g.lineM).toBeGreaterThan(before); // the fish strips line
     expect(s.g.tension).toBe(0);
     s.step(2000, 3);
     expect(s.g.missReason).toBe('snap');
   });
 
   it('waiting out a run is safe and reeling resumes afterwards', () => {
-    const s = setup({}, seq(0.5), tables([fishDef({ reelTurns: 30, runEveryS: 2, runS: 1 })]));
+    const s = setup({}, seq(0.5), tables([fishDef({ power: 30, runEveryS: 2, runS: 1 })]));
     s.toBite();
     s.act(hook(0));
     for (let i = 0; i < 400 && s.g.phase === 'reeling'; i++) s.step(50, s.g.running ? 0 : 3, 50);
@@ -175,15 +176,22 @@ describe('fishing loop', () => {
     expect(s.g.missReason).toBe('escape');
   });
 
-  it('bigger fish need more reel turns, and scale.reel stretches every fight', () => {
-    const turns = (size: number, over: Partial<Params> = {}) => {
+  it('bigger / harder fish reel in a little less per turn and strip more line; scale.reel stretches every fight', () => {
+    const fish = (size: number, over: Partial<Params> = {}, power = 15) => {
       // rng order: wait roll, hippo roll, bite roll, species roll, size roll, nibbles
-      const s = setup(over, seq(0, 0.9, 0, 0, size, 0));
+      const s = setup(over, seq(0, 0.9, 0, 0, size, 0), tables([fishDef({ power })]));
       s.toBite();
-      return s.g.fish!.turnsNeeded;
+      return s.g.fish!;
     };
-    expect(turns(0.9)).toBeGreaterThan(turns(0.1));
-    expect(turns(0.5, { 'scale.reel': 2 })).toBe(turns(0.5) * 2);
+    expect(fish(0.9).mPerTurn).toBeLessThan(fish(0.1).mPerTurn);
+    expect(fish(0.9).pullMps).toBeGreaterThan(fish(0.1).pullMps);
+    expect(fish(0.5, {}, 60).pullMps).toBeGreaterThan(fish(0.5).pullMps * 1.5);
+    // only a heavy fish makes an opening run right after the hook-set
+    expect(fish(0.5).openM).toBe(0);
+    expect(fish(0.9, {}, 60).openM).toBeGreaterThan(5);
+    // the heaviest fish still brings in ≥ 55% of the line per turn the lightest does (turns never feel dead)
+    expect(fish(1, {}, 60).mPerTurn / fish(0, {}, 15).mPerTurn).toBeGreaterThanOrEqual(0.55 - 1e-9);
+    expect(fish(0.5, { 'scale.reel': 2 }).mPerTurn).toBeCloseTo(fish(0.5).mPerTurn / 2, 9);
   });
 
   it('never waits longer than wait.maxS, even with a 0% bite chance', () => {
@@ -252,7 +260,7 @@ describe('species, places and baits (M2)', () => {
 describe('species behaviours (M2)', () => {
   /** hooked, reeling up to just before the first run (due at 2 s, rng 0.5 → behaviour: 0.5 < 0.55) */
   const fight = (behavior: SpeciesDef['behavior'], over: Partial<Params> = {}) => {
-    const s = setup({ 'fight.warnS': 0.5, ...over }, seq(0.5), tables([fishDef({ behavior, reelTurns: 100, runEveryS: 2, runS: 2 })]));
+    const s = setup({ 'fight.warnS': 0.5, ...over }, seq(0.5), tables([fishDef({ behavior, power: 20, runEveryS: 2, runS: 2 })]));
     s.toBite();
     s.act(hook(0));
     s.step(2000, 0);
@@ -277,9 +285,9 @@ describe('species behaviours (M2)', () => {
     const s = fight('dig');
     expect(s.g.runKind).toBe('dig');
     expect(s.g.mustStop).toBe(false);
-    const before = s.g.progress;
+    const before = s.g.lineM;
     s.step(1000, 2);
-    expect(s.g.progress - before).toBeCloseTo(2 * 0.35, 1);
+    expect(before - s.g.lineM).toBeCloseTo(2 * 0.35 * s.g.fish!.mPerTurn, 1);
     expect(s.g.tension).toBe(0);
   });
 
@@ -287,9 +295,9 @@ describe('species behaviours (M2)', () => {
     const s = fight('shock');
     expect(s.g.runKind).toBe('shock');
     expect(s.log.some((e) => e.type === 'runWarn')).toBe(false);
-    const before = s.g.progress;
+    const before = s.g.lineM;
     s.step(300, 3);
-    expect(s.g.progress).toBe(before);
+    expect(s.g.lineM).toBe(before);
   });
 
   it('a species without a behaviour only ever does plain runs', () => {
@@ -300,8 +308,8 @@ describe('species behaviours (M2)', () => {
 
 describe('interference events (M2)', () => {
   const thiefSetup = () => {
-    // event.thief 1: the thief always comes; rng 0.5 → at 30–75% of the fight (≈ 52%)
-    const s = setup({ 'event.thief': 1, 'event.warnS': 2, 'event.escapeTurns': 4 }, seq(0.5), tables([fishDef({ reelTurns: 20 })]));
+    // event.thief 1: the thief always comes; rng 0.5 → when 25–70% of the line is left (≈ 48%)
+    const s = setup({ 'event.thief': 1, 'event.warnS': 2, 'event.escapeTurns': 4 }, seq(0.5), tables([fishDef({ power: 20 })]));
     s.toBite();
     s.act(hook(0));
     return s;
@@ -341,10 +349,12 @@ describe('interference events (M2)', () => {
 });
 
 describe('fight length (real species table)', () => {
-  // A player reeling 2.5 turns/s who stops ~0.25 s into each run must land every species, and a
-  // legend should take about a minute at most (the M2 table made some sharks unlandable).
-  it('every species lands within 90 s at 2.5 turns/s', () => {
-    for (const def of SPECIES) {
+  // A player who stops ~0.25 s into each run must land every species — slow (1.8 turns/s) within
+  // 2 minutes, normal (2.5) within 90 s — and reeling faster must always land it sooner (the M2
+  // table made some sharks unlandable; the turn-count model made fast reeling look no faster).
+  /** seconds to land `def` at `rate`, or Infinity if not landed in 3 minutes */
+  const landS = (def: SpeciesDef, rate: number): number => {
+    {
       let seed = 4242;
       const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
       const P = { ...defaultParams(), ...QUIET };
@@ -361,13 +371,22 @@ describe('fight length (real species table)', () => {
       while (g.phase !== 'bite' && now < 60000) (now += 50), g.update(now, 0);
       g.onGesture(hook(now), now);
       const t0 = now;
-      while (g.phase === 'reeling' && now - t0 < 120000) {
+      while (g.phase === 'reeling' && now - t0 < 180000) {
         now += 50;
-        g.update(now, g.mustStop && g.runFrac(now) > 0.08 ? 0 : 2.5);
+        g.update(now, g.mustStop && g.runFrac(now) > 0.08 ? 0 : rate);
         g.drain();
       }
-      expect({ id: def.id, phase: g.phase }).toEqual({ id: def.id, phase: 'caught' });
-      expect((now - t0) / 1000, def.id).toBeLessThan(90);
+      return g.phase === 'caught' ? (now - t0) / 1000 : Infinity;
+    }
+  };
+  it('every species lands in time at slow and normal speed, and faster is always sooner', () => {
+    for (const def of SPECIES) {
+      const slow = landS(def, 1.8);
+      const normal = landS(def, 2.5);
+      const fast = landS(def, 4);
+      expect(slow, def.id).toBeLessThan(120);
+      expect(normal, def.id).toBeLessThan(90);
+      expect(fast, def.id).toBeLessThan(normal * 0.8);
     }
   });
 });

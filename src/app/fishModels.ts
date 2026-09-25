@@ -405,9 +405,8 @@ export function buildSpecies(id: string): THREE.Group {
         g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.006, 6), dark));
         const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 12), new THREE.MeshStandardMaterial({ color: 0xbffcff, emissive: 0x5ff2ff, emissiveIntensity: 4 }));
         bulb.position.set(0.62, H(0.8) + 0.12, 0);
-        const light = new THREE.PointLight(0x7ff6ff, 0.8, 1.5, 2);
-        light.position.copy(bulb.position);
-        g.add(bulb, light);
+        // glow only, no PointLight: adding a light when the fish appears recompiles every shader (a stall)
+        g.add(bulb);
         g.userData.glow = bulb;
         break;
       }
