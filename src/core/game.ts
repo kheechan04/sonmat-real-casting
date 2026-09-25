@@ -655,7 +655,10 @@ export class FishingGame {
     }
     if (!this.pumpReady) return;
     const gainM = P['pump.m'] * Math.min(1.6, Math.max(0.6, rise)) * (0.4 + this.fish.heavy);
-    this.lineM = Math.max(0, this.lineM - gainM);
+    // never the pump that lands it (a sudden end — user: "툭 끊기는 느낌"): the last metres are reeled
+    const floor = Math.min(this.lineM, P['pump.floorM']);
+    const got = Math.max(0, Math.min(gainM, this.lineM - floor));
+    this.lineM -= got;
     this.pumpBoostUntil = now + P['pump.boostS'] * 1000;
     // the fish is being led in: no run for a moment, so lift → lower-and-reel is one smooth move
     // (user: "들어올리자마자 치고 나가서 … 끊기는 느낌")
@@ -667,7 +670,7 @@ export class FishingGame {
     this.pumpReady = false;
     this.reelSincePump = 0;
     this.lastReelT = now;
-    this.emit({ type: 'pump', ok: true, gainM });
+    this.emit({ type: 'pump', ok: true, gainM: got });
   }
 
   /** How far through the current run we are, 0–1 (0 when not running) — drives the jump animation. */

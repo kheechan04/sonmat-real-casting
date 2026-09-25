@@ -35,6 +35,13 @@
       <svg id="biteRing" class="biteRing hidden" viewBox="0 0 44 44"><circle class="track" cx="22" cy="22" r="19" /><circle id="biteArc" class="arc" cx="22" cy="22" r="19" /></svg>
     </div>
 
+    <!-- M3 pumping: a vertical gauge beside the rod — fill it by lifting the rod hand -->
+    <div id="pumpGauge" class="pumpGauge hidden">
+      <div class="pgLabel">들어 올리기</div>
+      <div class="pgBar"><div id="pgFill" class="pgFill"></div><div class="pgLine"></div></div>
+      <div id="pgState" class="pgState"></div>
+    </div>
+
     <!-- M3: tags above the spots on the water while aiming -->
     <div id="spotTags" class="spotTags"></div>
 
@@ -114,7 +121,7 @@
         <div class="step"><span class="n">2</span><svg viewBox="0 0 48 48"><circle cx="24" cy="16" r="7" /><circle cx="24" cy="16" r="2.5" /><path d="M24 44 V28 M24 30 L12 20 M24 30 L36 20" class="dash" /></svg><b>노리기</b><span>물 위 🐦·💦 표시 쪽으로 손을 휘두르면 그쪽으로 날아가요</span></div>
         <div class="step"><span class="n">3</span><svg viewBox="0 0 48 48"><path d="M8 30 H40" class="water" /><rect x="22" y="12" width="4" height="18" rx="2" /><path d="M24 8 V4 M18 10 L15 7 M30 10 L33 7" /></svg><b>챔질</b><span>찌가 쑥 올라오거나 빨려 들어가면 손을 위로 "툭"</span></div>
         <div class="step"><span class="n">4</span><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="12" /><path d="M24 12 A12 12 0 0 1 36 24" class="arrow" /><circle cx="36" cy="24" r="3" /></svg><b>감기</b><span>반대 손으로 작은 원을 계속 — 차고 나가면 멈춰요</span></div>
-        <div class="step pro"><span class="n">큰 고기</span><svg viewBox="0 0 48 48"><path d="M16 42 L28 10" /><path d="M36 22 V8 M31 13 L36 8 L41 13" /><path d="M36 28 V42 M31 37 L36 42 L41 37" class="dash" /></svg><b>펌핑</b><span>화면에 ↑가 뜨면 대를 쭉 들어 올리고, ↓가 뜨면 내리면서 감기</span></div>
+        <div class="step pro"><span class="n">큰 고기</span><svg viewBox="0 0 48 48"><path d="M16 42 L28 10" /><path d="M36 22 V8 M31 13 L36 8 L41 13" /><path d="M36 28 V42 M31 37 L36 42 L41 37" class="dash" /></svg><b>펌핑</b><span>오른쪽 막대가 차도록 대를 들어 올리고, 내리면서 감기</span></div>
         <div class="step pro"><span class="n">큰 고기</span><svg viewBox="0 0 48 48"><rect x="4" y="21" width="40" height="6" rx="3" /><path d="M6 14 L14 10 L14 18 Z" /><path d="M42 36 L34 32 L34 40 Z" /><circle cx="36" cy="24" r="3" /></svg><b>버티기</b><span>차고 나갈 때 아래 막대의 "여기로!" 쪽으로 대 든 팔을 옮기기</span></div>
       </div>
       <p class="tip"><b>배꼽 위 상반신</b>이 화면에 들어오게 서 주세요 (1.5m쯤). 빈손으로 해요.</p>
@@ -145,7 +152,7 @@
       </div>
       <h3 class="howH">큰 물고기 기술</h3>
       <div class="how">
-        <div class="howRow"><svg viewBox="0 0 48 48"><path d="M16 42 L28 10" /><path d="M36 22 V8 M31 13 L36 8 L41 13" /><path d="M36 28 V42 M31 37 L36 42 L41 37" class="dash" /></svg><div><b>펌핑 — 화살표만 따라 하면 돼요</b><p>무거운 물고기는 감기만 하면 잘 안 올라와요. 화면 위에 <b>↑ 들어 올려요</b>가 뜨면 대 든 손을 쭉 들어 올려 끌어오고, <b>↓ 내리면서 감아요</b>가 뜨면 손을 천천히 내리면서 감아요. 다시 ↑가 뜰 때까지 반복.</p></div></div>
+        <div class="howRow"><svg viewBox="0 0 48 48"><path d="M16 42 L28 10" /><path d="M36 22 V8 M31 13 L36 8 L41 13" /><path d="M36 28 V42 M31 37 L36 42 L41 37" class="dash" /></svg><div><b>펌핑 — 오른쪽 세로 막대</b><p>무거운 물고기가 걸리면 낚싯대 옆에 세로 막대가 떠요. 대 든 손을 들어 올리면 막대가 차오르고, <b>윗선까지 차면 초록</b>이 되면서 물고기가 끌려와요. 막대가 <b>회색(내리면서 감기)</b>이면 손을 내리면서 감아요 — 다시 금색이 되면 또 들어 올려요. 마지막 몇 m는 감아서 마무리해요.</p></div></div>
         <div class="howRow"><svg viewBox="0 0 48 48"><rect x="4" y="21" width="40" height="6" rx="3" /><path d="M6 14 L14 10 L14 18 Z" /><path d="M42 36 L34 32 L34 40 Z" /><circle cx="36" cy="24" r="3" /></svg><div><b>버티기 — 줄다리기 막대</b><p>물고기가 차고 나가면 화면 아래에 막대가 떠요. 🐟가 당기는 반대쪽의 <b>"여기로!"</b> 칸에 흰 점(내 팔)이 들어가게 대 든 팔을 옆으로 옮겨요. 초록이 되면 성공 — 줄이 덜 풀리고 물고기가 빨리 지쳐요.</p></div></div>
       </div>
       <h3 class="howH">화면 보는 법</h3>

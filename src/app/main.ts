@@ -459,7 +459,7 @@ function onGameEvent(e: GameEvent, now: number): void {
       if (e.ok) {
         sfx.strain();
         scene.pumped(now);
-        popText(`영차! +${e.gainM.toFixed(1)}m`, 'gold', true);
+        pumpFlash = { t: now, gain: e.gainM };
       } else {
         sfx.hurry();
         popText('차고 나갈 땐 당기지 마요!', 'red', true);
@@ -628,16 +628,37 @@ function instructionFull(now: number): { msg: string; sub: string; tone?: 'alert
         return { msg: t.now, sub: t.sub, tone: 'alert' };
       }
       if (game.runSoon) return { msg: RUN_TEXT[game.runKind].soon, sub: '', tone: 'alert' };
-      // M3 pumping as a two-step loop — only ever one arrow to follow (user: "들어올리고 언제 다시 내려야하는지 헷갈리네")
-      if (game.fish && game.fish.heavy > 0.3) {
-        if (!game.pumpReady || game.reelEfficiency(now) > 1)
-          return { msg: '↓ 내리면서 감아요', sub: '대 든 손을 천천히 내리면서 릴을 감아요 — 다음 ↑가 뜰 때까지', tone: 'alert' };
-        return { msg: '↑ 들어 올려요', sub: '무거운 물고기예요 — 대 든 손을 쭉 들어 올려 끌어와요 (펌핑)' };
-      }
+      // M3 pumping has its own gauge beside the rod; the top line stays steady
+      // (user: "들어올려요가 되게 헷갈리네 … 짧은 순간에 너무 많은 게 이루어지는 기분")
+      if (game.fish && game.fish.heavy > 0.3)
+        return { msg: '감아요', sub: '무거운 물고기 — 오른쪽 막대가 차도록 대 든 손을 들어 올리면 더 빨리 끌려와요' };
       return { msg: '감아요', sub: now - game.phaseT < 4000 ? '릴 손으로 작은 원을 계속 돌려요' : '' };
     default:
       return { msg: '', sub: '' };
   }
+}
+
+/** the last good pump, for the gauge's green flash + "+1.2m" */
+let pumpFlash = { t: -1e9, gain: 0 };
+
+/**
+ * M3 pumping gauge beside the rod: fills as the rod hand rises; full = a pump (green + the metres
+ * gained). Grey while it can't pump yet (hand not back down, or not reeled since). Heavy fish only,
+ * hidden during runs (the tug bar has the stage then).
+ */
+function updatePumpGauge(now: number): void {
+  const on = !!game.fish && game.fish.heavy > 0.3 && !game.mustStop && !game.runSoon && !game.thief;
+  show('pumpGauge', on);
+  if (!on) return;
+  const st = source.running ? tracker.state(now) : null;
+  const fired = now - pumpFlash.t < 900;
+  const ready = game.pumpReady && (st ? st.pumpArmed : true);
+  const g = $('pumpGauge');
+  g.classList.toggle('fired', fired);
+  g.classList.toggle('wait', !fired && !ready);
+  const fill = fired ? 1 : st ? st.pumpFill : 0;
+  ($('pgFill') as HTMLElement).style.height = `${Math.round(fill * 100)}%`;
+  $('pgState').textContent = fired ? `+${pumpFlash.gain.toFixed(1)}m 좋아요!` : ready ? '' : '내리면서 감기';
 }
 
 /** M3: "🐦 새 떼 18m" tags above the spots while the player aims (ready) and the cast flies. */
@@ -730,8 +751,10 @@ function updateHud(now: number): void {
     gFill.classList.toggle('hot', t >= 0.75);
     $('tensionText').textContent = t >= 0.75 ? '위험!' : t >= 0.3 ? '팽팽' : '여유';
     updateTug(); // (the red pill above the console repeated the top line — removed)
+    updatePumpGauge(now);
   }
   updateSpotTags();
+  if (game.phase !== 'reeling') show('pumpGauge', false);
 
   const warn = postureWarning();
   $('pipWarn').textContent = warn;

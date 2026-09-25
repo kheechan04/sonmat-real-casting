@@ -48,6 +48,10 @@ export interface GestureState {
   rodLift: number | null;
   /** rod hand sideways from its shoulder, torso lengths, + = the player's left (null = not seen) */
   rodSide: number | null;
+  /** pump gauge: how far toward a pump the rod hand has risen, 0 … 1 (1 = a pump fires) */
+  pumpFill: number;
+  /** a pump can fire now (false after one, until the hand comes down again) */
+  pumpArmed: boolean;
 }
 
 class Ring {
@@ -100,6 +104,7 @@ export class GestureTracker {
   private heights: { t: number; y: number }[] = [];
   private pumpArmed = true;
   private pumpTopY = 0;
+  private pumpFill = 0;
 
   constructor(private params: () => Params) {}
 
@@ -111,6 +116,7 @@ export class GestureTracker {
     this.reelRate = 0;
     this.heights = [];
     this.pumpArmed = true;
+    this.pumpFill = 0;
   }
 
   state(now: number): GestureState {
@@ -122,6 +128,8 @@ export class GestureTracker {
       rodSpeed: this.lastSpeed,
       rodLift: lastRod ? -lastRod[1] : null,
       rodSide: lastRod ? lastRod[0] : null,
+      pumpFill: this.pumpFill,
+      pumpArmed: this.pumpArmed,
       // a stale estimate (no reel-hand frame lately) counts as not reeling
       reelRate: now - this.reelT > 300 ? 0 : this.reelRate,
     };
@@ -189,6 +197,7 @@ export class GestureTracker {
       while (this.heights.length && this.heights[0].t < t - PUMP_WINDOW_MS) this.heights.shift();
       if (this.pumpArmed) {
         const low = this.heights.reduce((m, h) => Math.max(m, h.y), -Infinity);
+        this.pumpFill = Math.max(0, Math.min(1, (low - rodP[1]) / P['pump.riseMin']));
         if (low - rodP[1] >= P['pump.riseMin']) {
           out.push({ type: 'pump', t, rise: low - rodP[1] });
           this.pumpArmed = false;
@@ -196,9 +205,12 @@ export class GestureTracker {
         }
       } else {
         this.pumpTopY = Math.min(this.pumpTopY, rodP[1]);
+        // coming back down: the gauge drains with the hand
+        this.pumpFill = Math.max(0, 1 - (rodP[1] - this.pumpTopY) / P['pump.rearmDrop']);
         if (rodP[1] - this.pumpTopY >= P['pump.rearmDrop']) {
           this.pumpArmed = true;
           this.heights = [{ t, y: rodP[1] }]; // the next lift is measured from here
+          this.pumpFill = 0;
         }
       }
     }
