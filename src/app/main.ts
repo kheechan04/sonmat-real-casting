@@ -400,7 +400,10 @@ function onGameEvent(e: GameEvent, now: number): void {
       }
       if (e.phase !== 'caught') show('rays', false); // caught: set by the 'caught' event just before
       if (e.phase === 'reeling') almostShown = false;
-      if (e.phase === 'bait') fillBaits();
+      if (e.phase === 'bait') {
+        fillBaits();
+        void scene.setPlace(game.location.id); // photos load while the bait is chosen
+      }
       if (e.phase === 'waiting') {
         sfx.plop();
         scene.fx('land');

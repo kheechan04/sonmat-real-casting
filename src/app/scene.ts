@@ -16,22 +16,54 @@ import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { Water } from 'three/examples/jsm/objects/Water.js';
 import { FLIGHT_S, type FishingGame } from '../core/game';
 import type { Side } from '../core/pose';
+import type { LocationId } from '../core/species';
 /** Stand-in model palettes until the per-species models (M2 step 4). */
 type Species = 'crucian' | 'carp';
 
 const BASE = import.meta.env.BASE_URL;
-const BACKDROP_URL = `${BASE}env/bell_park_pier.jpg`;
-const HDR_URL = `${BASE}env/bell_park_pier_1k.hdr`;
 const WATER_NORMALS_URL = `${BASE}tex/waternormals.jpg`;
 const PLANK_URL = (map: string) => `${BASE}tex/weathered_planks_${map}_1k.jpg`;
+const ROCK_URL = (map: string) => `${BASE}tex/dry_riverbed_rock_${map}_1k.jpg`;
 const MODEL_URL = (id: string) => `${BASE}models/${id}/${id}_1k.gltf`;
 /** Deck surface height above the water, m. The eye is EYE_M above the water. */
 const DECK_Y = 0.4;
 
 /** Eye height above the water, m (tuned so a float at 20 m sits where the photo's water is). */
 const EYE_M = 2.0;
-/** Panorama yaw so that open water + hills are straight ahead (tuned by screenshot). */
-const PANO_YAW = -0.45;
+/**
+ * One fishing place (M2). Backdrop + lighting photos are Poly Haven CC0 (docs/ASSETS.md).
+ * yaw: panorama turn so the open water is straight ahead; shoreRow: row (fraction of the photo's
+ * height) where the far shore / horizon meets the water — below it the photo is replaced by a
+ * mirror image (see mirroredBackdrop). Both tuned by screenshot.
+ */
+interface PlaceConfig {
+  photo: string;
+  yaw: number;
+  shoreRow: number;
+  water: { color: number; distortion: number; size: number; sunColor: number; sunDir: [number, number, number] };
+  exposure: number;
+  ground: 'deck' | 'rock' | 'boat';
+  grass: boolean;
+}
+
+const PLACES: Record<LocationId, PlaceConfig> = {
+  reservoir: {
+    photo: 'bell_park_pier', yaw: -0.45, shoreRow: 2036 / 4096, exposure: 1, ground: 'deck', grass: true,
+    water: { color: 0x16302f, distortion: 0.5, size: 3.5, sunColor: 0x6b645a, sunDir: [-0.45, 0.5, 0.75] },
+  },
+  sea: {
+    photo: 'simons_town_rocks', yaw: -1.57, shoreRow: 0.5, exposure: 1, ground: 'rock', grass: false,
+    water: { color: 0x0c3a4c, distortion: 1.4, size: 1.4, sunColor: 0xfff0d0, sunDir: [0, 0.35, -1] },
+  },
+  deep: {
+    photo: 'the_sky_is_on_fire', yaw: 0, shoreRow: 0.5, exposure: 0.9, ground: 'boat', grass: false,
+    water: { color: 0x0b1726, distortion: 0.55, size: 1.2, sunColor: 0xff9a50, sunDir: [0, 0.12, -1] },
+  },
+  river: {
+    photo: 'river_rocks', yaw: 0, shoreRow: 0.53, exposure: 1, ground: 'rock', grass: true,
+    water: { color: 0x2e3320, distortion: 0.45, size: 3, sunColor: 0xfff0d0, sunDir: [0.3, 0.6, -0.7] },
+  },
+};
 const FLIGHT_MS = FLIGHT_S * 1000;
 const SWING_MS = 350;
 const LINE_POINTS = 40;
@@ -45,16 +77,30 @@ const BAND_H = 0.03;
 
 // ---------------------------------------------------------------- textures made in code
 
-/** Row (fraction of the panorama's height) where the far shore meets the water in the photo — found by the
- * luminance step at row 2036 of 4096 (land 68 → water 81–89). */
-const SHORE_ROW = 2036 / 4096;
 
 /**
  * The backdrop with the photo's own water replaced by a mirror image of the shore above it. The 3D water
  * reflects the backdrop; reflecting the photo's (bright) water showed as a light band under the horizon.
  * A still-lake mirror of the hills is what real water there would reflect.
  */
-function mirroredBackdrop(img: HTMLImageElement, maxWidth: number): HTMLCanvasElement {
+/** Average colour of the backdrop just above the shore line — the haze the far water fades into. */
+function horizonColor(c: HTMLCanvasElement, shoreRow: number): THREE.Color {
+  const g = c.getContext('2d')!;
+  const y = Math.max(0, Math.round(shoreRow * c.height) - 3);
+  const d = g.getImageData(0, y, c.width, 1).data;
+  let r = 0;
+  let gr = 0;
+  let b = 0;
+  const n = d.length / 4;
+  for (let i = 0; i < d.length; i += 4) {
+    r += d[i];
+    gr += d[i + 1];
+    b += d[i + 2];
+  }
+  return new THREE.Color().setRGB(r / n / 255, gr / n / 255, b / n / 255, THREE.SRGBColorSpace);
+}
+
+function mirroredBackdrop(img: HTMLImageElement, maxWidth: number, shoreRow: number): HTMLCanvasElement {
   const w = Math.min(maxWidth, img.width);
   const h = w / 2;
   const c = document.createElement('canvas');
@@ -62,7 +108,7 @@ function mirroredBackdrop(img: HTMLImageElement, maxWidth: number): HTMLCanvasEl
   c.height = h;
   const g = c.getContext('2d')!;
   g.drawImage(img, 0, 0, w, h);
-  const sy = Math.round(SHORE_ROW * h);
+  const sy = Math.round(shoreRow * h);
   g.save();
   g.translate(0, 2 * sy);
   g.scale(1, -1);
@@ -232,6 +278,10 @@ export class FishingScene {
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(50, 16 / 9, 0.05, 7000);
   private water: Water | null = null;
+  private skyMesh: THREE.Mesh | null = null;
+  private placeCache = new Map<LocationId, Promise<{ sky: THREE.Texture; env: THREE.Texture; haze: THREE.Color }>>();
+  private groups = { deck: new THREE.Group(), rock: new THREE.Group(), boat: new THREE.Group(), grass: new THREE.Group() };
+  private place: LocationId | null = null;
   private rodBase = new THREE.Group();
   private rodSegs: THREE.Group[] = [];
   private rodTip = new THREE.Object3D();
@@ -308,40 +358,84 @@ export class FishingScene {
   }
 
   private async loadEnvironment(): Promise<void> {
-    const [hdr, photo] = await Promise.all([
-      new HDRLoader().loadAsync(HDR_URL),
-      new THREE.TextureLoader().loadAsync(BACKDROP_URL),
-    ]);
-    // image-based lighting from the same place
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    hdr.mapping = THREE.EquirectangularReflectionMapping;
-    this.scene.environment = pmrem.fromEquirectangular(hdr).texture;
-    this.scene.environmentRotation.set(0, PANO_YAW, 0);
-    hdr.dispose();
-    pmrem.dispose();
-
-    // backdrop: the photo on an inside-out sphere, shown as-is (it is already tone-mapped)
-    photo.colorSpace = THREE.SRGBColorSpace;
-    photo.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-    // (older GPUs: 8192 px can be over the texture limit — mirroredBackdrop downscales then)
-    const map = new THREE.CanvasTexture(mirroredBackdrop(photo.image as HTMLImageElement, this.renderer.capabilities.maxTextureSize));
-    map.colorSpace = THREE.SRGBColorSpace;
-    map.anisotropy = photo.anisotropy;
-    photo.dispose();
+    for (const g of Object.values(this.groups)) this.scene.add(g);
     const sky = new THREE.SphereGeometry(800, 96, 48);
     sky.scale(-1, 1, 1);
-    const skyMesh = new THREE.Mesh(sky, new THREE.MeshBasicMaterial({ map, toneMapped: false, depthWrite: false, fog: false }));
-    skyMesh.frustumCulled = false;
-    skyMesh.rotation.y = PANO_YAW;
-    skyMesh.position.y = EYE_M; // centred on the eye like the camera that took the photo
-    skyMesh.renderOrder = -1;
-    this.scene.add(skyMesh);
+    this.skyMesh = new THREE.Mesh(sky, new THREE.MeshBasicMaterial({ toneMapped: false, depthWrite: false, fog: false }));
+    this.skyMesh.frustumCulled = false;
+    this.skyMesh.position.y = EYE_M; // centred on the eye like the camera that took the photo
+    this.skyMesh.renderOrder = -1;
+    this.scene.add(this.skyMesh);
     this.scene.background = null;
-
     await this.buildWater();
     this.buildDeck();
+    this.buildRock();
+    this.buildBoat();
     // props are decoration: a failed download must not stop the game
     await this.loadProps().catch((e) => console.warn('props failed to load', e));
+    await this.setPlace('reservoir');
+  }
+
+  /** Backdrop + lighting of one place (downloaded once, then cached). */
+  private loadPlace(id: LocationId): Promise<{ sky: THREE.Texture; env: THREE.Texture; haze: THREE.Color }> {
+    let p = this.placeCache.get(id);
+    if (!p) {
+      const cfg = PLACES[id];
+      p = (async () => {
+        const [hdr, photo] = await Promise.all([
+          new HDRLoader().loadAsync(`${BASE}env/${cfg.photo}_1k.hdr`),
+          new THREE.TextureLoader().loadAsync(`${BASE}env/${cfg.photo}.jpg`),
+        ]);
+        const pmrem = new THREE.PMREMGenerator(this.renderer);
+        hdr.mapping = THREE.EquirectangularReflectionMapping;
+        const env = pmrem.fromEquirectangular(hdr).texture;
+        hdr.dispose();
+        pmrem.dispose();
+        // (older GPUs: 8192 px can be over the texture limit — mirroredBackdrop downscales then)
+        const canvas = mirroredBackdrop(photo.image as HTMLImageElement, this.renderer.capabilities.maxTextureSize, cfg.shoreRow);
+        const haze = horizonColor(canvas, cfg.shoreRow);
+        const sky = new THREE.CanvasTexture(canvas);
+        sky.colorSpace = THREE.SRGBColorSpace;
+        sky.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+        photo.dispose();
+        return { sky, env, haze };
+      })();
+      this.placeCache.set(id, p);
+    }
+    return p;
+  }
+
+  /** Switch the world to another fishing place (M2). Resolves when its photos are shown. */
+  async setPlace(id: LocationId): Promise<void> {
+    if (this.place === id) return;
+    const cfg = PLACES[id];
+    const { sky, env, haze } = await this.loadPlace(id);
+    // far water fades into the photo's horizon colour — hides the reflection breaking up at grazing angles
+    this.scene.fog = new THREE.Fog(haze, 500, 3500);
+    this.place = id;
+    (this.skyMesh!.material as THREE.MeshBasicMaterial).map = sky;
+    (this.skyMesh!.material as THREE.MeshBasicMaterial).needsUpdate = true;
+    this.scene.environment = env;
+    this.setYaw(cfg.yaw);
+    this.renderer.toneMappingExposure = cfg.exposure;
+    if (this.water) {
+      const u = this.water.material.uniforms;
+      u.waterColor.value.setHex(cfg.water.color);
+      u.distortionScale.value = cfg.water.distortion;
+      u.size.value = cfg.water.size;
+      u.sunColor.value.setHex(cfg.water.sunColor);
+      u.sunDirection.value.set(...cfg.water.sunDir).normalize();
+    }
+    this.groups.deck.visible = cfg.ground === 'deck';
+    this.groups.rock.visible = cfg.ground === 'rock';
+    this.groups.boat.visible = cfg.ground === 'boat';
+    this.groups.grass.visible = cfg.grass;
+  }
+
+  /** Turn the panorama (tuning aid; also used by setPlace). */
+  setYaw(yaw: number): void {
+    if (this.skyMesh) this.skyMesh.rotation.y = yaw;
+    this.scene.environmentRotation.set(0, yaw, 0);
   }
 
   /** Reflecting water whose ripples keep moving (normal map scrolled over time). */
@@ -357,7 +451,7 @@ export class FishingScene {
       sunColor: 0x6b645a,
       waterColor: 0x16302f, // dark green reservoir water
       distortionScale: 0.5, // calm lake, not sea chop (compared 0.35 / 0.5 / 0.8 by screenshot)
-      fog: false,
+      fog: true, // far edge fades into the horizon haze (setPlace)
     });
     water.rotation.x = -Math.PI / 2;
     water.material.uniforms.size.value = 3.5; // finer ripples than the ocean default
@@ -383,14 +477,113 @@ export class FishingScene {
     });
     const deck = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.1, 7.5), wood);
     deck.position.set(0, DECK_Y - 0.05, -0.5); // from behind the player to 4.25 m ahead
-    this.scene.add(deck);
+    this.groups.deck.add(deck);
     const postMat = new THREE.MeshStandardMaterial({ color: 0x4a3b2b, roughness: 0.9 });
     for (const x of [-1.2, 1.2]) {
       for (const z of [-4.1, -1.6, 0.9]) {
         const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 1.4, 12), postMat);
         post.position.set(x, DECK_Y - 0.7, z);
-        this.scene.add(post);
+        this.groups.deck.add(post);
       }
+    }
+  }
+
+  /** A weathered rock ledge underfoot (sea shore, river bank) plus a few boulders. */
+  private buildRock(): void {
+    const loader = new THREE.TextureLoader();
+    const tex = (name: string, srgb: boolean, rep: number) => {
+      const t = loader.load(ROCK_URL(name));
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(rep, rep);
+      t.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+      if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+      return t;
+    };
+    const mat = new THREE.MeshStandardMaterial({
+      map: tex('diff', true, 5),
+      normalMap: tex('nor_gl', false, 5),
+      normalScale: new THREE.Vector2(1.6, 1.6),
+      color: 0xb8b4ae, // greyer than the texture's warm tone, like the granite in the photos
+      roughness: 0.95,
+    });
+    // lumpy blob: an icosphere pushed around by a few sine waves, then squashed
+    const blob = (r: number, seed: number, sx: number, sy: number, sz: number) => {
+      const g = new THREE.IcosahedronGeometry(r, 5);
+      const pos = g.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+        const n =
+          1 +
+          0.14 * Math.sin(x * 2.1 + seed) * Math.cos(z * 1.7 + seed * 2) +
+          0.07 * Math.sin(y * 5 + x * 3 + seed) +
+          0.035 * Math.sin(x * 11 + z * 9 + seed * 3) +
+          0.02 * Math.sin(z * 23 - x * 17 + seed);
+        pos.setXYZ(i, x * n * sx, y * n * sy, z * n * sz);
+      }
+      g.computeVertexNormals();
+      return new THREE.Mesh(g, mat);
+    };
+    const ledge = blob(1, 1, 2.6, 0.35, 3.2);
+    ledge.position.set(0, DECK_Y - 0.2, -0.6);
+    this.groups.rock.add(ledge);
+    for (const [x, z, r, sd] of [[-2.6, -3.6, 0.7, 2], [2.4, -4.4, 0.55, 3], [-3.8, -1.5, 0.9, 4], [3.6, -2, 0.8, 5]] as const) {
+      const b = blob(r, sd, 1.2, 0.8, 1.1);
+      b.position.set(x, 0.05, z);
+      this.groups.rock.add(b);
+    }
+  }
+
+  /** Boat bow for the deep drop: deck, gunwale rail, rod holder, and two fish-lamps (집어등). */
+  private buildBoat(): void {
+    const hull = new THREE.MeshStandardMaterial({ color: 0xe8ecef, roughness: 0.4 });
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(3, 0.12, 5), new THREE.MeshStandardMaterial({ color: 0x3d4549, roughness: 0.9 }));
+    deck.position.set(0, DECK_Y + 0.1, -0.8);
+    this.groups.boat.add(deck);
+    // gunwale: a U-shaped rail around the bow
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-1.5, DECK_Y + 0.55, 1.5),
+      new THREE.Vector3(-1.5, DECK_Y + 0.55, -2.2),
+      new THREE.Vector3(-0.6, DECK_Y + 0.55, -3.4),
+      new THREE.Vector3(0, DECK_Y + 0.55, -3.7),
+      new THREE.Vector3(0.6, DECK_Y + 0.55, -3.4),
+      new THREE.Vector3(1.5, DECK_Y + 0.55, -2.2),
+      new THREE.Vector3(1.5, DECK_Y + 0.55, 1.5),
+    ]);
+    const rail = new THREE.Mesh(new THREE.TubeGeometry(curve, 80, 0.07, 10), hull);
+    this.groups.boat.add(rail);
+    // rail posts down to the deck
+    for (let i = 0; i <= 8; i++) {
+      const p = curve.getPoint(i / 8);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.45, 8), hull);
+      post.position.set(p.x, p.y - 0.225, p.z);
+      this.groups.boat.add(post);
+    }
+    // fish-lamps on a pole: glowing bulbs that light the water at dusk
+    const glowTex = (() => {
+      const c = document.createElement('canvas');
+      c.width = c.height = 64;
+      const g = c.getContext('2d')!;
+      const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, 'rgba(255,250,220,1)');
+      gr.addColorStop(0.3, 'rgba(255,230,160,0.5)');
+      gr.addColorStop(1, 'rgba(255,220,140,0)');
+      g.fillStyle = gr;
+      g.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    })();
+    for (const x of [-1.3, 1.3]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x555a60, metalness: 0.8, roughness: 0.4 }));
+      pole.position.set(x, DECK_Y + 1.5, -2.4);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 16, 12), new THREE.MeshStandardMaterial({ color: 0xfff6d8, emissive: 0xfff0c0, emissiveIntensity: 3 }));
+      bulb.position.set(x, DECK_Y + 2.55, -2.4);
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+      glow.scale.set(1.4, 1.4, 1);
+      glow.position.copy(bulb.position);
+      const light = new THREE.PointLight(0xffe6b0, 6, 14, 1.6);
+      light.position.copy(bulb.position);
+      this.groups.boat.add(pole, bulb, glow, light);
     }
   }
 
@@ -399,16 +592,18 @@ export class FishingScene {
     const [stool, bucket, grass] = await Promise.all(
       ['folding_wooden_stool', 'wooden_bucket_01', 'grass_medium_02'].map((id) => loader.loadAsync(MODEL_URL(id))),
     );
-    const place = (src: THREE.Object3D, x: number, y: number, z: number, rotY: number, scale = 1) => {
+    const place = (src: THREE.Object3D, x: number, y: number, z: number, rotY: number, scale = 1, group: THREE.Group = this.groups.grass) => {
       const o = src.clone();
       o.position.set(x, y, z);
       o.rotation.y = rotY;
       o.scale.setScalar(scale);
-      this.scene.add(o);
+      group.add(o);
       return o;
     };
-    place(stool.scene, -0.8, DECK_Y, -3.3, 0.5);
-    place(bucket.scene, 0.85, DECK_Y, -3.6, -0.3);
+    place(stool.scene, -0.8, DECK_Y, -3.3, 0.5, 1, this.groups.deck);
+    place(bucket.scene, 0.85, DECK_Y, -3.6, -0.3, 1, this.groups.deck);
+    place(bucket.scene, -1.1, DECK_Y + 0.02, -2.6, 0.8, 1, this.groups.rock);
+    place(bucket.scene, 1.0, DECK_Y + 0.16, -2.3, 0.2, 1, this.groups.boat);
     // grass in patches along both shores (shallow water), not scattered over open water
     const rng = (i: number) => Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
     let k = 0;
@@ -673,9 +868,12 @@ export class FishingScene {
           bend = 1.2 * Math.sin((since / SWING_MS) * Math.PI);
         } else elev = 0.5;
         break;
+      case 'nibble':
+        if (g.nibbling) bend = 0.3 + Math.abs(Math.sin(now / 55)) * (g.location.noFloat ? 0.7 : 0.25);
+        break;
       case 'bite':
         elev = 0.45;
-        bend = 0.9 + Math.sin(now / 50) * 0.08;
+        bend = (g.location.noFloat ? 1.6 : 0.9) + Math.sin(now / 50) * 0.1;
         break;
       case 'reeling':
         // held lower so the whole bent arc stays in view
@@ -696,13 +894,15 @@ export class FishingScene {
     const tip = this.rodTip.getWorldPosition(new THREE.Vector3());
 
     // ---- float
-    const landing = new THREE.Vector3(0.9 * side, 0, -g.distanceM);
+    // deep drop: no float — the line goes straight down just off the bow, the bite shows on the rod tip
+    const deepRig = !!g.location.noFloat;
+    const landing = deepRig ? new THREE.Vector3(0.6 * side, 0, -4.2) : new THREE.Vector3(0.9 * side, 0, -g.distanceM);
     const fp = this.floatPos.copy(landing);
     // rise, in bands of the 찌톱: 0 = normal (3 of 4 bands showing), +1.5 = 찌올림, −4 = under
     let rise = 0;
     let tilt = 0;
     const showFloat = !['bait', 'ready', 'missed', 'caught'].includes(g.phase);
-    this.float.visible = showFloat;
+    this.float.visible = showFloat && !deepRig;
     if (g.phase === 'flight') {
       const u = Math.min(1, since / FLIGHT_MS);
       fp.lerpVectors(tip, landing, u);
@@ -713,14 +913,24 @@ export class FishingScene {
     } else if (g.phase === 'nibble') {
       rise = g.nibbling ? -1.2 * Math.abs(Math.sin(now / 70)) : Math.sin(now / 900) * 0.15;
     } else if (g.phase === 'bite' && g.fish) {
-      if (g.fish.def.bite === 'rise') {
-        // 찌올림: the classic crucian bite — the float rises slowly, band by band
-        rise = Math.min(1.8, since / 500);
-      } else {
-        // 잉어: sucked under and dragged
-        rise = -Math.min(4.5, since / 60);
-        fp.x += Math.min(1, since / 800) * 0.6 * side;
+      switch (g.fish.def.bite) {
+        case 'rise': // 찌올림: the classic crucian bite — the float rises slowly, band by band
+          rise = Math.min(1.8, since / 500);
+          break;
+        case 'drag': // taken sideways and pulled under by a running predator
+          rise = -Math.min(3, since / 150);
+          fp.x += Math.min(1.6, since / 400) * side;
+          fp.z += Math.min(1, since / 700);
+          break;
+        case 'slam': // gone in one go
+          rise = -4.5;
+          break;
+        default: // sink: sucked under, drifting a little
+          rise = -Math.min(4.5, since / 60);
+          fp.x += Math.min(1, since / 800) * 0.6 * side;
       }
+    } else if (g.phase === 'reeling' && g.fish && deepRig) {
+      // the fish comes up from the deep under the bow
     } else if (g.phase === 'reeling' && g.fish) {
       const out = g.lineOutM();
       fp.z = -Math.max(1.5, out);
@@ -728,7 +938,7 @@ export class FishingScene {
       rise = -2;
       tilt = g.running ? 0.9 : 0.5;
     }
-    if (g.phase !== 'flight') fp.y = -BAND_H * FLOAT_SCALE * (1 - rise);
+    if (g.phase !== 'flight') fp.y = deepRig ? 0 : -BAND_H * FLOAT_SCALE * (1 - rise);
     this.float.position.copy(fp);
     this.float.rotation.set(g.phase === 'flight' ? tilt : 0, 0, g.phase === 'flight' ? 0 : tilt * -side * 0.5);
 
