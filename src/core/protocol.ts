@@ -78,6 +78,9 @@ export const PROTOCOL: readonly ProtocolItem[] = [
     how: '대 손을 가슴 높이에서 얼굴 높이까지 2초 동안 천천히 들어 올린 뒤, 빠르게 내리면서 반대 손으로 감기 — 이걸 계속 반복 (약 8번)' },
   { id: 'G5', check: 'tilt', hand: 'both', seconds: 30, note: '가까이: {rod} 대 좌우로 눕히기 30초 (감으면서)',
     how: '반대 손으로 계속 감으면서, 대 손을 내 왼쪽으로 크게 눕혀 3초 → 가운데 → 오른쪽으로 3초 → 가운데를 반복' },
+  // G5 (wrist tilt) moved the wrist only ±0.15 torso — same as fidgeting (E3). User chose a whole-arm move instead.
+  { id: 'G6', check: 'tilt', hand: 'both', seconds: 30, note: '가까이: {rod} 대 팔째로 옆으로 옮기기 30초 (감으면서)',
+    how: '반대 손으로 계속 감으면서, 대 든 팔 전체를 내 왼쪽 옆으로 크게 옮겨 3초 버티기 → 가운데 → 오른쪽 옆으로 3초 → 가운데를 반복' },
 ];
 
 export const handName = (s: Side) => (s === 'left' ? '왼손' : '오른손');
