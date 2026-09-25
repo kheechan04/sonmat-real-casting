@@ -266,8 +266,11 @@ export class FishingGame {
     const P = this.params();
     const here = this.speciesHere();
     const b = this.bait;
+    // tier weights are per TIER (split among that tier's species here), so every place gives each
+    // rarity the same odds no matter how many species it has (per-species weights made legends ~1%)
+    const tierCount = (t: SpeciesDef['tier']) => here.filter((x) => x.tier === t).length || 1;
     const weight = (s: SpeciesDef) =>
-      Math.max(0, P[TIER_KEY[s.tier]] * (b.tierMul?.[s.tier] ?? 1) * (b.speciesMul?.[s.id] ?? 1));
+      Math.max(0, (P[TIER_KEY[s.tier]] / tierCount(s.tier)) * (b.tierMul?.[s.tier] ?? 1) * (b.speciesMul?.[s.id] ?? 1));
     const total = here.reduce((sum, s) => sum + weight(s), 0);
     let r = this.rng() * (total || 1);
     let def = here[0];

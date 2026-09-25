@@ -29,7 +29,8 @@ function tables(species: SpeciesDef[] = [fishDef({})]): Tables {
 }
 
 /** No interference unless a test asks for it. */
-const QUIET: Partial<Params> = { 'event.thief': 0, 'event.spooker': 0 };
+/** No interference, and timing tests use unscaled waits (the play default shortens them). */
+const QUIET: Partial<Params> = { 'event.thief': 0, 'event.spooker': 0, 'scale.wait': 1, 'wait.maxS': 40 };
 
 function setup(over: Partial<Params> = {}, rng = seq(0.5), t = tables()) {
   const P = { ...defaultParams(), ...QUIET, ...over };
@@ -212,6 +213,17 @@ describe('species, places and baits (M2)', () => {
     expect(pick({})).toBe('common'); // 60 vs 2.5
     expect(pick({ 'tier.common': 0 })).toBe('legend');
     expect(pick({}, { legend: 100 })).toBe('legend');
+  });
+
+  it('rarity weights are per tier, not per species (three commons do not drown the legend)', () => {
+    const species = [
+      fishDef({ id: 'c1' }), fishDef({ id: 'c2' }), fishDef({ id: 'c3' }),
+      fishDef({ id: 'L', tier: 'legend' }),
+    ];
+    const s = setup({ 'tier.common': 50, 'tier.uncommon': 0, 'tier.rare': 0, 'tier.legend': 50 }, seq(0, 0.9, 0, 0.6, 0.5, 0), tables(species));
+    s.toBite();
+    // commons share 50 of 100 → a roll of 0.6 lands on the legend (per-species weights would give 150 vs 50)
+    expect(s.g.fish!.def.id).toBe('L');
   });
 
   it('bait size bias skews the length', () => {

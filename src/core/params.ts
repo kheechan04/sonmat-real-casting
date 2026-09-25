@@ -41,16 +41,18 @@ const DEFS = {
   'reel.windowMs': [400, m('릴링', '속도 평균 창', 150, 1000, 50, 'ms')],
 
   // ---- how often each rarity shows up (weights; each bait multiplies them — species.ts)
-  'tier.common': [60, m('출현 비중', '흔함', 0, 100, 1)],
+  // per rarity TIER (shared by the tier's species at a place): ≈ 55 / 25 / 12 / 8 % before bait bonuses.
+  // User (M2): legends should show up "종종", not almost never.
+  'tier.common': [55, m('출현 비중', '흔함', 0, 100, 1)],
   'tier.uncommon': [25, m('출현 비중', '보통', 0, 100, 1)],
-  'tier.rare': [9, m('출현 비중', '희귀', 0, 100, 0.5)],
-  'tier.legend': [2.5, m('출현 비중', '전설', 0, 30, 0.5)],
+  'tier.rare': [12, m('출현 비중', '희귀', 0, 100, 0.5)],
+  'tier.legend': [8, m('출현 비중', '전설', 0, 30, 0.5)],
 
   // ---- global multipliers over the per-species / per-bait tables in species.ts
   // A bite check happens after a random wait in [bait waitMin, waitMax] × scale.wait; it succeeds with the
   // bait's biteChance, otherwise the next check comes after half as long. wait.maxS forces a bite.
-  'scale.wait': [1, m('전체 배율', '대기 시간', 0.2, 3, 0.05)],
-  'wait.maxS': [40, m('전체 배율', '최대 대기 (넘으면 무조건 입질)', 5, 90, 1, '초')], // DESIGN §3: never over 40 s
+  'scale.wait': [0.6, m('전체 배율', '대기 시간', 0.2, 3, 0.05)], // user (M2): shorter waits — a game, not a stakeout
+  'wait.maxS': [25, m('전체 배율', '최대 대기 (넘으면 무조건 입질)', 5, 90, 1, '초')], // DESIGN §3: never over 40 s
   'scale.biteWindow': [1, m('전체 배율', '챔질 제한 시간', 0.3, 3, 0.05)],
   'scale.reel': [1, m('전체 배율', '릴링 길이', 0.2, 3, 0.05)],
   'scale.runEvery': [1, m('전체 배율', '차고 나가는 간격', 0.3, 3, 0.05)],
