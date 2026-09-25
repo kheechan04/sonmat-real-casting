@@ -14,11 +14,10 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { Water } from 'three/examples/jsm/objects/Water.js';
+import { buildSpecies } from './fishModels';
 import { FLIGHT_S, type FishingGame } from '../core/game';
 import type { Side } from '../core/pose';
 import type { LocationId } from '../core/species';
-/** Stand-in model palettes until the per-species models (M2 step 4). */
-type Species = 'crucian' | 'carp';
 
 const BASE = import.meta.env.BASE_URL;
 const WATER_NORMALS_URL = `${BASE}tex/waternormals.jpg`;
@@ -135,130 +134,6 @@ function ringTexture(): THREE.Texture {
   return t;
 }
 
-/** Fish-scale relief for the body's bump map. */
-function scaleTexture(): THREE.Texture {
-  const c = document.createElement('canvas');
-  c.width = c.height = 256;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#808080';
-  g.fillRect(0, 0, 256, 256);
-  const r = 16;
-  for (let row = -1; row < 256 / (r * 0.75) + 1; row++) {
-    for (let col = -1; col < 256 / r + 1; col++) {
-      const x = col * r + (row % 2) * (r / 2);
-      const y = row * r * 0.75;
-      const grad = g.createRadialGradient(x, y + r * 0.3, 1, x, y, r * 0.75);
-      grad.addColorStop(0, '#9a9a9a');
-      grad.addColorStop(0.8, '#7a7a7a');
-      grad.addColorStop(1, '#4a4a4a');
-      g.fillStyle = grad;
-      g.beginPath();
-      g.arc(x, y, r * 0.75, 0, Math.PI);
-      g.fill();
-    }
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(6, 2);
-  return t;
-}
-
-// ---------------------------------------------------------------- fish stand-in
-
-const PALETTE: Record<Species, { back: THREE.Color; side: THREE.Color; belly: THREE.Color; fin: number }> = {
-  crucian: { back: new THREE.Color(0x2f3320), side: new THREE.Color(0xa88d45), belly: new THREE.Color(0xe8dcb2), fin: 0x5b4d2a },
-  carp: { back: new THREE.Color(0x2b2216), side: new THREE.Color(0x8e6c3a), belly: new THREE.Color(0xe0cfa0), fin: 0x5a3f22 },
-};
-
-/** Body 1 unit long along x (head at +x), laterally compressed, tapering to the tail. */
-function buildFish(species: Species, scales: THREE.Texture): THREE.Group {
-  const pal = PALETTE[species];
-  const deep = species === 'crucian' ? 0.2 : 0.16; // crucians are deep-bodied, carp longer
-  const geo = new THREE.SphereGeometry(0.5, 64, 32);
-  const pos = geo.attributes.position as THREE.BufferAttribute;
-  const colors: number[] = [];
-  const tmp = new THREE.Color();
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i);
-    let y = pos.getY(i);
-    let z = pos.getZ(i);
-    const u = x + 0.5; // 0 tail … 1 head
-    // height profile: peak a bit ahead of the middle, pinched at the tail stalk, rounded head
-    const prof = Math.sin(Math.PI * Math.min(1, Math.max(0, u * 0.92 + 0.04))) ** 0.8 * (0.35 + 0.65 * Math.min(1, u * 2.2));
-    y = (y / 0.5) * deep * prof + (y > 0 ? 0.015 * prof : 0);
-    z = (z / 0.5) * 0.075 * prof;
-    pos.setXYZ(i, x, y, z);
-    // colour: dark back → golden side → pale belly
-    const k = THREE.MathUtils.clamp((y / (deep * prof + 1e-4) + 1) / 2, 0, 1);
-    if (k > 0.55) tmp.copy(pal.side).lerp(pal.back, (k - 0.55) / 0.45);
-    else tmp.copy(pal.belly).lerp(pal.side, k / 0.55);
-    colors.push(tmp.r, tmp.g, tmp.b);
-  }
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  geo.computeVertexNormals();
-  const skin = new THREE.MeshPhysicalMaterial({
-    vertexColors: true,
-    roughness: 0.32,
-    metalness: 0.25,
-    clearcoat: 0.8,
-    clearcoatRoughness: 0.25,
-    bumpMap: scales,
-    bumpScale: 0.6,
-    iridescence: 0.35,
-  });
-  const body = new THREE.Mesh(geo, skin);
-
-  // fins: thin and translucent, lit from behind by the sky
-  const finMat = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(pal.fin).lerp(pal.side, 0.35),
-    roughness: 0.55,
-    transmission: 0.5,
-    thickness: 0.01,
-    transparent: true,
-    opacity: 0.72,
-    side: THREE.DoubleSide,
-  });
-  /** Fin outline from a start point and [control, end] quadratic segments. */
-  const fin = (start: [number, number], segs: [number, number, number, number][]) => {
-    const sh = new THREE.Shape();
-    sh.moveTo(start[0], start[1]);
-    for (const [cx, cy, x, y] of segs) sh.quadraticCurveTo(cx, cy, x, y);
-    return new THREE.Mesh(new THREE.ShapeGeometry(sh, 16), finMat);
-  };
-  // forked tail with rounded lobes
-  const tail = fin([0.02, 0.03], [
-    [-0.08, 0.08, -0.2, 0.19], [-0.25, 0.2, -0.24, 0.13], [-0.19, 0.05, -0.15, 0],
-    [-0.19, -0.05, -0.24, -0.13], [-0.25, -0.2, -0.2, -0.19], [-0.08, -0.08, 0.02, -0.03],
-  ]);
-  tail.position.x = -0.46;
-  const dorsal = fin([0.14, -0.01], [[0.1, 0.12, 0.0, 0.11], [-0.14, 0.09, -0.2, -0.01]]);
-  dorsal.position.set(0, deep * 0.92, 0);
-  const anal = fin([0.0, 0.01], [[-0.02, -0.08, -0.08, -0.08], [-0.13, -0.05, -0.15, 0.01]]);
-  anal.position.set(-0.2, -deep * 0.68, 0);
-  const pect = fin([0, 0], [[-0.06, -0.01, -0.11, -0.04], [-0.07, -0.07, 0, 0]]);
-  pect.position.set(0.24, -deep * 0.35, 0.07);
-  pect.rotation.y = -0.4;
-
-  const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.028, 16, 12), new THREE.MeshStandardMaterial({ color: 0xd8c690, roughness: 0.3 }));
-  const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.017, 16, 12), new THREE.MeshPhysicalMaterial({ color: 0x050505, roughness: 0.05, clearcoat: 1 }));
-  eyeWhite.position.set(0.36, deep * 0.28, 0.055);
-  pupil.position.set(0.37, deep * 0.28, 0.07);
-
-  const g = new THREE.Group();
-  g.add(body, tail, dorsal, anal, pect, eyeWhite, pupil);
-  if (species === 'carp') {
-    // barbels (잉어 수염)
-    const barbel = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.002, 0.06, 6), new THREE.MeshStandardMaterial({ color: pal.fin }));
-    barbel.rotation.z = 1.2;
-    barbel.position.set(0.5, -0.03, 0.03);
-    const b2 = barbel.clone();
-    b2.position.z = -0.03;
-    g.add(barbel, b2);
-  }
-  g.userData.tail = tail;
-  return g;
-}
-
 // ---------------------------------------------------------------- rod
 
 const ROD_LEN = 2.7;
@@ -291,12 +166,13 @@ export class FishingScene {
   private lineMat: THREE.LineBasicMaterial;
   private ringTex = ringTexture();
   private ripples: Ripple[] = [];
-  private fishes: Record<Species, THREE.Group>;
+  /** per-species models, built the first time that species is caught */
+  private fishes = new Map<string, THREE.Group>();
   private shadow: THREE.Mesh;
   private lastPhase = '';
   private rodHand: Side = 'right';
   private floatPos = new THREE.Vector3();
-  private catchSpecies: Species | null = null;
+  private catchSpecies: string | null = null;
   // ---- exaggerated effects (M1.5 feedback: "화면 이펙트 더 과장돼도 좋을 거 같아")
   /** camera shake energy 0–1 (squared for the offset) */
   private trauma = 0;
@@ -345,12 +221,6 @@ export class FishingScene {
     this.shadow.rotation.x = -Math.PI / 2;
     this.scene.add(this.shadow);
 
-    const scales = scaleTexture();
-    this.fishes = { crucian: buildFish('crucian', scales), carp: buildFish('carp', scales) };
-    for (const f of Object.values(this.fishes)) {
-      f.visible = false;
-      this.scene.add(f);
-    }
 
     this.buildDrops();
     this.ready = this.loadEnvironment();
@@ -986,16 +856,26 @@ export class FishingScene {
     }
 
     // ---- catch close-up: the fish held up in front of the camera
-    const showFish: Species | null = g.phase === 'caught' && g.fish ? (g.fish.def.id === 'carp' ? 'carp' : 'crucian') : null;
+    const showFish = g.phase === 'caught' && g.fish ? g.fish.def.id : null;
     if (showFish !== this.catchSpecies) {
-      for (const [sp, f] of Object.entries(this.fishes)) f.visible = sp === showFish;
+      if (showFish && !this.fishes.has(showFish)) {
+        const m = buildSpecies(showFish);
+        this.fishes.set(showFish, m);
+        this.scene.add(m);
+      }
+      for (const [sp, f] of this.fishes) f.visible = sp === showFish;
       this.catchSpecies = showFish;
     }
     if (showFish && g.fish) {
-      const f = this.fishes[showFish];
+      const f = this.fishes.get(showFish)!;
       const lenM = g.fish.lengthCm / 100;
-      f.scale.setScalar(lenM * 1.25);
-      const held = new THREE.Vector3(0.05, EYE_M + 0.02 + Math.sin(now / 500) * 0.01, -0.75 - lenM * 0.7);
+      // small fish are held up close (≈1.25× life size); big ones (sharks, oarfish) hang in the air
+      // farther out, at a distance where they fill most of the view
+      const big = lenM > 1.2;
+      const shown = big ? Math.min(lenM, 3.2 + Math.log(lenM)) : lenM * 1.25;
+      f.scale.setScalar(shown);
+      const dist = big ? 1.2 + shown * 0.85 : 0.75 + lenM * 0.7;
+      const held = new THREE.Vector3(0.05, EYE_M + 0.02 + (big ? shown * 0.12 : 0) + Math.sin(now / 500) * 0.01, -dist);
       const LEAP_MS = 750;
       if (since < LEAP_MS) {
         // leaps out of the water where the float was and arcs up to the camera, thrashing
@@ -1010,6 +890,8 @@ export class FishingScene {
         f.rotation.set(0.05, 0.25 + Math.sin(now / 1400) * 0.25, Math.sin(now / 180) * 0.06);
       }
       (f.userData.tail as THREE.Mesh).rotation.y = Math.sin(now / 120) * 0.35;
+      const glow = f.userData.glow as THREE.Mesh | undefined;
+      if (glow) glow.scale.setScalar(1 + Math.sin(now / 200) * 0.25); // anglerfish lure pulses
     }
 
     // ripples expand and fade
