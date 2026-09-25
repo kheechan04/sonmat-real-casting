@@ -38,6 +38,13 @@ const DEFS = {
   'reel.speedMin': [0.6, m('릴링', '감는 중으로 볼 최소 손 속도', 0.2, 2, 0.05, '몸통/s')],
   'reel.turnsPerTorso': [2.2, m('릴링', '손 속도 → 회/초 배율', 0.5, 5, 0.1)], // D1: 3.5 turns/s at 1.56
   'reel.maxRate': [6, m('릴링', '최대 감기 속도 (이보다 빨라도 같음)', 1, 10, 0.25, '회/초')], // was 4: fast reeling (D3 ~5/s) looked no faster than normal (~3.5)
+  // M3 (G1–G3): cast aim from the wrist's sideways travel. Full aim at this travel (torso lengths)
+  'aim.rodSideFull': [1.1, m('캐스팅 방향', '대 든 쪽으로 끝까지 겨냥 = 손 이동', 0.3, 2, 0.05, '몸통')],
+  'aim.acrossFull': [0.75, m('캐스팅 방향', '반대쪽으로 끝까지 겨냥 = 손 이동', 0.3, 2, 0.05, '몸통')],
+  'aim.dead': [0.2, m('캐스팅 방향', '정면으로 볼 범위 (조준값 비율)', 0, 0.6, 0.05)],
+  // M3 (G4): pumping — rod hand rises this much above its lowest point of the last 2.5 s
+  'pump.riseMin': [0.6, m('펌핑', '대 들어 올리기로 볼 높이', 0.2, 1.5, 0.05, '몸통')],
+  'pump.rearmDrop': [0.4, m('펌핑', '다시 펌핑하려면 내려야 하는 높이', 0.1, 1.2, 0.05, '몸통')],
   'reel.windowMs': [300, m('릴링', '속도 평균 창', 150, 1000, 50, 'ms')],
 
   // ---- how often each rarity shows up (weights; each bait multiplies them — species.ts)

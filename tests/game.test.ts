@@ -10,7 +10,7 @@ const seq = (...v: number[]) => {
   return () => v[i++ % v.length];
 };
 
-const cast = (t: number, strength = 0.5): GestureEvent => ({ type: 'cast', t, strength, peakSpeed: 8 });
+const cast = (t: number, strength = 0.5, aim = 0): GestureEvent => ({ type: 'cast', t, strength, peakSpeed: 8, aim });
 const hook = (t: number): GestureEvent => ({ type: 'hookset', t, peakSpeed: 6, rise: 0.8 });
 
 const fishDef = (over: Partial<SpeciesDef>): SpeciesDef => ({

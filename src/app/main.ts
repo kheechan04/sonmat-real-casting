@@ -186,7 +186,10 @@ if (keysOn) {
     if (!started || e.target instanceof HTMLInputElement) return;
     const now = performance.now();
     const k = e.key.toLowerCase();
-    if (k === 'c' && !e.repeat) onGesture({ type: 'cast', t: now, strength: 0.6, peakSpeed: 9 }, now);
+    // C straight · Q left · E right (aim + = the player's left) · P pump
+    const aim = { c: 0, q: 0.8, e: -0.8 }[k];
+    if (aim !== undefined && !e.repeat) onGesture({ type: 'cast', t: now, strength: 0.6, peakSpeed: 9, aim }, now);
+    else if (k === 'p' && !e.repeat) onGesture({ type: 'pump', t: now, rise: 1 }, now);
     else if (k === 'h' && !e.repeat) onGesture({ type: 'hookset', t: now, peakSpeed: 6, rise: 0.8 }, now);
     else if (k === 'r') keyReel = true;
   });
