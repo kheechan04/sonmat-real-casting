@@ -4,7 +4,7 @@
 
 import type { Side } from './pose';
 
-export type Check = 'axis-side' | 'axis-up' | 'axis-forward' | 'label' | 'cast' | 'hookset' | 'reel' | 'idle' | 'cycle';
+export type Check = 'axis-side' | 'axis-up' | 'axis-forward' | 'label' | 'cast' | 'hookset' | 'reel' | 'idle' | 'cycle' | 'fidget';
 
 export interface ProtocolItem {
   id: string;
@@ -35,7 +35,13 @@ export const PROTOCOL: readonly ProtocolItem[] = [
   { id: 'B3', check: 'cast', hand: 'rod', seconds: 30, note: '{rod} 대, 사이드 캐스팅 10회 (정면)',
     how: '대를 옆으로 눕혀 허리 높이에서 앞쪽으로 휘두르기 10번 (오버헤드가 불편한 사람용 대안 동작)' },
   { id: 'C1', check: 'hookset', hand: 'rod', seconds: 30, note: '{rod} 대, 챔질 10회',
-    how: '대를 앞으로 낮게 든 자세에서 → 손목을 빠르게 머리 높이까지 들어올리기 10번 (사이에 2초 쉬기)' },
+    how: '(큰 챔질) 대를 앞으로 낮게 든 자세에서 → 손목을 빠르게 머리 위까지 들어올리기 10번 (사이에 2초 쉬기)' },
+  // C1 alone was all big lifts (its old instruction said "머리 높이까지"); real hook-sets are
+  // usually a short upward snap, so the threshold must come from C2/C3.
+  { id: 'C2', check: 'hookset', hand: 'rod', seconds: 30, note: '{rod} 대, 짧은 챔질 10회 (가슴 높이까지)',
+    how: '대를 앞으로 낮게 든 자세에서 → 손목·팔뚝으로 짧고 빠르게 "툭" 채기 10번. 손은 가슴 높이 정도까지만 (사이에 2초 쉬기)' },
+  { id: 'C3', check: 'hookset', hand: 'rod', seconds: 40, note: '{rod} 대, 챔질 크기 섞어서 10회',
+    how: '실제 낚시하듯 자연스럽게 — 짧게, 중간, 크게를 섞어서 10번 (사이에 2~3초 쉬기)' },
   { id: 'D1', check: 'reel', hand: 'reel', seconds: 20, note: '{reel} 릴, 릴링 20초 (실제 방향: 앞뒤로 도는 원)',
     how: '대 손은 앞으로 들고, 릴 손으로 실제 스피닝 릴처럼 몸 옆에서 앞뒤로 도는 원을 계속 그리기' },
   { id: 'D2', check: 'reel', hand: 'reel', seconds: 20, note: '{reel} 릴, 릴링 20초 (화면에 원 그리기)',
@@ -46,6 +52,8 @@ export const PROTOCOL: readonly ProtocolItem[] = [
     how: '대를 든 자세로 가만히 서 있기 — 가만히 있어도 좌표가 얼마나 흔들리는지(잡음) 기준' },
   { id: 'E2', check: 'cycle', hand: 'both', seconds: 60, note: '{rod} 대, 한 사이클 3회 (캐스팅→대기→챔질→릴링)',
     how: '캐스팅 → 5초 대기 → 챔질 → 5초 릴링을 3번 반복 (자유롭게)' },
+  { id: 'E3', check: 'fidget', hand: 'both', seconds: 30, note: '입질 대기 중 자연스럽게 움직이기 30초 (챔질 안 함)',
+    how: '대를 든 채 기다리는 척 — 자세 고쳐 잡기, 대 끝 살짝 흔들기, 몸 흔들기 등. 챔질은 하지 않기 (잘못 잡히는지 확인용)' },
 ];
 
 export const handName = (s: Side) => (s === 'left' ? '왼손' : '오른손');

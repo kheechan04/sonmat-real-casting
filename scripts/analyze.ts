@@ -89,8 +89,11 @@ function report(rec: Recording, name: string): void {
     console.log(`   [월드↔이미지 상관] x ${f2(ag[0])}  y ${f2(ag[1])}  z ${f2(ag[2])}  (+1 = 같은 방향)`);
   }
 
-  if (check === 'cast' || check === 'hookset' || check === 'cycle' || !item) {
-    const sw = findSwings(rec, rod);
+  if (check === 'cast' || check === 'hookset' || check === 'cycle' || check === 'fidget' || !item) {
+    // Small snaps must not hide under big ones (C3) or under the default floor 4: hook-set and
+    // fidget recordings use floor 2 (still hands peaked at 0.6 in E1) and 20% of the top speed.
+    const lenient = check === 'hookset' || check === 'fidget';
+    const sw = lenient ? findSwings(rec, rod, 0.2, 700, 2) : findSwings(rec, rod);
     const down = sw.filter((x) => x.dImage[1] > 0).length;
     console.log(`   [빠른 동작 · ${hand(rod)}] ${sw.length}개 — 아래로 ${down} · 위로 ${sw.length - down} (메모 기대값과 비교)`);
     if (sw.length) {
