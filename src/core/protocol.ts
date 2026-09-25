@@ -4,7 +4,9 @@
 
 import type { Side } from './pose';
 
-export type Check = 'axis-side' | 'axis-up' | 'axis-forward' | 'label' | 'cast' | 'hookset' | 'reel' | 'idle' | 'cycle' | 'fidget';
+export type Check =
+  | 'axis-side' | 'axis-up' | 'axis-forward' | 'label' | 'cast' | 'hookset' | 'reel' | 'idle' | 'cycle' | 'fidget'
+  | 'aim' | 'pump' | 'tilt';
 
 export interface ProtocolItem {
   id: string;
@@ -64,6 +66,18 @@ export const PROTOCOL: readonly ProtocolItem[] = [
     how: '배꼽 위까지만 보이게 서서 릴링 — 앞 10초는 보통, 뒤 10초는 최대한 빠르게' },
   { id: 'F4', check: 'fidget', hand: 'both', seconds: 30, note: '가까이: 입질 대기 중 자연스럽게 움직이기 30초',
     how: '배꼽 위까지만 보이게 서서 E3처럼 — 자세 고쳐 잡기, 몸 흔들기. 챔질은 하지 않기' },
+  // M3 (user: "더 창의적인 게임 진행 방식" → ② 포인트 공략 캐스팅 + ① 펌핑/로드워크). New moves, so they are
+  // recorded before any recognition code (rule 1). Close stance like F1–F4. "왼쪽/오른쪽" = the player's own.
+  { id: 'G1', check: 'aim', hand: 'rod', seconds: 20, note: '가까이: {rod} 대, 내 왼쪽 겨냥 캐스팅 5회',
+    how: '몸은 정면 그대로, 물의 왼쪽 먼 곳을 노린다고 생각하고 대를 왼쪽 앞으로 휘두르기 5번 (사이에 2초 쉬기)' },
+  { id: 'G2', check: 'aim', hand: 'rod', seconds: 20, note: '가까이: {rod} 대, 내 오른쪽 겨냥 캐스팅 5회',
+    how: '몸은 정면 그대로, 물의 오른쪽 먼 곳을 노린다고 생각하고 대를 오른쪽 앞으로 휘두르기 5번 (사이에 2초 쉬기)' },
+  { id: 'G3', check: 'aim', hand: 'rod', seconds: 40, note: '가까이: {rod} 대, 왼쪽→가운데→오른쪽 캐스팅 2바퀴',
+    how: '왼쪽, 가운데, 오른쪽 순서로 한 번씩 던지기를 2바퀴 (모두 6번, 사이에 2~3초 쉬기) — 한 파일 안에서 방향이 구분되는지 확인' },
+  { id: 'G4', check: 'pump', hand: 'both', seconds: 30, note: '가까이: {rod} 대 펌핑 + {reel} 릴 감기 30초',
+    how: '대 손을 가슴 높이에서 얼굴 높이까지 2초 동안 천천히 들어 올린 뒤, 빠르게 내리면서 반대 손으로 감기 — 이걸 계속 반복 (약 8번)' },
+  { id: 'G5', check: 'tilt', hand: 'both', seconds: 30, note: '가까이: {rod} 대 좌우로 눕히기 30초 (감으면서)',
+    how: '반대 손으로 계속 감으면서, 대 손을 내 왼쪽으로 크게 눕혀 3초 → 가운데 → 오른쪽으로 3초 → 가운데를 반복' },
 ];
 
 export const handName = (s: Side) => (s === 'left' ? '왼손' : '오른손');

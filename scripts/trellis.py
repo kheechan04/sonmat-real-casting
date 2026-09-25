@@ -15,7 +15,7 @@ def token():
     return f.read_text(encoding='utf-8-sig').strip() if f.exists() else None
 
 src, out = sys.argv[1], sys.argv[2]
-c = Client('microsoft/TRELLIS.2', verbose=False, hf_token=token())
+c = Client('microsoft/TRELLIS.2', verbose=False, token=token())
 t = time.time()
 c.predict(api_name='/start_session')
 pre = c.predict(handle_file(src), api_name='/preprocess_image')  # background removal

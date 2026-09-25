@@ -89,7 +89,7 @@ function report(rec: Recording, name: string): void {
     console.log(`   [월드↔이미지 상관] x ${f2(ag[0])}  y ${f2(ag[1])}  z ${f2(ag[2])}  (+1 = 같은 방향)`);
   }
 
-  if (check === 'cast' || check === 'hookset' || check === 'cycle' || check === 'fidget' || !item) {
+  if (check === 'cast' || check === 'aim' || check === 'hookset' || check === 'cycle' || check === 'fidget' || !item) {
     // Small snaps must not hide under big ones (C3) or under the default floor 4: hook-set and
     // fidget recordings use floor 2 (still hands peaked at 0.6 in E1) and 20% of the top speed.
     const lenient = check === 'hookset' || check === 'fidget';
@@ -116,7 +116,7 @@ function report(rec: Recording, name: string): void {
     }
   }
 
-  if (check === 'reel' || check === 'cycle' || check === 'idle' || !item) {
+  if (check === 'reel' || check === 'pump' || check === 'tilt' || check === 'cycle' || check === 'idle' || !item) {
     const label = { 'world-xy': '월드 정면 x–y', 'world-yz': '월드 옆 z–y', 'world-xz': '월드 위 x–z', 'image-xy': '화면 x–y' };
     console.log(`   [원 그리기 · ${hand(reel)}] 둥글기(1=원) / 누적 회전 / 반지름`);
     for (const c of reelCircles(rec, reel)) {
