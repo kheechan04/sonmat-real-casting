@@ -306,7 +306,7 @@ describe('species behaviours (M2)', () => {
   });
 });
 
-describe('M3: spots and pumping', () => {
+describe('M3: spots', () => {
   /** aim + strength that land exactly on a spot */
   const castAt = (spot: { angleDeg: number; distM: number }) => cast(0, (spot.distM - 8) / 20, spot.angleDeg / AIM_MAX_DEG);
 
@@ -329,35 +329,6 @@ describe('M3: spots and pumping', () => {
     expect(hit.ms).toBeLessThan(miss.ms * 0.6);
   });
 
-  it('pumping: ignored right after the hook-set, counts again on the next lift, does nothing (and no harm) during a run', () => {
-    const heavy = tables([fishDef({ power: 60, lenMin: 200, lenMax: 200, runEveryS: 3, runS: 2 })]);
-    const s = setup({ 'fight.openM': 0 }, seq(0.5), heavy);
-    s.toBite();
-    s.act(hook(0));
-    const pump = () => s.act({ type: 'pump', t: 0, rise: 1.2 });
-    const line0 = s.g.lineM;
-    pump(); // within 0.8 s of the hook-set (that lift is the hook-set itself)
-    expect(s.g.lineM).toBe(line0);
-    s.step(900, 0);
-    pump();
-    expect(s.g.lineM).toBeLessThan(line0);
-    expect(s.g.reelEfficiency(s.now())).toBeGreaterThan(1); // just pumped: reeling is efficient
-    const line1 = s.g.lineM;
-    pump(); // the same instant (the hand has not come down yet) → does not count twice
-    expect(s.g.lineM).toBe(line1);
-    s.step(100, 0); // no reeling needed any more — lowering the hand re-arms the gesture
-    expect(s.g.pumpReady).toBe(true);
-    s.step(3000, 0);
-    expect(s.g.reelEfficiency(s.now())).toBeLessThan(1); // heavy fish slips drag without a pump
-    // wait for the run and pull into it
-    for (let i = 0; i < 200 && !s.g.mustStop; i++) s.step(50, 0);
-    expect(s.g.mustStop).toBe(true);
-    const t0 = s.g.tension;
-    const line2 = s.g.lineM;
-    pump();
-    expect(s.g.tension).toBe(t0); // no penalty
-    expect(s.g.lineM).toBe(line2); // and no gain
-  });
 });
 
 describe('M3: rod work (G6)', () => {
@@ -433,8 +404,8 @@ describe('fight length (real species table)', () => {
   // A player who stops ~0.25 s into each run must land every species — slow (1.8 turns/s) within
   // 2 minutes, normal (2.5) within 90 s — and reeling faster must always land it sooner (the M2
   // table made some sharks unlandable; the turn-count model made fast reeling look no faster).
-  /** seconds to land `def` at `rate` (pumping every 5 s like G4 if asked), or Infinity if not landed in 4 minutes */
-  const landS = (def: SpeciesDef, rate: number, pumping = false): number => {
+  /** seconds to land `def` at `rate`, or Infinity if not landed in 4 minutes */
+  const landS = (def: SpeciesDef, rate: number): number => {
     {
       let seed = 4242;
       const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -452,32 +423,22 @@ describe('fight length (real species table)', () => {
       while (g.phase !== 'bite' && now < 60000) (now += 50), g.update(now, 0);
       g.onGesture(hook(now), now);
       const t0 = now;
-      let lastPump = -1e9;
       while (g.phase === 'reeling' && now - t0 < 240000) {
         now += 50;
-        if (pumping && !g.running && g.pumpReady && now - lastPump > 5000 && now - t0 > 1000) {
-          g.onGesture({ type: 'pump', t: now, rise: 1.2 }, now);
-          lastPump = now;
-        }
         g.update(now, g.mustStop && g.runFrac(now) > 0.08 ? 0 : rate);
         g.drain();
       }
       return g.phase === 'caught' ? (now - t0) / 1000 : Infinity;
     }
   };
-  // M3: heavy fish slip drag, so without pumping they take longer (still always landable); pumping
-  // like the G4 recording (a lift every ~5 s) brings every legend in within about 45 s.
-  it('every species lands in time, faster reeling is always sooner, and pumping pays off on heavy fish', () => {
+  it('every species lands in time at slow and normal speed, and faster is always sooner', () => {
     for (const def of SPECIES) {
       const slow = landS(def, 1.8);
       const normal = landS(def, 2.5);
       const fast = landS(def, 4);
-      const pumped = landS(def, 2.5, true);
-      expect(slow, def.id).toBeLessThan(180);
-      expect(normal, def.id).toBeLessThan(110);
+      expect(slow, def.id).toBeLessThan(120);
+      expect(normal, def.id).toBeLessThan(90);
       expect(fast, def.id).toBeLessThan(normal * 0.8);
-      expect(pumped, def.id).toBeLessThan(50);
-      if (def.tier === 'legend' || def.tier === 'rare') expect(pumped, def.id).toBeLessThan(normal);
     }
   });
 });

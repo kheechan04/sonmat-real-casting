@@ -184,11 +184,6 @@ export class FishingScene {
   private spotGroup = new THREE.Group();
   private spotsShown: Spot[] | null = null;
   private spotFx: { spot: Spot; at: THREE.Vector3; birds: THREE.Mesh[]; nextFx: number; nextRipple: number; dive: { bird: number; t0: number } | null }[] = [];
-  /** M3: the player's rod hand, torso lengths above the shoulder (null = not seen) — lifts the rod */
-  private rodLift: number | null = null;
-  private rodLiftSmooth = 0;
-  /** time of the last good pump, ms (rod flex) */
-  private pumpT = 0;
   /** when the current run started (float drifts the run's way) */
   private runSeenT = 0;
   private wasRunning = false;
@@ -674,17 +669,9 @@ export class FishingScene {
   }
 
   /** The player's rod hand from pose tracking, every frame (null = not seen). */
-  setRodInput(lift: number | null, sideways: number | null = null): void {
-    this.rodLift = lift;
+  /** The player's rod arm sideways (M3 rod work), every frame (null = not seen). */
+  setRodInput(sideways: number | null): void {
     this.rodSideIn = sideways;
-  }
-
-  /** A pump counted: flex the rod. */
-  pumped(now: number): void {
-    this.pumpT = now;
-    // the fish is dragged toward you: a wake and a splash where the line enters the water
-    this.splashAt(this.floatPos.clone(), 30, 2.5);
-    this.ripple(this.floatPos.clone(), now, 1.6, 1.2);
   }
 
   /** Where a spot is in the scene (game: + angle = the player's left = scene −x). */
@@ -1087,8 +1074,8 @@ export class FishingScene {
         bend = (g.location.noFloat ? 1.6 : 0.9) + Math.sin(now / 50) * 0.1;
         break;
       case 'reeling':
-        // held lower so the whole bent arc stays in view; raised with the player's rod hand (pumping)
-        elev = 0.6 - g.tension * 0.12 + this.rodLiftSmooth;
+        // held lower so the whole bent arc stays in view
+        elev = 0.6 - g.tension * 0.12;
         bend = g.running ? 1.9 + Math.sin(now / 70) * 0.12 : 0.7 + g.tension * 0.8;
         if (g.running && g.runKind === 'dive') bend = 2.5 + Math.sin(now / 90) * 0.1; // hauled down
         if (g.running && g.runKind === 'dig') bend = 1.7 + Math.sin(now / 400) * 0.03; // heavy and still
@@ -1106,10 +1093,6 @@ export class FishingScene {
     // M3: the rod points where the cast was aimed (+aim = the player's left = +yaw)
     const aimYaw = ((g.aim * AIM_MAX_DEG * Math.PI) / 180) * 0.8;
     if (['flight', 'waiting', 'nibble', 'bite', 'reeling'].includes(g.phase)) yaw += g.phase === 'flight' ? aimYaw * Math.min(1, since / 400) : aimYaw;
-    // the rod follows the player's rod hand up and down while reeling (baseline: hand ~0.45 below the shoulder)
-    const liftTarget = g.phase === 'reeling' && this.rodLift !== null ? Math.max(-0.15, Math.min(0.55, (this.rodLift + 0.45) * 0.45)) : 0;
-    this.rodLiftSmooth += (liftTarget - this.rodLiftSmooth) * Math.min(1, dt * 10);
-    if (g.phase === 'reeling' && now - this.pumpT < 600) bend += Math.sin(((now - this.pumpT) / 600) * Math.PI) * 0.3; // a light flex — a big one read as "tight, stop reeling"
     // rod work: the rod swings the way the player holds their arm (+ = the player's left = +yaw)
     const sideTarget = g.phase === 'reeling' && this.rodSideIn !== null ? Math.max(-1, Math.min(1, this.rodSideIn)) * 0.6 : 0;
     this.rodSideSmooth += (sideTarget - this.rodSideSmooth) * Math.min(1, dt * 8);

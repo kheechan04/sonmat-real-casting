@@ -42,9 +42,6 @@ const DEFS = {
   'aim.rodSideFull': [1.1, m('캐스팅 방향', '대 든 쪽으로 끝까지 겨냥 = 손 이동', 0.3, 2, 0.05, '몸통')],
   'aim.acrossFull': [0.75, m('캐스팅 방향', '반대쪽으로 끝까지 겨냥 = 손 이동', 0.3, 2, 0.05, '몸통')],
   'aim.dead': [0.2, m('캐스팅 방향', '정면으로 볼 범위 (조준값 비율)', 0, 0.6, 0.05)],
-  // M3 (G4): pumping — rod hand rises this much above its lowest point of the last 2.5 s
-  'pump.riseMin': [0.6, m('펌핑', '대 들어 올리기로 볼 높이', 0.2, 1.5, 0.05, '몸통')],
-  'pump.rearmDrop': [0.4, m('펌핑', '다시 펌핑하려면 내려야 하는 높이', 0.1, 1.2, 0.05, '몸통')],
   'reel.windowMs': [300, m('릴링', '속도 평균 창', 150, 1000, 50, 'ms')],
 
   // ---- how often each rarity shows up (weights; each bait multiplies them — species.ts)
@@ -78,14 +75,6 @@ const DEFS = {
   'spot.waitCut': [0.6, m('포인트 공략', '적중 시 대기 시간 줄이기', 0, 0.9, 0.05)],
   'spot.rareMul': [2.5, m('포인트 공략', '적중 시 희귀·전설 확률 배수', 1, 6, 0.1, '배')],
   'spot.sizeBias': [0.6, m('포인트 공략', '적중 시 큰 개체 쪽으로', 0, 2, 0.05)],
-  // ---- M3 펌핑: heavy fish slip drag; lifting the rod drags them in
-  'pump.slip': [0.35, m('펌핑', '가장 무거운 물고기: 감기만 하면 이만큼 덜 감김', 0, 0.9, 0.05)],
-  'pump.m': [0.9, m('펌핑', '한 번 들어 올리면 끌려오는 줄 (보통)', 0, 6, 0.1, 'm')],
-  'pump.boost': [0.25, m('펌핑', '펌핑 직후 감기 효율 추가', 0, 1, 0.05)],
-  'pump.boostS': [3, m('펌핑', '펌핑 효과 시간', 0.5, 8, 0.5, '초')],
-  'pump.floorM': [3, m('펌핑', '이만큼 남으면 펌핑은 안 먹힘 (감아서 마무리)', 0, 10, 0.5, 'm')],
-  'pump.calmS': [2, m('펌핑', '펌핑 뒤 차고 나가지 않는 시간', 0, 8, 0.5, '초')],
-  'pump.rearmTurns': [0, m('펌핑', '다음 펌핑까지 감아야 하는 바퀴 (0 = 손만 내리면 됨)', 0, 5, 0.5, '회')],
 
   // ---- M3 로드워크 (G6): rod arm held out against a run (sideways, torso lengths from the shoulder)
   'sweep.min': [0.4, m('로드워크', '버티기로 볼 팔 옮김', 0.15, 1, 0.05, '몸통')],

@@ -22,7 +22,7 @@ if (existsSync(DIR)) {
 /** Gesture counts, plus reeled turns = the reel rate integrated over time. */
 function count(rec: Recording, step = 1) {
   const g = new GestureTracker(() => defaultParams());
-  const c = { cast: 0, hookset: 0, pump: 0, reel: 0, aims: [] as number[] };
+  const c = { cast: 0, hookset: 0, reel: 0, aims: [] as number[] };
   let prevT: number | null = null;
   rec.frames.forEach((f, i) => {
     if (i % step) return;
@@ -96,7 +96,7 @@ describe.skipIf(!has('B1', 'B3', 'E2', 'C1', 'C2', 'C3', 'E1', 'E3', 'D1', 'D3')
 });
 
 // M3 moves (standing close, 30 fps; also checked at 15 / 10 fps). docs/VERIFICATION.md "M3 새 동작".
-describe.skipIf(!has('G1', 'G2', 'G3', 'G4', 'G5'))('M3 recordings: cast aim and pumping', () => {
+describe.skipIf(!has('G1', 'G2', 'G3'))('M3 recordings: cast aim', () => {
   for (const step of [1, 2, 3]) {
     const fps = `${30 / step}fps`;
     it(`cast aim: left, right and left→centre→right are told apart (${fps})`, () => {
@@ -115,12 +115,6 @@ describe.skipIf(!has('G1', 'G2', 'G3', 'G4', 'G5'))('M3 recordings: cast aim and
       });
     });
 
-    it(`pumping: every lift in G4 counts, reeling alone never does (${fps})`, () => {
-      expect(count(recs.get('G4')!, step).pump).toBe(6);
-      for (const id of ['D1', 'D3', 'F3', 'G5', 'E1', 'E3']) {
-        if (recs.has(id)) expect(count(recs.get(id)!, step).pump, id).toBe(0);
-      }
-    });
   }
 });
 

@@ -390,69 +390,6 @@ a {
   pointer-events: none;
 }
 
-/* M3 pumping gauge, just left of the reeling console (the webcam view covers the bottom right).
-   Fill = how far the rod hand has risen toward a pump. */
-.pumpGauge {
-  position: absolute;
-  right: calc(100% + 14px);
-  bottom: 0;
-  width: 64px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  pointer-events: none;
-}
-.pgLabel,
-.pgState {
-  font-size: 12px;
-  font-weight: 800;
-  color: #f4d58d;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
-  white-space: nowrap;
-}
-.pgState {
-  color: rgba(255, 255, 255, 0.75);
-  min-height: 1em;
-}
-.pgBar {
-  position: relative;
-  width: 30px;
-  height: 150px;
-  border-radius: 999px;
-  background: rgba(15, 20, 26, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  overflow: hidden;
-  backdrop-filter: blur(6px);
-}
-.pgFill {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 0;
-  background: linear-gradient(0deg, #c99a3b, #f4d58d);
-  transition: height 0.07s linear;
-}
-.pgLine {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 8px;
-  height: 3px;
-  background: #fff;
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
-}
-.pumpGauge.fired .pgFill {
-  background: linear-gradient(0deg, #3fae5c, #8ff0a4);
-}
-.pumpGauge.wait .pgFill {
-  background: rgba(255, 255, 255, 0.25);
-}
-.pumpGauge.wait .pgLabel {
-  opacity: 0.4;
-}
-
 /* M3: tags above the spots on the water while aiming */
 .spotTags {
   position: fixed;
@@ -691,13 +628,16 @@ a {
 }
 
 .steps {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 10px;
   margin: 8px 0 16px;
 }
 
 .step {
+  flex: 0 0 calc((100% - 20px) / 3);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;

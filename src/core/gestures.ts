@@ -10,8 +10,8 @@
 // lost a third of fast reeling at 10 fps, and "faster than we can count" should never hurt.
 //
 // M3 (docs/VERIFICATION.md "M3 새 동작"): a cast also carries its AIM — the rod wrist's sideways travel
-// in the last 0.4 s of the swing (G1–G3: left / centre / right never overlapped). A PUMP is the rod
-// hand rising well above its lowest point of the last 2.5 s (G4: fast lift, slow lowering while reeling).
+// in the last 0.4 s of the swing (G1–G3: left / centre / right never overlapped). The rod hand's
+// sideways position (rodSide) drives rod work (G6). (Pumping, G4, was recognised but removed from the game.)
 
 import { imageRel, type V3 } from './analysis';
 import type { Params } from './params';
@@ -29,13 +29,10 @@ const CAST_SETTLE_FRAC = 0.5;
 const CAST_SETTLE_MS = 200;
 /** Aim = sideways wrist travel over this span before the cast fires (G1–G3: 0.4 s separated best). */
 const AIM_SPAN_MS = 400;
-/** A pump is measured from the lowest rod-hand point in this window. */
-const PUMP_WINDOW_MS = 2500;
 
 export type GestureEvent =
   | { type: 'cast'; t: number; /** 0–1 */ strength: number; peakSpeed: number; /** −1 … 1, + = the player's left */ aim: number }
-  | { type: 'hookset'; t: number; peakSpeed: number; rise: number }
-  | { type: 'pump'; t: number; /** how far the rod hand rose, torso lengths */ rise: number };
+  | { type: 'hookset'; t: number; peakSpeed: number; rise: number };
 
 export interface GestureState {
   rodVisible: boolean;
@@ -44,14 +41,8 @@ export interface GestureState {
   rodSpeed: number;
   /** reel turns per second (0 when the reel hand is still or not visible) */
   reelRate: number;
-  /** rod hand height above its shoulder, torso lengths (null = not seen) — the rod's angle on screen */
-  rodLift: number | null;
   /** rod hand sideways from its shoulder, torso lengths, + = the player's left (null = not seen) */
   rodSide: number | null;
-  /** pump gauge: how far toward a pump the rod hand has risen, 0 … 1 (1 = a pump fires) */
-  pumpFill: number;
-  /** a pump can fire now (false after one, until the hand comes down again) */
-  pumpArmed: boolean;
 }
 
 class Ring {
@@ -100,11 +91,6 @@ export class GestureTracker {
   private reelRate = 0;
   private reelT = -Infinity;
   private lastSpeed = 0;
-  /** rod-hand heights (image y, + = down) for pump detection */
-  private heights: { t: number; y: number }[] = [];
-  private pumpArmed = true;
-  private pumpTopY = 0;
-  private pumpFill = 0;
 
   constructor(private params: () => Params) {}
 
@@ -114,9 +100,6 @@ export class GestureTracker {
     this.speeds = [];
     this.pendingCast = null;
     this.reelRate = 0;
-    this.heights = [];
-    this.pumpArmed = true;
-    this.pumpFill = 0;
   }
 
   state(now: number): GestureState {
@@ -126,10 +109,7 @@ export class GestureTracker {
       rodVisible: !!lastRod,
       reelVisible: !!lastReel,
       rodSpeed: this.lastSpeed,
-      rodLift: lastRod ? -lastRod[1] : null,
       rodSide: lastRod ? lastRod[0] : null,
-      pumpFill: this.pumpFill,
-      pumpArmed: this.pumpArmed,
       // a stale estimate (no reel-hand frame lately) counts as not reeling
       reelRate: now - this.reelT > 300 ? 0 : this.reelRate,
     };
@@ -188,30 +168,6 @@ export class GestureTracker {
         out.push({ type: 'cast', t, strength, peakSpeed: pc.peak, aim: this.aim(t, rodHand) });
         this.lastCastT = t;
         this.pendingCast = null;
-      }
-    }
-
-    // ---- pump: the rod hand rises well above its recent lowest point; re-armed once it comes down again
-    if (rodP) {
-      this.heights.push({ t, y: rodP[1] });
-      while (this.heights.length && this.heights[0].t < t - PUMP_WINDOW_MS) this.heights.shift();
-      if (this.pumpArmed) {
-        const low = this.heights.reduce((m, h) => Math.max(m, h.y), -Infinity);
-        this.pumpFill = Math.max(0, Math.min(1, (low - rodP[1]) / P['pump.riseMin']));
-        if (low - rodP[1] >= P['pump.riseMin']) {
-          out.push({ type: 'pump', t, rise: low - rodP[1] });
-          this.pumpArmed = false;
-          this.pumpTopY = rodP[1];
-        }
-      } else {
-        this.pumpTopY = Math.min(this.pumpTopY, rodP[1]);
-        // coming back down: the gauge drains with the hand
-        this.pumpFill = Math.max(0, 1 - (rodP[1] - this.pumpTopY) / P['pump.rearmDrop']);
-        if (rodP[1] - this.pumpTopY >= P['pump.rearmDrop']) {
-          this.pumpArmed = true;
-          this.heights = [{ t, y: rodP[1] }]; // the next lift is measured from here
-          this.pumpFill = 0;
-        }
       }
     }
 

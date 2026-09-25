@@ -193,10 +193,9 @@ if (keysOn) {
     if (!started || e.target instanceof HTMLInputElement) return;
     const now = performance.now();
     const k = e.key.toLowerCase();
-    // C straight · Q left · E right (aim + = the player's left) · P pump
+    // C straight · Q left · E right (aim + = the player's left)
     const aim = { c: 0, q: 0.8, e: -0.8 }[k];
     if (aim !== undefined && !e.repeat) onGesture({ type: 'cast', t: now, strength: 0.6, peakSpeed: 9, aim }, now);
-    else if (k === 'p' && !e.repeat) onGesture({ type: 'pump', t: now, rise: 1 }, now);
     else if (k === 'h' && !e.repeat) onGesture({ type: 'hookset', t: now, peakSpeed: 6, rise: 0.8 }, now);
     else if (k === 'r') keyReel = true;
     else if (k === 'a') keySide = 0.8;
@@ -455,17 +454,6 @@ function onGameEvent(e: GameEvent, now: number): void {
     case 'counter':
       if (e.on) sfx.strain(); // the tug bar turns green — no extra popup
       break;
-    case 'pump':
-      if (e.ok) {
-        sfx.strain();
-        sfx.nearSplash(); // the fish is dragged through the water
-        scene.pumped(now);
-        pumpFlash = { t: now, gain: e.gainM };
-      } else {
-        sfx.hurry();
-        popText('차고 나갈 땐 당기지 마요!', 'red', true);
-      }
-      break;
     case 'bite':
       sfx.bite();
       scene.fx('bite');
@@ -629,37 +617,10 @@ function instructionFull(now: number): { msg: string; sub: string; tone?: 'alert
         return { msg: t.now, sub: t.sub, tone: 'alert' };
       }
       if (game.runSoon) return { msg: RUN_TEXT[game.runKind].soon, sub: '', tone: 'alert' };
-      // M3 pumping has its own gauge beside the rod; the top line stays steady
-      // (user: "들어올려요가 되게 헷갈리네 … 짧은 순간에 너무 많은 게 이루어지는 기분")
-      if (game.fish && game.fish.heavy > 0.3)
-        return { msg: '감아요', sub: '무거운 물고기 — 대 든 손을 들어 올려 왼쪽 막대를 채우면 끌려와요 (감으면서 해도 돼요)' };
       return { msg: '감아요', sub: now - game.phaseT < 4000 ? '릴 손으로 작은 원을 계속 돌려요' : '' };
     default:
       return { msg: '', sub: '' };
   }
-}
-
-/** the last good pump, for the gauge's green flash + "+1.2m" */
-let pumpFlash = { t: -1e9, gain: 0 };
-
-/**
- * M3 pumping gauge beside the rod: fills as the rod hand rises; full = a pump (green + the metres
- * gained). Grey while it can't pump yet (hand not back down, or not reeled since). Heavy fish only,
- * hidden during runs (the tug bar has the stage then).
- */
-function updatePumpGauge(now: number): void {
-  const on = !!game.fish && game.fish.heavy > 0.3 && !game.mustStop && !game.runSoon && !game.thief;
-  show('pumpGauge', on);
-  if (!on) return;
-  const st = source.running ? tracker.state(now) : null;
-  const fired = now - pumpFlash.t < 900;
-  const ready = game.pumpReady && (st ? st.pumpArmed : true);
-  const g = $('pumpGauge');
-  g.classList.toggle('fired', fired);
-  g.classList.toggle('wait', !fired && !ready);
-  const fill = fired ? 1 : st ? st.pumpFill : 0;
-  ($('pgFill') as HTMLElement).style.height = `${Math.round(fill * 100)}%`;
-  $('pgState').textContent = fired ? `+${pumpFlash.gain.toFixed(1)}m 좋아요!` : ready ? '' : '손 내리기';
 }
 
 /** M3: "🐦 새 떼 18m" tags above the spots while the player aims (ready) and the cast flies. */
@@ -752,10 +713,8 @@ function updateHud(now: number): void {
     gFill.classList.toggle('hot', t >= 0.75);
     $('tensionText').textContent = t >= 0.75 ? '위험!' : t >= 0.3 ? '팽팽' : '여유';
     updateTug(); // (the red pill above the console repeated the top line — removed)
-    updatePumpGauge(now);
   }
   updateSpotTags();
-  if (game.phase !== 'reeling') show('pumpGauge', false);
 
   const warn = postureWarning();
   $('pipWarn').textContent = warn;
@@ -860,7 +819,7 @@ function loop(): void {
   if (started) {
     const rate = keyReel ? 3 : source.running ? tracker.state(now).reelRate : 0;
     const rodSide = keySide ?? (source.running ? tracker.state(now).rodSide : null);
-    scene.setRodInput(source.running ? tracker.state(now).rodLift : null, rodSide);
+    scene.setRodInput(rodSide);
     game.update(now, rate, rodSide);
     for (const e of game.drain()) onGameEvent(e, now);
     if (game.phase === 'reeling') {
@@ -869,7 +828,6 @@ function loop(): void {
       // the fish splashes more as it comes close; the last stretch gets a drum roll
       const frac = game.reelFrac();
       if (frac > 0.75 && Math.random() < dt * 0.8) sfx.nearSplash();
-      else if (game.fish && game.fish.heavy > 0.3 && !game.running && Math.random() < dt * 0.3) sfx.nearSplash();
       if (frac >= 0.85 && !almostShown) {
         almostShown = true;
         sfx.milestone();
