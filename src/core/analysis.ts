@@ -92,12 +92,31 @@ export function torsoImg(lm: P4[], aspect: number): number {
   return Math.hypot(dx, dy);
 }
 
+/** Torso length ÷ shoulder width when facing the camera: 1.29–1.44 over the M0 recordings, median ≈ 1.36. */
+export const TORSO_PER_SHOULDER = 1.36;
+/** Hips below this visibility are treated as out of frame. */
+const HIP_VIS_MIN = 0.5;
+
+/**
+ * The image distance unit ("torso length"). With the hips in view it is measured; with the hips
+ * out of frame (player standing closer, framed from the navel up — user request) it is estimated
+ * from the shoulder width, which stays reliable because play is facing the camera.
+ * (A1, hips just off the bottom edge at visibility 0.2, still gave a steady measured ratio of 1.29.)
+ */
+export function bodyUnitImg(lm: P4[], aspect: number): number {
+  const hipVis = (lm[LM.HIP_L][3] + lm[LM.HIP_R][3]) / 2;
+  if (hipVis >= HIP_VIS_MIN) return torsoImg(lm, aspect);
+  const a = lm[LM.SHOULDER_L];
+  const b = lm[LM.SHOULDER_R];
+  return Math.hypot((a[0] - b[0]) * aspect, a[1] - b[1]) * TORSO_PER_SHOULDER;
+}
+
 /**
  * Image position of `idx` relative to `origin` in torso lengths, x scaled by the aspect ratio.
  * z is MediaPipe's image-space depth (same scale as x), also / torso length.
  */
 export function imageRel(lm: P4[], idx: number, origin: number | null, aspect: number): V3 {
-  const u = torsoImg(lm, aspect) || 1;
+  const u = bodyUnitImg(lm, aspect) || 1;
   const o = origin === null ? [0, 0, 0] : lm[origin];
   return [((lm[idx][0] - o[0]) * aspect) / u, (lm[idx][1] - o[1]) / u, ((lm[idx][2] - o[2]) * aspect) / u];
 }

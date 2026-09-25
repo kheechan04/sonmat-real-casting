@@ -4,7 +4,7 @@
 전작 Shadow Mitts(`../shadow-mitts`, 웹캠 복싱)의 포즈 파이프라인을 복사해서 시작했다.
 
 ## 현재 상태 (2026-09-25 기준)
-- **M0 완료. M1 기본 루프 → 첫 피드백 반영해 M1.5(디자인·UI 고급화, 실사 배경, 릴링 속도 방식, 차고 나가기 밀당, 새 미끼) 구현, 사용자 확인 대기(2026-09-25).**
+- **M0 완료. M1 기본 루프 → 첫 피드백 반영해 M1.5(디자인·UI 고급화, 3D 물·데크+먼 풍경 사진, 릴링 속도 방식, 차고 나가기 밀당, 새 미끼, 효과음) 구현, 사용자 확인 + 가까이 선 자세 녹화 F1~F4 대기(2026-09-25).**
   안내 `docs/PLAYTEST.md`, 바뀐 결정 `docs/DECISIONS.md`, 외부 에셋 출처 `docs/ASSETS.md`(새 사진·파일을 쓰면 반드시 기록).
 - 설계서는 `DESIGN.md`(사용자가 별도 Claude 대화에서 만듦, 내용을 고치지 않는다). 확인 결과는 `docs/VERIFICATION.md`.
 
@@ -51,7 +51,7 @@
 ## 코드 구조
 - `src/core/` — DOM 없는 순수 로직(Node 테스트 가능): `params.ts`(임시값 전부), `gestures.ts`(실시간 캐스팅·챔질·릴링 인식),
   `game.ts`(낚시 상태 기계, 릴링은 속도로 채움, 차고 나가기), `pose.ts`, `recording.ts`, `mirror.ts`, `analysis.ts`(M0 분석), `protocol.ts`(녹화 체크리스트)
-- `src/app/` — 브라우저: `main.ts`(게임 페이지), `scene.ts`(three.js, 실사 360° 배경+HDR 조명, 휘는 대, 찌, 임시 물고기), `sfx.ts`(합성 효과음), `tuning.ts`(⚙ 슬라이더), `poseSource.ts`(카메라+추론, 공용),
+- `src/app/` — 브라우저: `main.ts`(게임 페이지), `scene.ts`(three.js: 먼 풍경 사진+HDR 조명, 3D 물(Water)·데크·소품, 휘는 대, 찌, 임시 물고기), `sfx.ts`(합성 효과음), `tuning.ts`(⚙ 슬라이더), `poseSource.ts`(카메라+추론, 공용),
   `observer.ts`(M0 관찰 도구), `overlay.ts`, `plots.ts`, `landmarker.ts`·`poseWorker.ts`(전작 그대로)
 - 테스트: `tests/game.test.ts`(게임 흐름), `tests/recordings.test.ts`(사용자 녹화로 30/15fps 인식 개수 고정 — 파일 없으면 건너뜀)
 - 문체: 사용자용 문서는 "\~해요", 개발 문서는 "\~한다".

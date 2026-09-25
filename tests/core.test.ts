@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bodyUnitImg,
   circleStats,
   findSwings,
   handActivity,
@@ -7,6 +8,8 @@ import {
   reachDirection,
   reelCircles,
   timing,
+  torsoImg,
+  TORSO_PER_SHOULDER,
   worldImageAgreement,
   worldTrack,
 } from '../src/core/analysis';
@@ -14,7 +17,7 @@ import { mirrorRecording } from '../src/core/mirror';
 import { ARM, LM } from '../src/core/pose';
 import { matchNote, noteFor, PROTOCOL } from '../src/core/protocol';
 import { parseRecording, serializeRecording } from '../src/core/recording';
-import { animate, recordingOf, standing, withWrist } from './helpers/synth';
+import { animate, ASPECT, recordingOf, standing, withWrist } from './helpers/synth';
 
 const R = LM.WRIST_R;
 
@@ -82,6 +85,15 @@ describe('analysis', () => {
     const s = timing(recordingOf(animate(2000, () => standing(), 25)));
     expect(s.fps).toBeCloseTo(25, 0);
     expect(s.detected).toBe(1);
+  });
+
+  it('bodyUnitImg: measured torso with hips in view, shoulder-width estimate with hips out of frame', () => {
+    const f = recordingOf(animate(0, () => standing())).frames[0];
+    const measured = bodyUnitImg(f.lm!, ASPECT);
+    expect(measured).toBeCloseTo(torsoImg(f.lm!, ASPECT), 9);
+    const cut = f.lm!.map((p, i) => (i === LM.HIP_L || i === LM.HIP_R ? ([p[0], p[1], p[2], 0.1] as typeof p) : p));
+    const sw = Math.hypot((cut[LM.SHOULDER_L][0] - cut[LM.SHOULDER_R][0]) * ASPECT, cut[LM.SHOULDER_L][1] - cut[LM.SHOULDER_R][1]);
+    expect(bodyUnitImg(cut, ASPECT)).toBeCloseTo(sw * TORSO_PER_SHOULDER, 9);
   });
 
   it('handActivity: finds the hand that moved', () => {

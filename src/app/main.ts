@@ -2,7 +2,7 @@
 // Pose pipeline: poseSource.ts. Gesture rules: core/gestures.ts. Game rules: core/game.ts.
 // Every number is a placeholder in core/params.ts, adjustable from the ⚙ panel.
 
-import { FishingGame, MISS_TEXT, type Fish, type GameEvent } from '../core/game';
+import { FishingGame, FLIGHT_S, MISS_TEXT, type Fish, type GameEvent } from '../core/game';
 import { GestureTracker, type GestureEvent } from '../core/gestures';
 import { BAIT_NAME, BAITS, baitKey, baitSpeciesKey, fishKey, SPECIES, SPECIES_NAME, type Bait, type Species } from '../core/params';
 import { ARM, LM, other, type PoseFrame, type Side } from '../core/pose';
@@ -110,6 +110,18 @@ async function start(withCamera: boolean): Promise<void> {
 }
 
 $('start').addEventListener('click', () => void start(true));
+document.addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest('button');
+  if (b && !b.classList.contains('baitCard')) sfx.click();
+});
+// the backdrop, water and props take a few seconds to load — hold the start button until then
+const startBtn = $<HTMLButtonElement>('start');
+startBtn.disabled = true;
+startBtn.textContent = '호수 불러오는 중…';
+void scene.ready.finally(() => {
+  startBtn.disabled = false;
+  startBtn.textContent = '카메라 켜고 시작';
+});
 $('noCam').addEventListener('click', () => void start(false));
 
 // ---------------------------------------------------------------- frames → gestures → game
@@ -188,6 +200,7 @@ function fillBaits(): void {
       <div class="statRow">큰 물고기<div class="track"><div style="width:${big * 100}%"></div></div></div>
       <div class="baitNote">${likes.length ? `${likes.join('·')}가 좋아해요` : '어느 물고기나 고루'}</div>`;
     btn.addEventListener('click', () => {
+      sfx.pick();
       round = { frames: [], events: [], note: '' };
       game.chooseBait(b, performance.now());
     });
@@ -197,7 +210,8 @@ function fillBaits(): void {
 
 // ---------------------------------------------------------------- results
 
-function showCatch(f: Fish): void {
+/** Shows the result card; returns whether it was a trophy (월척 / 대물) for the fanfare. */
+function showCatch(f: Fish): boolean {
   records.today.count++;
   const prevBest = records.best[f.species] ?? 0;
   const isRecord = f.lengthCm > prevBest;
@@ -217,6 +231,7 @@ function showCatch(f: Fish): void {
   $('resStats').innerHTML = `<div><b>${f.lengthCm}<small>cm</small></b><span>길이</span></div><div><b>${kg}</b><span>무게</span></div>`;
   show('resStats', true);
   $('resBody').textContent = `${BAIT_NAME[game.bait]}로 ${Math.round(game.distanceM)}m 던져서 잡았어요`;
+  return trophy;
 }
 
 function showMiss(reason: keyof typeof MISS_TEXT): void {
@@ -251,10 +266,10 @@ function onGameEvent(e: GameEvent, now: number): void {
       }
       break;
     case 'cast':
-      sfx.whoosh();
+      sfx.cast(FLIGHT_S);
       break;
     case 'nibble':
-      sfx.tick();
+      sfx.nibble();
       break;
     case 'bite':
       sfx.bite();
@@ -270,8 +285,7 @@ function onGameEvent(e: GameEvent, now: number): void {
       $('runFlash').classList.toggle('on', e.on);
       break;
     case 'caught':
-      sfx.caught();
-      showCatch(e.fish);
+      sfx.caught(showCatch(e.fish));
       break;
     case 'missed':
       if (e.reason === 'snap') sfx.snap();
@@ -314,8 +328,8 @@ function postureWarning(): string {
   const f = lastFrame;
   if (!f?.lm || performance.now() - f.t > 1000) return '사람이 안 보여요 — 카메라 앞에 서 주세요';
   const lm = f.lm;
-  const hipVis = (lm[LM.HIP_L][3] + lm[LM.HIP_R][3]) / 2;
-  if (hipVis < params.minVis) return '허리까지 화면에 들어오게 조금 뒤로 서 주세요';
+  // hips may be out of frame (framed from the navel up) — the shoulders carry the scale then
+  if (lm[LM.SHOULDER_L][3] < params.minVis || lm[LM.SHOULDER_R][3] < params.minVis) return '양쪽 어깨가 화면에 들어오게 서 주세요';
   if (game.phase === 'reeling' && lm[ARM[other(rodHand)].wrist][3] < params.minVis) return '릴 손이 안 보여요';
   if ((game.phase === 'ready' || game.phase === 'bite') && lm[ARM[rodHand].wrist][3] < params.minVis) return '대 든 손이 안 보여요';
   return '';
@@ -447,6 +461,7 @@ $('saveRound').addEventListener('click', () => {
 // ---------------------------------------------------------------- loop
 
 let lastLoop = performance.now();
+let hurryTick = -1;
 function loop(): void {
   const now = performance.now();
   const dt = Math.min(0.1, (now - lastLoop) / 1000);
@@ -455,7 +470,19 @@ function loop(): void {
     const rate = keyReel ? 3 : source.running ? tracker.state(now).reelRate : 0;
     game.update(now, rate);
     for (const e of game.drain()) onGameEvent(e, now);
-    if (game.phase === 'reeling') sfx.reel(rate, dt);
+    if (game.phase === 'reeling') {
+      sfx.reel(rate, dt);
+      sfx.tension(game.tension, dt);
+      // the fish splashes more as it comes close
+      if (game.fish && game.progress / game.fish.turnsNeeded > 0.75 && Math.random() < dt * 0.8) sfx.nearSplash();
+    }
+    if (game.phase === 'bite') {
+      const left = game.biteLeftS(now);
+      if (left < 1 && Math.floor(left * 4) !== hurryTick) {
+        hurryTick = Math.floor(left * 4);
+        sfx.hurry();
+      }
+    } else hurryTick = -1;
   }
   scene.render(game, now);
   updateHud(now);

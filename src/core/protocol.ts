@@ -54,6 +54,16 @@ export const PROTOCOL: readonly ProtocolItem[] = [
     how: '캐스팅 → 5초 대기 → 챔질 → 5초 릴링을 3번 반복 (자유롭게)' },
   { id: 'E3', check: 'fidget', hand: 'both', seconds: 30, note: '입질 대기 중 자연스럽게 움직이기 30초 (챔질 안 함)',
     how: '대를 든 채 기다리는 척 — 자세 고쳐 잡기, 대 끝 살짝 흔들기, 몸 흔들기 등. 챔질은 하지 않기 (잘못 잡히는지 확인용)' },
+  // Framed from the navel up (user: "허리까지 나오게 하려면 너무 뒤로 가야 돼"). Same moves as B1 / C2 / D1 / E3,
+  // standing closer — compared against those to see whether hips out of frame hurt recognition.
+  { id: 'F1', check: 'cast', hand: 'rod', seconds: 30, note: '가까이: {rod} 대, 오버헤드 캐스팅 10회',
+    how: '배꼽 위까지만 보이게 가까이 서서 B1과 같은 캐스팅 — 젖혔을 때 손이 화면 위로 나가도 괜찮아요' },
+  { id: 'F2', check: 'hookset', hand: 'rod', seconds: 30, note: '가까이: {rod} 대, 짧은 챔질 10회',
+    how: '배꼽 위까지만 보이게 서서 C2와 같은 짧은 챔질 ("툭")' },
+  { id: 'F3', check: 'reel', hand: 'reel', seconds: 20, note: '가까이: {reel} 릴, 릴링 20초 (보통→빠르게)',
+    how: '배꼽 위까지만 보이게 서서 릴링 — 앞 10초는 보통, 뒤 10초는 최대한 빠르게' },
+  { id: 'F4', check: 'fidget', hand: 'both', seconds: 30, note: '가까이: 입질 대기 중 자연스럽게 움직이기 30초',
+    how: '배꼽 위까지만 보이게 서서 E3처럼 — 자세 고쳐 잡기, 몸 흔들기. 챔질은 하지 않기' },
 ];
 
 export const handName = (s: Side) => (s === 'left' ? '왼손' : '오른손');
