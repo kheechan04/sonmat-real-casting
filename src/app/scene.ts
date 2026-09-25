@@ -14,10 +14,11 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { Water } from 'three/examples/jsm/objects/Water.js';
+import { buildAnimal } from './animals';
 import { buildSpecies } from './fishModels';
 import { FLIGHT_S, type FishingGame } from '../core/game';
 import type { Side } from '../core/pose';
-import type { LocationId } from '../core/species';
+import type { EventKind, LocationId } from '../core/species';
 
 const BASE = import.meta.env.BASE_URL;
 const WATER_NORMALS_URL = `${BASE}tex/waternormals.jpg`;
@@ -68,6 +69,11 @@ const SWING_MS = 350;
 const LINE_POINTS = 40;
 /** The float's visible top (찌톱) is scaled up so it reads at 20 m on a webcam-game screen. */
 const FLOAT_SCALE = 5.5;
+export type AnimalAction = 'approach' | 'escape' | 'steal' | 'spook';
+/** How far away each thief surfaces, m. */
+const ANIMAL_START: Record<EventKind, number> = { otter: 4, crocodile: 7, orca: 12, hippo: 2 };
+/** Shown larger than life (like the float) so they read at 20 m on a webcam-game screen. */
+const ANIMAL_SCALE: Record<EventKind, number> = { otter: 2.6, orca: 1, crocodile: 1.5, hippo: 1.8 };
 /** Splash droplet pool size. */
 const MAX_DROPS = 700;
 const BASE_FOV = 50;
@@ -183,6 +189,9 @@ export class FishingScene {
   private dropVel = new Float32Array(MAX_DROPS * 3);
   private dropLife = new Float32Array(MAX_DROPS);
   private dropNext = 0;
+  // ---- interference animals (M2)
+  private animals = new Map<EventKind, THREE.Group>();
+  private animalAct: { kind: EventKind; action: AnimalAction; t0: number; dur: number; from: THREE.Vector3 } | null = null;
   /** where the fish leapt out of the water (catch) */
   private leapFrom = new THREE.Vector3();
 
@@ -699,6 +708,110 @@ export class FishingScene {
     }
   }
 
+  /**
+   * An interference animal does something (called by the page on game events):
+   * approach — surfaces some metres off and closes in on the hooked fish over `durS`
+   * escape   — gives up and dives away · steal — lunges at the fish and takes it · spook — a hippo surfaces and yawns
+   */
+  animal(kind: EventKind, action: AnimalAction, durS = 1): void {
+    let m = this.animals.get(kind);
+    if (!m) {
+      m = buildAnimal(kind);
+      m.scale.setScalar(ANIMAL_SCALE[kind]);
+      m.visible = false;
+      this.scene.add(m);
+      this.animals.set(kind, m);
+    }
+    for (const [k, other] of this.animals) if (k !== kind) other.visible = false;
+    const now = performance.now();
+    const from = m.visible ? m.position.clone() : this.floatPos.clone();
+    if (action === 'approach' || action === 'spook') {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const d = ANIMAL_START[kind];
+      from.set(this.floatPos.x + side * d * 0.8, 0, this.floatPos.z - d * 0.6);
+    }
+    this.animalAct = { kind, action, t0: now, dur: action === 'approach' ? durS : action === 'spook' ? 3.6 : action === 'steal' ? 1.4 : 1.4, from };
+    m.visible = true;
+    if (action === 'spook') {
+      this.splashAt(from.clone().setY(0), 120, 4);
+      this.trauma = Math.max(this.trauma, 0.45);
+    }
+    if (action === 'steal') {
+      this.trauma = 0.8;
+      this.fovKick = 6;
+    }
+  }
+
+  /** Hide every animal (new cast, new place). */
+  clearAnimals(): void {
+    for (const m of this.animals.values()) m.visible = false;
+    this.animalAct = null;
+  }
+
+  private updateAnimal(now: number): void {
+    const act = this.animalAct;
+    if (!act) return;
+    const m = this.animals.get(act.kind)!;
+    const u = Math.min(1, (now - act.t0) / 1000 / act.dur);
+    const target = this.floatPos;
+    const face = (dx: number, dz: number) => {
+      if (Math.abs(dx) + Math.abs(dz) > 1e-4) m.rotation.y = Math.atan2(-dz, dx);
+    };
+    const surface = (t: number) => Math.min(1, t / 0.15); // rise out of the water at the start
+    const bob = act.kind === 'orca' ? Math.sin(now / 420) * 0.35 : Math.sin(now / 300) * 0.03;
+    const low = act.kind === 'orca' ? -0.55 : act.kind === 'crocodile' ? 0.04 : act.kind === 'hippo' ? -0.1 : 0.05;
+    switch (act.action) {
+      case 'approach': {
+        const e = u * u * (3 - 2 * u);
+        m.position.lerpVectors(act.from, new THREE.Vector3(target.x, 0, target.z), e * 0.85);
+        m.position.y = -1.5 + (1.5 + low + bob) * surface(u);
+        face(target.x - act.from.x, target.z - act.from.z);
+        if (act.kind === 'orca') m.rotation.z = Math.sin(now / 420) * 0.08;
+        if (Math.random() < 0.15) this.ripple(m.position, now, act.kind === 'orca' ? 2.5 : 1, 1.2);
+        break;
+      }
+      case 'escape': {
+        const away = new THREE.Vector3().subVectors(act.from, target).setY(0).normalize();
+        m.position.copy(act.from).addScaledVector(away, u * 4);
+        m.position.y = low - u * 2.5;
+        face(away.x, away.z);
+        break;
+      }
+      case 'steal': {
+        if (u < 0.3) {
+          // lunge onto the fish
+          m.position.lerpVectors(act.from, new THREE.Vector3(target.x, 0, target.z), u / 0.3);
+          m.position.y = low + Math.sin((u / 0.3) * Math.PI) * (act.kind === 'orca' ? 1.6 : 0.5);
+          if (u > 0.25 && !m.userData.splashed) {
+            this.splashAt(new THREE.Vector3(target.x, 0, target.z), 220, 6.5);
+            this.ripple(target, now, 3, 1.6);
+            m.userData.splashed = true;
+          }
+        } else {
+          m.position.y = low - ((u - 0.3) / 0.7) * 2.5;
+        }
+        break;
+      }
+      case 'spook': {
+        // a hippo: up, yawn, down
+        m.position.set(act.from.x, 0, act.from.z);
+        face(target.x - act.from.x, target.z - act.from.z);
+        const up = Math.min(1, u / 0.2);
+        const down = Math.max(0, (u - 0.75) / 0.25);
+        m.position.y = -1.4 + 1.4 * up - 1.6 * down + Math.sin(now / 300) * 0.03;
+        const jaw = m.userData.jaw as THREE.Group | undefined;
+        if (jaw) jaw.rotation.z = -Math.max(0, Math.sin(Math.min(1, Math.max(0, (u - 0.22) / 0.45)) * Math.PI)) * 0.9;
+        if (Math.random() < 0.1) this.ripple(m.position, now, 1.6, 1.4);
+        break;
+      }
+    }
+    if (u >= 1 && act.action !== 'approach') {
+      m.visible = false;
+      m.userData.splashed = false;
+      this.animalAct = null;
+    }
+  }
+
   /** Camera shake + FOV punch, applied every frame. `floor` keeps a tremble going (fish running). */
   private applyCamera(now: number, dt: number, floor: number): void {
     this.trauma = Math.max(floor, this.trauma - 1.4 * dt);
@@ -910,6 +1023,7 @@ export class FishingScene {
     });
 
     this.updateDrops(dt);
+    this.updateAnimal(now);
     const floor = g.phase === 'reeling' ? (g.running ? 0.32 : g.tension >= 0.75 ? 0.3 : 0) : 0;
     this.applyCamera(now, dt, floor);
     this.renderer.render(this.scene, this.camera);

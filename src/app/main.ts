@@ -388,6 +388,7 @@ function onGameEvent(e: GameEvent, now: number): void {
   switch (e.type) {
     case 'phase':
       show('placeBox', e.phase === 'place');
+      if (e.phase === 'place' || e.phase === 'bait' || e.phase === 'ready') scene.clearAnimals();
       show('baitBox', e.phase === 'bait');
       if (e.phase === 'place') fillPlaces();
       // caught: shown after the leap (see 'caught' below)
@@ -462,6 +463,10 @@ function onGameEvent(e: GameEvent, now: number): void {
       break;
     }
     case 'missed':
+      if (e.thief) {
+        scene.animal(e.thief, 'steal');
+        sfx.animal(e.thief);
+      }
       if (e.reason === 'snap') {
         sfx.snap();
         scene.fx('snap');
@@ -476,7 +481,9 @@ function onGameEvent(e: GameEvent, now: number): void {
       break;
     case 'thief':
       sfx.splash();
+      sfx.animal(e.kind);
       sfx.setRoll(true);
+      scene.animal(e.kind, 'approach', params['event.warnS']);
       scene.fx('runWarn');
       flash('red');
       popText(`${EVENT_NAME[e.kind]}다!`, 'red');
@@ -485,11 +492,14 @@ function onGameEvent(e: GameEvent, now: number): void {
       break;
     case 'thiefEscaped':
       sfx.setRoll(false);
+      scene.animal(e.kind, 'escape');
       sfx.milestone();
       popText('따돌렸다!', 'gold', true);
       break;
     case 'spook':
       sfx.splash();
+      sfx.animal(e.kind);
+      scene.animal(e.kind, 'spook');
       scene.fx('runWarn');
       popText(`${EVENT_NAME[e.kind]}다!!`, '', false);
       logGesture('물고기가 흩어졌어요 — 다시 기다려요', now);

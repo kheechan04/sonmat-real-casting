@@ -363,6 +363,28 @@ export class Sfx {
     }
   }
 
+  /** Each interference animal's call: otter chirps, orca blow, crocodile jaw snap, hippo grunt. */
+  animal(kind: 'otter' | 'orca' | 'crocodile' | 'hippo'): void {
+    switch (kind) {
+      case 'otter':
+        for (let i = 0; i < 4; i++) this.tone(2400 + Math.random() * 600, 0.06, 0.08, 'sine', i * 0.09, 1.4);
+        break;
+      case 'orca':
+        this.noiseBurst(0.9, 900, 0.5, 0.45, 0, 300, 'lowpass'); // the blow "푸-"
+        this.tone(700, 0.5, 0.06, 'sine', 0.5, 1.6); // a whistle
+        break;
+      case 'crocodile':
+        this.noiseBurst(0.08, 1800, 3, 0.5, 0.02, 600); // jaw snap
+        this.boom(0.4, 0.02);
+        this.tone(70, 0.6, 0.25, 'sawtooth', 0.1, 0.8); // low growl
+        break;
+      case 'hippo':
+        [0, 0.28, 0.5].forEach((d) => this.tone(90 - d * 20, 0.25, 0.3, 'sawtooth', d, 0.7)); // honking grunts
+        this.boom(0.35);
+        break;
+    }
+  }
+
   /** Short rising "ding" for milestones (e.g. the fish is almost in). */
   milestone(): void {
     this.tone(880, 0.12, 0.12, 'triangle', 0, 1.5);

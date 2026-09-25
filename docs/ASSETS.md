@@ -6,6 +6,10 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 |---|---|---|---|---|---|
 | `public/env/bell_park_pier.jpg` | 배경 360° 사진 (8192×4096, 톤매핑 JPG) | [Poly Haven — Bell Park Pier](https://polyhaven.com/a/bell_park_pier) | Greg Zaal | CC0 (출처 표기 의무 없음, 화면 아래에 표기함) | 2026-09-25 |
 | `public/env/bell_park_pier_1k.hdr` | 같은 장소 HDR (1k) — 3D 물체 조명용 | 위와 같음 | Greg Zaal | CC0 | 2026-09-25 |
+| `public/env/simons_town_rocks.jpg`, `_1k.hdr` | 바다(갯바위) 배경·조명 | [Poly Haven — Simon's Town Rocks](https://polyhaven.com/a/simons_town_rocks) | Greg Zaal, Rico Cilliers | CC0 | 2026-09-25 |
+| `public/env/the_sky_is_on_fire.jpg`, `_1k.hdr` | 심해(노을 선상) 배경·조명 | [Poly Haven — The Sky Is On Fire](https://polyhaven.com/a/the_sky_is_on_fire) | Greg Zaal, Rico Cilliers | CC0 | 2026-09-25 |
+| `public/env/river_rocks.jpg`, `_1k.hdr` | 아프리카 강 배경·조명 | [Poly Haven — River Rocks](https://polyhaven.com/a/river_rocks) | Greg Zaal | CC0 | 2026-09-25 |
+| `public/tex/dry_riverbed_rock_*_1k.jpg` | 바다·강 발밑 바위 | [Poly Haven — Dry Riverbed Rock](https://polyhaven.com/a/dry_riverbed_rock) | Amal Kumar | CC0 | 2026-09-25 |
 | `public/tex/waternormals.jpg` | 물결 노멀맵 (움직이는 물 표면) | [three.js 저장소 r186 examples/textures](https://github.com/mrdoob/three.js/tree/r186/examples/textures) | three.js authors | MIT | 2026-09-25 |
 | `public/tex/weathered_planks_*_1k.jpg` | 데크 나무판 (색·노멀·거칠기) | [Poly Haven — Weathered Planks](https://polyhaven.com/a/weathered_planks) | Dimitrios Savva, Dario Barresi | CC0 | 2026-09-25 |
 | `public/models/folding_wooden_stool/` | 접이식 나무 의자 (glTF 1k) | [Poly Haven — Folding Wooden Stool](https://polyhaven.com/a/folding_wooden_stool) | Ulan Cabanilla | CC0 | 2026-09-25 |
@@ -16,7 +20,7 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 
 같은 장소의 새벽 버전 [Bell Park Dawn](https://polyhaven.com/a/bell_park_dawn)(CC0)이 있어서 시간대 변화(M5)에 쓸 수 있다.
 
-## 물고기 사진 (M2, 사용자가 준비 중)
+## 물고기 사진 (나중에 — M2에서는 코드로 만든 모델 사용, 사용자 결정)
 
 | 어종 | 파일 | 출처 | 라이선스 |
 |---|---|---|---|
@@ -25,6 +29,8 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 
 ## 코드로 만든 것 (외부 파일 아님)
 
-- 물고기 임시 모델(몸통 곡선·지느러미·비늘 무늬), 찌, 낚싯대, 물결 무늬 — `src/app/scene.ts`에서 코드로 생성
+- 어종 30종 모델 — `src/app/fishModels.ts` (몸통·무늬·지느러미·특징을 코드로 생성, UV 유지)
+- 훼방 동물(수달·범고래·나일악어·하마) — `src/app/animals.ts`
+- 찌, 낚싯대, 배(난간·집어등), 바위 모양, 물결 무늬 — `src/app/scene.ts`
 - 효과음·환경음(물결·바람·새) — `src/app/sfx.ts`에서 Web Audio로 합성 (음원 파일 없음)
 - 글꼴 — Pretendard (`pretendard` npm 패키지, SIL OFL 1.1)
