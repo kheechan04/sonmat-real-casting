@@ -21,6 +21,8 @@
 //  - PUMPING: a heavy fish slips drag — reeling alone brings in less line. Lifting the rod (a pump)
 //    drags it in at once and makes reeling efficient for a few seconds; pumping into a run spikes the
 //    tension. After a pump you must reel a little before the next one counts (no rod-waving).
+//  - ROD WORK (G6): a run heads left or right. Holding the rod arm out to the OTHER side (counter)
+//    takes less line, builds less tension and tires the fish sooner.
 //
 // Interference (M2, user: animals only rarely and realistically): a THIEF (otter / orca / crocodile)
 // may come for the hooked fish once per fight — reel `event.escapeTurns` turns within `event.warnS`
@@ -94,6 +96,7 @@ export type GameEvent =
   | { type: 'cast'; strength: number; distanceM: number; aim: number }
   | { type: 'spot'; result: SpotResult; kind: SpotKind | null }
   | { type: 'pump'; ok: boolean; gainM: number }
+  | { type: 'counter'; on: boolean }
   | { type: 'nibble' }
   | { type: 'bite' }
   | { type: 'hooked' }
@@ -162,6 +165,12 @@ export class FishingGame {
   runSoon = false;
   /** what the current / next run is (plain run or the species' behaviour) */
   runKind: RunKind = 'run';
+  /** which way the current / next run heads: 1 = the player's left, −1 = right */
+  runDir: 1 | -1 = 1;
+  /** the player is holding the rod against the run right now */
+  countering = false;
+  /** the player's rod arm sideways, torso lengths (+ = the player's left; null = unknown) */
+  rodSide: number | null = null;
   /** reeling: an animal is coming for the fish */
   thief: { kind: EventKind; until: number; turns: number } | null = null;
   /** the reel rate the game last saw, turns/s (for the HUD) */
@@ -346,6 +355,7 @@ export class FishingGame {
     this.nextRun = now + this.fish!.def.runEveryS * P['scale.runEvery'] * 1000 * this.uniform(0.7, 1.3);
     const b = this.fish!.def.behavior;
     this.runKind = b && this.rng() < BEHAVIOR_SHARE ? b : 'run';
+    this.runDir = this.rng() < 0.5 ? 1 : -1;
   }
 
   /** The player should stop reeling right now (run, jump, dive, thrash — not dig or shock). */
@@ -413,11 +423,12 @@ export class FishingGame {
   // ---------------------------------------------------------------- clock
 
   /** Advance to `now` (ms). `reelRate` = the player's current reel rate, turns/s. */
-  update(now: number, reelRate = 0): void {
+  update(now: number, reelRate = 0, rodSide: number | null = null): void {
     const P = this.params();
     const dt = this.lastT ? Math.max(0, Math.min(0.25, (now - this.lastT) / 1000)) : 0;
     this.lastT = now;
     this.reelRate = reelRate;
+    this.rodSide = rodSide;
     switch (this.phase) {
       case 'flight':
         if (now - this.phaseT >= FLIGHT_S * 1000) {
@@ -521,16 +532,27 @@ export class FishingGame {
         const kind = this.runKind;
         this.running = false;
         this.openRun = false;
+        if (this.countering) {
+          this.countering = false;
+          this.emit({ type: 'counter', on: false });
+        }
         this.lastReelT = now; // the player was told to wait — don't count the run as slack
         this.scheduleRun(now);
         this.emit({ type: 'run', on: false, kind });
       }
 
+      // rod work: the rod arm held out against the run's direction (only for runs you must stop for)
+      const counter = this.running && rule.stop && !this.openRun && this.rodSide !== null && this.rodSide * -this.runDir >= P['sweep.min'];
+      if (counter !== this.countering) {
+        this.countering = counter;
+        this.emit({ type: 'counter', on: counter });
+      }
       if (this.running) {
-        const take = this.openRun ? fish.openM / OPEN_RUN_S : fish.pullMps * rule.take;
+        const take = (this.openRun ? fish.openM / OPEN_RUN_S : fish.pullMps * rule.take) * (counter ? 1 - P['sweep.takeCut'] : 1);
         this.lineM += (take - rate * fish.mPerTurn * this.reelEfficiency(now) * rule.progress) * dt;
         this.peakLineM = Math.max(this.peakLineM, this.lineM);
-        this.tension += P['fight.tensionPerTurn'] * rule.tension * rate * dt;
+        if (counter) this.runUntil -= P['sweep.tire'] * dt * 1000; // the fish tires sooner
+        this.tension += P['fight.tensionPerTurn'] * rule.tension * rate * dt * (counter ? 1 - P['sweep.tensionCut'] : 1);
         if (rate === 0 || rule.tension === 0) this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
         if (rate > 0) this.lastReelT = now;
         if (this.tension >= 1) {

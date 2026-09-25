@@ -180,6 +180,8 @@ source.onFrame = (f) => {
 // keyboard stand-ins for testing without moving (dev server, or ?keys)
 const keysOn = import.meta.env.DEV || new URLSearchParams(location.search).has('keys');
 let keyReel = false;
+/** keyboard rod work: A = rod arm held to the player's left, D = right */
+let keySide: number | null = null;
 show('keysHelp', keysOn);
 if (keysOn) {
   document.addEventListener('keydown', (e) => {
@@ -192,9 +194,12 @@ if (keysOn) {
     else if (k === 'p' && !e.repeat) onGesture({ type: 'pump', t: now, rise: 1 }, now);
     else if (k === 'h' && !e.repeat) onGesture({ type: 'hookset', t: now, peakSpeed: 6, rise: 0.8 }, now);
     else if (k === 'r') keyReel = true;
+    else if (k === 'a') keySide = 0.8;
+    else if (k === 'd') keySide = -0.8;
   });
   document.addEventListener('keyup', (e) => {
     if (e.key.toLowerCase() === 'r') keyReel = false;
+    if (e.key.toLowerCase() === 'a' || e.key.toLowerCase() === 'd') keySide = null;
   });
 }
 
@@ -442,6 +447,12 @@ function onGameEvent(e: GameEvent, now: number): void {
         popText('포인트 적중!', 'gold', true);
       } else if (e.result === 'near') popText('포인트 근처', '', true);
       break;
+    case 'counter':
+      if (e.on) {
+        sfx.strain();
+        popText('버텨요!', 'gold', true);
+      }
+      break;
     case 'pump':
       if (e.ok) {
         sfx.strain();
@@ -596,9 +607,15 @@ function instruction(now: number): { msg: string; sub: string; tone?: 'alert' | 
         };
       if (game.running) {
         const t = RUN_TEXT[game.runKind];
-        return { msg: t.now, sub: t.sub, tone: game.mustStop ? 'danger' : 'alert' };
+        if (game.countering) return { msg: '버텨요!', sub: '그대로 — 줄이 덜 풀리고 물고기가 지쳐 가요', tone: 'alert' };
+        if (game.mustStop)
+          return { msg: t.now, sub: `${dirWord(game.runDir)}으로 차고 나가요 — 대 든 팔을 ${dirWord(-game.runDir)} 옆으로 옮겨 버텨요`, tone: 'danger' };
+        return { msg: t.now, sub: t.sub, tone: 'alert' };
       }
-      if (game.runSoon) return { msg: RUN_TEXT[game.runKind].soon, sub: '', tone: 'alert' };
+      if (game.runSoon) {
+        const stop = game.runKind !== 'dig' && game.runKind !== 'shock';
+        return { msg: RUN_TEXT[game.runKind].soon, sub: stop ? `${dirWord(game.runDir)}으로 갈 거예요` : '', tone: 'alert' };
+      }
       // M3: a heavy fish slips drag — ask for pumping; right after a pump, reel
       if (game.fish && game.fish.heavy > 0.3) {
         if (game.reelEfficiency(now) > 1) return { msg: '지금 감아요!', sub: '대를 내리면서 빠르게 감아요', tone: 'alert' };
@@ -609,6 +626,9 @@ function instruction(now: number): { msg: string; sub: string; tone?: 'alert' | 
       return { msg: '', sub: '' };
   }
 }
+
+/** 1 = the player's left, −1 = right */
+const dirWord = (d: number) => (d > 0 ? '왼쪽' : '오른쪽');
 
 /** "왼쪽 멀리 새 떼 · 오른쪽 가까이 물 끓음" (M3 spots, for the ready prompt). */
 function spotText(): string {
@@ -769,8 +789,9 @@ function loop(): void {
   lastLoop = now;
   if (started) {
     const rate = keyReel ? 3 : source.running ? tracker.state(now).reelRate : 0;
-    scene.setRodInput(source.running ? tracker.state(now).rodLift : null);
-    game.update(now, rate);
+    const rodSide = keySide ?? (source.running ? tracker.state(now).rodSide : null);
+    scene.setRodInput(source.running ? tracker.state(now).rodLift : null, rodSide);
+    game.update(now, rate, rodSide);
     for (const e of game.drain()) onGameEvent(e, now);
     if (game.phase === 'reeling') {
       sfx.reel(rate, dt);

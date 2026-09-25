@@ -189,6 +189,12 @@ export class FishingScene {
   private rodLiftSmooth = 0;
   /** time of the last good pump, ms (rod flex) */
   private pumpT = 0;
+  /** when the current run started (float drifts the run's way) */
+  private runSeenT = 0;
+  private wasRunning = false;
+  /** the player's rod arm sideways (M3 rod work), smoothed for the rod */
+  private rodSideIn: number | null = null;
+  private rodSideSmooth = 0;
   /** per-species models, built the first time that species is caught */
   private fishes = new Map<string, THREE.Group>();
   private shadow: THREE.Mesh;
@@ -668,8 +674,9 @@ export class FishingScene {
   }
 
   /** The player's rod hand from pose tracking, every frame (null = not seen). */
-  setRodInput(lift: number | null): void {
+  setRodInput(lift: number | null, sideways: number | null = null): void {
     this.rodLift = lift;
+    this.rodSideIn = sideways;
   }
 
   /** A pump counted: flex the rod. */
@@ -1089,6 +1096,12 @@ export class FishingScene {
     const liftTarget = g.phase === 'reeling' && this.rodLift !== null ? Math.max(-0.15, Math.min(0.55, (this.rodLift + 0.45) * 0.45)) : 0;
     this.rodLiftSmooth += (liftTarget - this.rodLiftSmooth) * Math.min(1, dt * 10);
     if (g.phase === 'reeling' && now - this.pumpT < 600) bend += Math.sin(((now - this.pumpT) / 600) * Math.PI) * 0.8; // the pump loads the rod
+    // rod work: the rod swings the way the player holds their arm (+ = the player's left = +yaw)
+    const sideTarget = g.phase === 'reeling' && this.rodSideIn !== null ? Math.max(-1, Math.min(1, this.rodSideIn)) * 0.6 : 0;
+    this.rodSideSmooth += (sideTarget - this.rodSideSmooth) * Math.min(1, dt * 8);
+    yaw += this.rodSideSmooth;
+    if (g.running && !this.wasRunning) this.runSeenT = now;
+    this.wasRunning = g.running;
     this.poseRod(elev, yaw, bend);
     const tip = this.rodTip.getWorldPosition(new THREE.Vector3());
 
@@ -1134,7 +1147,7 @@ export class FishingScene {
       const out = g.lineOutM();
       const k = out / Math.max(1, g.distanceM); // along the line from the rod to where it landed
       fp.z = -Math.max(1.5, land.z * k);
-      fp.x = (0.9 * side - land.x) * k + (g.running ? Math.sin(now / 130) * 0.8 : Math.sin(now / 700) * 0.25);
+      fp.x = (0.9 * side - land.x) * k + (g.running ? Math.sin(now / 130) * 0.4 - g.runDir * Math.min(3, (now - this.runSeenT) / 400) : Math.sin(now / 700) * 0.25);
       rise = g.running && g.runKind === 'dive' ? -4 : -2;
       tilt = g.running ? 0.9 : 0.5;
       if (g.running && g.runKind === 'dig') fp.x = (0.9 * side - land.x) * k; // stuck

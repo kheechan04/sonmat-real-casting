@@ -358,6 +358,33 @@ describe('M3: spots and pumping', () => {
   });
 });
 
+describe('M3: rod work (G6)', () => {
+  /** reel to the first run, then hold the rod arm at `side` through it; line taken + how long it ran */
+  const through = (side: (dir: number) => number | null) => {
+    const s = setup({ 'fight.openM': 0 }, seq(0.5), tables([fishDef({ power: 40, runEveryS: 2, runS: 2 })]));
+    s.toBite();
+    s.act(hook(0));
+    for (let i = 0; i < 200 && !s.g.running; i++) s.step(50, 3);
+    const line0 = s.g.lineM;
+    let ms = 0;
+    while (s.g.running && ms < 10000) {
+      ms += 50;
+      s.g.update(s.now() + ms, 0, side(s.g.runDir));
+    }
+    return { taken: s.g.lineM - line0, ms, log: s.g.drain() };
+  };
+
+  it('holding the rod out against the run takes less line and ends it sooner', () => {
+    const still = through(() => 0);
+    const against = through((dir) => -dir * 0.7);
+    const along = through((dir) => dir * 0.7);
+    expect(against.taken).toBeLessThan(still.taken * 0.6);
+    expect(against.ms).toBeLessThan(still.ms);
+    expect(along.taken).toBeCloseTo(still.taken, 5); // same side as the fish: no help
+    expect(against.log.some((e) => e.type === 'counter' && e.on)).toBe(true);
+  });
+});
+
 describe('interference events (M2)', () => {
   const thiefSetup = () => {
     // event.thief 1: the thief always comes; rng 0.5 → when 25–70% of the line is left (≈ 48%)

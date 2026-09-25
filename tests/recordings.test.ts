@@ -123,3 +123,34 @@ describe.skipIf(!has('G1', 'G2', 'G3', 'G4', 'G5'))('M3 recordings: cast aim and
     });
   }
 });
+
+// M3 rod work: the rod arm held out to a side (G6) vs reeling / fidgeting with the arm in place.
+describe.skipIf(!has('G6', 'F3', 'E3'))('M3 recordings: rod work (arm held out sideways)', () => {
+  /** share of seen frames with the rod arm beyond sweep.min to the left / right */
+  const sides = (rec: Recording) => {
+    const P = defaultParams();
+    const g = new GestureTracker(() => P);
+    let left = 0;
+    let right = 0;
+    let n = 0;
+    for (const f of rec.frames) {
+      g.update(f, rec.meta.rodHand ?? 'right', rec.meta.aspect);
+      const s = g.state(f.t).rodSide;
+      if (s === null) continue;
+      n++;
+      if (s >= P['sweep.min']) left++;
+      if (s <= -P['sweep.min']) right++;
+    }
+    return { left: left / n, right: right / n };
+  };
+  it('G6 holds the arm out to both sides for a good part of the time; reeling and fidgeting never do', () => {
+    const g6 = sides(recs.get('G6')!);
+    expect(g6.left).toBeGreaterThan(0.1);
+    expect(g6.right).toBeGreaterThan(0.1);
+    for (const id of ['F3', 'E3', 'D1', 'G4', 'G5']) {
+      if (!recs.has(id)) continue;
+      const s = sides(recs.get(id)!);
+      expect(s.left + s.right, id).toBe(0);
+    }
+  });
+});
