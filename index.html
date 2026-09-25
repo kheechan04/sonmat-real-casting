@@ -35,6 +35,9 @@
       <svg id="biteRing" class="biteRing hidden" viewBox="0 0 44 44"><circle class="track" cx="22" cy="22" r="19" /><circle id="biteArc" class="arc" cx="22" cy="22" r="19" /></svg>
     </div>
 
+    <!-- M3: tags above the spots on the water while aiming -->
+    <div id="spotTags" class="spotTags"></div>
+
     <!-- reeling console -->
     <section id="reelBox" class="console hidden">
       <div class="cell">
@@ -44,6 +47,15 @@
       </div>
       <div class="cell center">
         <div id="runAlert" class="runAlert"></div>
+        <!-- M3 rod work: tug-of-war bar — where the fish pulls, where your rod arm is, where to hold it -->
+        <div id="tug" class="tug hidden">
+          <div class="tugBar">
+            <div id="tugZone" class="tugZone"><span>여기로!</span></div>
+            <div class="tugMid"></div>
+            <div id="tugFish" class="tugFish">🐟</div>
+            <div id="tugMark" class="tugMark"></div>
+          </div>
+        </div>
         <div class="label">감는 속도</div>
         <div class="rate"><span id="rateText">0.0</span><small>회/초</small></div>
         <div id="rateDots" class="rateDots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>

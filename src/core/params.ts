@@ -83,6 +83,7 @@ const DEFS = {
   'pump.m': [0.9, m('펌핑', '한 번 들어 올리면 끌려오는 줄 (보통)', 0, 6, 0.1, 'm')],
   'pump.boost': [0.25, m('펌핑', '펌핑 직후 감기 효율 추가', 0, 1, 0.05)],
   'pump.boostS': [3, m('펌핑', '펌핑 효과 시간', 0.5, 8, 0.5, '초')],
+  'pump.calmS': [3.5, m('펌핑', '펌핑 뒤 차고 나가지 않는 시간', 0, 8, 0.5, '초')],
   'pump.rearmTurns': [1.5, m('펌핑', '다음 펌핑까지 감아야 하는 바퀴', 0, 5, 0.5, '회')],
   'pump.runTension': [0.35, m('펌핑', '차고 나갈 때 펌핑하면 긴장 +', 0, 1, 0.05)],
 
@@ -100,7 +101,7 @@ const DEFS = {
   // ---- reeling fight ("밀당")
   // A fish run ("차고 나감"): announced by a splash warnS before it starts, the fish takes line back
   // (distance grows) and reeling against it builds line tension — full tension snaps the line.
-  'fight.warnS': [0.8, m('릴링 밀당', '차고 나가기 전 예고', 0, 2, 0.1, '초')],
+  'fight.warnS': [1.2, m('릴링 밀당', '차고 나가기 전 예고', 0, 2, 0.1, '초')],
   'fight.takeRate': [0.6, m('릴링 밀당', '차고 나갈 때 풀리는 줄 (가장 센 물고기)', 0, 5, 0.05, 'm/초')],
   'fight.openM': [15, m('릴링 밀당', '챔질 직후 큰 물고기가 끌고 가는 줄 (가장 클 때)', 0, 80, 1, 'm')],
   'fight.tensionPerTurn': [0.12, m('릴링 밀당', '차고 나갈 때 1회 감으면 긴장 +', 0.02, 0.6, 0.01)],

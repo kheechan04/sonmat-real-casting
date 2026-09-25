@@ -657,6 +657,13 @@ export class FishingGame {
     const gainM = P['pump.m'] * Math.min(1.6, Math.max(0.6, rise)) * (0.4 + this.fish.heavy);
     this.lineM = Math.max(0, this.lineM - gainM);
     this.pumpBoostUntil = now + P['pump.boostS'] * 1000;
+    // the fish is being led in: no run for a moment, so lift → lower-and-reel is one smooth move
+    // (user: "들어올리자마자 치고 나가서 … 끊기는 느낌")
+    const calm = now + P['pump.calmS'] * 1000;
+    if (this.nextRun < calm) {
+      this.nextRun = calm;
+      this.runSoon = false; // a warning already shown is taken back; it comes again before the run
+    }
     this.pumpReady = false;
     this.reelSincePump = 0;
     this.lastReelT = now;

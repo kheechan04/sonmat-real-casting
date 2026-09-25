@@ -701,14 +701,14 @@ export class FishingScene {
       g.computeVertexNormals();
       this.birdGeo = g;
     }
-    const mat = new THREE.MeshBasicMaterial({ color: 0x2b2b30, side: THREE.DoubleSide, fog: true });
+    const mat = new THREE.MeshBasicMaterial({ color: 0x141418, side: THREE.DoubleSide, fog: true });
     for (const sp of spots) {
       const at = this.spotPos(sp, side);
       const birds: THREE.Mesh[] = [];
       if (sp.kind === 'birds') {
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 8; i++) {
           const b = new THREE.Mesh(this.birdGeo, mat);
-          b.scale.setScalar(1.2);
+          b.scale.setScalar(3);
           this.spotGroup.add(b);
           birds.push(b);
         }
@@ -730,21 +730,21 @@ export class FishingScene {
       fx.birds.forEach((b, i) => {
         const diving = fx.dive && fx.dive.bird === i;
         const k = now / 1000 + i * 1.7;
-        let y = 4 + Math.sin(k * 0.9 + i) * 0.8;
+        let y = 2.4 + Math.sin(k * 0.9 + i) * 0.7;
         if (diving) {
           const u = (now - fx.dive!.t0) / 1400;
           y = u < 0.5 ? y * (1 - u * 2) + 0.2 * u * 2 : 0.2 + (u - 0.5) * 2 * y;
           if (u >= 1) fx.dive = null;
         }
-        const rad = 2.4 + (i % 3) * 0.6;
+        const rad = 1.4 + (i % 3) * 0.5;
         b.position.set(fx.at.x + Math.cos(k * 0.6) * rad, y, fx.at.z + Math.sin(k * 0.6) * rad * 0.6);
         b.rotation.set(0, -k * 0.6, 0);
-        b.scale.y = 1.2 * (0.6 + 0.4 * Math.abs(Math.sin(now / 90 + i))); // flapping
+        b.scale.y = 3 * (0.6 + 0.4 * Math.abs(Math.sin(now / 90 + i))); // flapping
       });
       // baitfish dimpling the surface under the birds, so the spot on the water is visible too
       if (fx.spot.kind === 'birds' && now >= fx.nextRipple) {
-        this.ripple(fx.at.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 2)), now, 0.7 + Math.random() * 0.5, 1.4);
-        fx.nextRipple = now + 500 + Math.random() * 500;
+        this.ripple(fx.at.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 2)), now, 1.3 + Math.random() * 0.8, 1.5);
+        fx.nextRipple = now + 350 + Math.random() * 400;
       }
       if (now >= fx.nextFx) {
         if (fx.spot.kind === 'birds') {
@@ -753,16 +753,27 @@ export class FishingScene {
             fx.dive = { bird: Math.floor(Math.random() * fx.birds.length), t0: now };
             setTimeout(() => this.splashAt(fx.at.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 1.5)), 14, 2.5), 700);
           }
-          fx.nextFx = now + 1800 + Math.random() * 1800;
+          fx.nextFx = now + 1100 + Math.random() * 1200;
         } else {
           // a boil: baitfish breaking the surface
           const p = fx.at.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 2));
-          this.ripple(p, now, 0.9 + Math.random() * 0.6, 1.3);
-          if (Math.random() < 0.5) this.splashAt(p, 8, 1.6);
-          fx.nextFx = now + 250 + Math.random() * 450;
+          this.ripple(p, now, 1.5 + Math.random() * 1, 1.4);
+          if (Math.random() < 0.7) this.splashAt(p, 22, 2.4);
+          fx.nextFx = now + 180 + Math.random() * 320;
         }
       }
     }
+  }
+
+  /** Where each spot is on screen (px), for the HUD tags above them; null when behind the camera. */
+  spotTags(): ({ x: number; y: number } | null)[] {
+    const w = this.canvas.clientWidth || window.innerWidth;
+    const h = this.canvas.clientHeight || window.innerHeight;
+    return this.spotFx.map((fx) => {
+      const p = fx.at.clone().add(new THREE.Vector3(0, fx.spot.kind === 'birds' ? 4.2 : 1.6, 0)).project(this.camera);
+      if (p.z > 1) return null;
+      return { x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h };
+    });
   }
 
   setRodHand(side: Side): void {

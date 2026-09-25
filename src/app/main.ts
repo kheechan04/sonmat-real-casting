@@ -627,6 +627,51 @@ function instruction(now: number): { msg: string; sub: string; tone?: 'alert' | 
   }
 }
 
+/** M3: "🐦 새 떼 18m" tags above the spots while the player aims (ready) and the cast flies. */
+function updateSpotTags(): void {
+  const box = $('spotTags');
+  const on = game.phase === 'ready' || game.phase === 'flight';
+  const pos = on ? scene.spotTags() : [];
+  while (box.children.length < pos.length) box.append(document.createElement('div'));
+  [...box.children].forEach((el, i) => {
+    const p = pos[i];
+    const sp = game.spots[i];
+    const e = el as HTMLElement;
+    e.className = 'spotTag';
+    e.style.display = p && sp ? '' : 'none';
+    if (!p || !sp) return;
+    e.style.left = `${p.x}px`;
+    e.style.top = `${p.y}px`;
+    e.textContent = `${sp.kind === 'birds' ? '🐦 새 떼' : '💦 물 끓음'} ${Math.round(sp.distM)}m`;
+  });
+}
+
+/**
+ * M3 rod work: the tug-of-war bar. Shown from the warning through a run you must stop for: the fish at
+ * the end it pulls toward, the player's rod arm as a dot, the zone to hold it in on the other side.
+ * Screen left = the player's left (first-person view), ±1 torso length = the bar's ends.
+ */
+function updateTug(): void {
+  const stopKind = game.runKind !== 'dig' && game.runKind !== 'shock';
+  const on = game.phase === 'reeling' && !game.thief && stopKind && (game.mustStop || game.runSoon);
+  const tug = $('tug');
+  tug.classList.toggle('hidden', !on);
+  if (!on) return;
+  const toX = (side: number) => 50 - Math.max(-1.1, Math.min(1.1, side)) * 42; // % from the left
+  const fishSide = game.runDir; // 1 = the player's left
+  const min = params['sweep.min'];
+  const zoneFrom = toX(-fishSide * min);
+  const zoneTo = toX(-fishSide * 1.1);
+  const zone = $('tugZone') as HTMLElement;
+  zone.style.left = `${Math.min(zoneFrom, zoneTo)}%`;
+  zone.style.width = `${Math.abs(zoneTo - zoneFrom)}%`;
+  ($('tugFish') as HTMLElement).style.left = `${toX(fishSide * 1.08)}%`;
+  const arm = game.rodSide;
+  ($('tugMark') as HTMLElement).style.left = `${toX(arm ?? 0)}%`;
+  tug.classList.toggle('noArm', arm === null);
+  tug.classList.toggle('ok', game.countering);
+}
+
 /** 1 = the player's left, −1 = right */
 const dirWord = (d: number) => (d > 0 ? '왼쪽' : '오른쪽');
 
@@ -685,7 +730,9 @@ function updateHud(now: number): void {
     const alert = $('runAlert');
     alert.className = `runAlert${game.mustStop ? ' run' : game.running || game.runSoon ? ' soon' : ''}`;
     alert.textContent = game.running ? RUN_TEXT[game.runKind].now : game.runSoon ? RUN_TEXT[game.runKind].soon : '';
+    updateTug();
   }
+  updateSpotTags();
 
   const warn = postureWarning();
   $('pipWarn').textContent = warn;
