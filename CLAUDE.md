@@ -39,6 +39,13 @@
 | `python scripts/trellis.py 사진 출력.glb` | 사진 → 3D (TRELLIS.2 무료 데모, 하루 사용량 제한) |
 | `node scripts/make-backdrops.mjs` | 배경 원본(`assets-src/env/*.jpg`) → 물가선 위만 WebP(`public/env/*_top.webp`) |
 
+## 실사 물고기 남은 작업 (하루 몇 마리씩)
+- 사진→3D 대기 11종: sunfish, marlin, alfonsino, blobfish, oarfish, goblin_shark, barreleye, elephantfish, vundu, electric_catfish, tigerfish.
+  원본 사진 `assets-src/models/ai-src/<id>.jpg` (출처 `assets-src/models/ai-sources.json`).
+- 한 마리: `python scripts/trellis.py assets-src/models/ai-src/<id>.jpg assets-src/models/raw/<id>.glb` → `node scripts/build-fish.mjs <id>`
+  → `src/app/fishAssets.ts` MODELS에 방향(rot) 추가 → 모델 갤러리에서 확인 → docs/ASSETS.md 표에 출처 추가(CC-BY 사진이면 도움말 크레딧에도).
+- 무료 GPU 사용량: HF 토큰(`%USERPROFILE%\.hf-token`)이 있으면 하루 5분(4\~5마리), 없으면 2분. 쓴 뒤 24시간 후 다시 채워짐.
+
 ## 배포
 - 배포 준비 완료: Vercel 정적 사이트(`vercel.json`, `npm run build` → `dist`), `README.md`. GitHub 공개 저장소 https://github.com/kheechan04/sonmat-real-casting (`origin`, 2026-09-25 생성). **Vercel 연결은 아직 — 사용자 요청 시.** push도 사용자가 요청할 때만.
 - 배포판에선 ⚙ 패널·키보드 입력·`window.__game`이 꺼진다 (`?dev`, `?keys`로 켬).
