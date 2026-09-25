@@ -458,6 +458,7 @@ function onGameEvent(e: GameEvent, now: number): void {
     case 'pump':
       if (e.ok) {
         sfx.strain();
+        sfx.nearSplash(); // the fish is dragged through the water
         scene.pumped(now);
         pumpFlash = { t: now, gain: e.gainM };
       } else {
@@ -631,7 +632,7 @@ function instructionFull(now: number): { msg: string; sub: string; tone?: 'alert
       // M3 pumping has its own gauge beside the rod; the top line stays steady
       // (user: "들어올려요가 되게 헷갈리네 … 짧은 순간에 너무 많은 게 이루어지는 기분")
       if (game.fish && game.fish.heavy > 0.3)
-        return { msg: '감아요', sub: '무거운 물고기 — 오른쪽 막대가 차도록 대 든 손을 들어 올리면 더 빨리 끌려와요' };
+        return { msg: '감아요', sub: '무거운 물고기 — 대 든 손을 들어 올려 왼쪽 막대를 채우면 끌려와요 (감으면서 해도 돼요)' };
       return { msg: '감아요', sub: now - game.phaseT < 4000 ? '릴 손으로 작은 원을 계속 돌려요' : '' };
     default:
       return { msg: '', sub: '' };
@@ -658,7 +659,7 @@ function updatePumpGauge(now: number): void {
   g.classList.toggle('wait', !fired && !ready);
   const fill = fired ? 1 : st ? st.pumpFill : 0;
   ($('pgFill') as HTMLElement).style.height = `${Math.round(fill * 100)}%`;
-  $('pgState').textContent = fired ? `+${pumpFlash.gain.toFixed(1)}m 좋아요!` : ready ? '' : '내리면서 감기';
+  $('pgState').textContent = fired ? `+${pumpFlash.gain.toFixed(1)}m 좋아요!` : ready ? '' : '손 내리기';
 }
 
 /** M3: "🐦 새 떼 18m" tags above the spots while the player aims (ready) and the cast flies. */
@@ -868,6 +869,7 @@ function loop(): void {
       // the fish splashes more as it comes close; the last stretch gets a drum roll
       const frac = game.reelFrac();
       if (frac > 0.75 && Math.random() < dt * 0.8) sfx.nearSplash();
+      else if (game.fish && game.fish.heavy > 0.3 && !game.running && Math.random() < dt * 0.3) sfx.nearSplash();
       if (frac >= 0.85 && !almostShown) {
         almostShown = true;
         sfx.milestone();

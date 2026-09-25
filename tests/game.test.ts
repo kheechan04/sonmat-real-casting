@@ -329,7 +329,7 @@ describe('M3: spots and pumping', () => {
     expect(hit.ms).toBeLessThan(miss.ms * 0.6);
   });
 
-  it('pumping: ignored right after the hook-set, counts once reeled again, pulling into a run builds tension', () => {
+  it('pumping: ignored right after the hook-set, counts again on the next lift, does nothing (and no harm) during a run', () => {
     const heavy = tables([fishDef({ power: 60, lenMin: 200, lenMax: 200, runEveryS: 3, runS: 2 })]);
     const s = setup({ 'fight.openM': 0 }, seq(0.5), heavy);
     s.toBite();
@@ -343,9 +343,9 @@ describe('M3: spots and pumping', () => {
     expect(s.g.lineM).toBeLessThan(line0);
     expect(s.g.reelEfficiency(s.now())).toBeGreaterThan(1); // just pumped: reeling is efficient
     const line1 = s.g.lineM;
-    pump(); // not reeled since → does not count
+    pump(); // the same instant (the hand has not come down yet) → does not count twice
     expect(s.g.lineM).toBe(line1);
-    s.step(600, 3); // 1.8 turns
+    s.step(100, 0); // no reeling needed any more — lowering the hand re-arms the gesture
     expect(s.g.pumpReady).toBe(true);
     s.step(3000, 0);
     expect(s.g.reelEfficiency(s.now())).toBeLessThan(1); // heavy fish slips drag without a pump
@@ -353,8 +353,10 @@ describe('M3: spots and pumping', () => {
     for (let i = 0; i < 200 && !s.g.mustStop; i++) s.step(50, 0);
     expect(s.g.mustStop).toBe(true);
     const t0 = s.g.tension;
+    const line2 = s.g.lineM;
     pump();
-    expect(s.g.tension).toBeGreaterThan(t0 + 0.3);
+    expect(s.g.tension).toBe(t0); // no penalty
+    expect(s.g.lineM).toBe(line2); // and no gain
   });
 });
 

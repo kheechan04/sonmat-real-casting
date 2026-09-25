@@ -645,14 +645,9 @@ export class FishingGame {
   /** The rod was lifted (gesture 'pump'). Counts only while reeling, not right after the hook-set. */
   private pump(rise: number, now: number): void {
     const P = this.params();
-    if (this.phase !== 'reeling' || !this.fish || this.thief || now - this.hookT < 800) return;
-    if (this.mustStop) {
-      // pulling against a running fish: the line takes it
-      this.tension = Math.min(1, this.tension + P['pump.runTension']);
-      this.emit({ type: 'pump', ok: false, gainM: 0 });
-      if (this.tension >= 1) this.miss('snap', now);
-      return;
-    }
+    // One rule only: while the fish runs, nothing (no penalty — user: "들어올리면 팽팽해져서 감으면 안 되는
+    // 건가 싶고"). Reeling is always fine outside runs; lowering the hand re-arms the gesture.
+    if (this.phase !== 'reeling' || !this.fish || this.thief || this.mustStop || now - this.hookT < 800) return;
     if (!this.pumpReady) return;
     const gainM = P['pump.m'] * Math.min(1.6, Math.max(0.6, rise)) * (0.4 + this.fish.heavy);
     // never the pump that lands it (a sudden end — user: "툭 끊기는 느낌"): the last metres are reeled
@@ -660,13 +655,10 @@ export class FishingGame {
     const got = Math.max(0, Math.min(gainM, this.lineM - floor));
     this.lineM -= got;
     this.pumpBoostUntil = now + P['pump.boostS'] * 1000;
-    // the fish is being led in: no run for a moment, so lift → lower-and-reel is one smooth move
-    // (user: "들어올리자마자 치고 나가서 … 끊기는 느낌")
+    // the fish is being led in: no NEW run for a moment (a warning already shown stays — taking it back
+    // made the fight go suddenly silent: "들어올리면 갑자기 바로 조용해지는")
     const calm = now + P['pump.calmS'] * 1000;
-    if (this.nextRun < calm) {
-      this.nextRun = calm;
-      this.runSoon = false; // a warning already shown is taken back; it comes again before the run
-    }
+    if (!this.runSoon && this.nextRun < calm) this.nextRun = calm;
     this.pumpReady = false;
     this.reelSincePump = 0;
     this.lastReelT = now;

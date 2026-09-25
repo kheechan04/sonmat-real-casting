@@ -682,6 +682,9 @@ export class FishingScene {
   /** A pump counted: flex the rod. */
   pumped(now: number): void {
     this.pumpT = now;
+    // the fish is dragged toward you: a wake and a splash where the line enters the water
+    this.splashAt(this.floatPos.clone(), 30, 2.5);
+    this.ripple(this.floatPos.clone(), now, 1.6, 1.2);
   }
 
   /** Where a spot is in the scene (game: + angle = the player's left = scene −x). */
@@ -1106,7 +1109,7 @@ export class FishingScene {
     // the rod follows the player's rod hand up and down while reeling (baseline: hand ~0.45 below the shoulder)
     const liftTarget = g.phase === 'reeling' && this.rodLift !== null ? Math.max(-0.15, Math.min(0.55, (this.rodLift + 0.45) * 0.45)) : 0;
     this.rodLiftSmooth += (liftTarget - this.rodLiftSmooth) * Math.min(1, dt * 10);
-    if (g.phase === 'reeling' && now - this.pumpT < 600) bend += Math.sin(((now - this.pumpT) / 600) * Math.PI) * 0.8; // the pump loads the rod
+    if (g.phase === 'reeling' && now - this.pumpT < 600) bend += Math.sin(((now - this.pumpT) / 600) * Math.PI) * 0.3; // a light flex — a big one read as "tight, stop reeling"
     // rod work: the rod swings the way the player holds their arm (+ = the player's left = +yaw)
     const sideTarget = g.phase === 'reeling' && this.rodSideIn !== null ? Math.max(-1, Math.min(1, this.rodSideIn)) * 0.6 : 0;
     this.rodSideSmooth += (sideTarget - this.rodSideSmooth) * Math.min(1, dt * 8);

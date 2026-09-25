@@ -390,11 +390,12 @@ a {
   pointer-events: none;
 }
 
-/* M3 pumping gauge, beside the rod (right side). Fill = how far the rod hand has risen toward a pump. */
+/* M3 pumping gauge, just left of the reeling console (the webcam view covers the bottom right).
+   Fill = how far the rod hand has risen toward a pump. */
 .pumpGauge {
-  position: fixed;
-  right: max(18px, 5vw);
-  bottom: 190px;
+  position: absolute;
+  right: calc(100% + 14px);
+  bottom: 0;
   width: 64px;
   display: flex;
   flex-direction: column;
@@ -417,7 +418,7 @@ a {
 .pgBar {
   position: relative;
   width: 30px;
-  height: 170px;
+  height: 150px;
   border-radius: 999px;
   background: rgba(15, 20, 26, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.2);
