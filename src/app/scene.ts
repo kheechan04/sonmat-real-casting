@@ -17,7 +17,7 @@ import { Water } from 'three/examples/jsm/objects/Water.js';
 import { buildAnimal } from './animals';
 import { loadSpecies, setSwimTime, swim } from './fishAssets';
 import { buildSpecies } from './fishModels';
-import { FLIGHT_S, type FishingGame } from '../core/game';
+import { AIM_MAX_DEG, FLIGHT_S, type FishingGame, type Spot } from '../core/game';
 import type { Side } from '../core/pose';
 import type { EventKind, LocationId } from '../core/species';
 
@@ -180,6 +180,15 @@ export class FishingScene {
   private lineMat: THREE.LineBasicMaterial;
   private ringTex = ringTexture();
   private ripples: Ripple[] = [];
+  /** M3: signs of fish on the water (birds working, a boil) — rebuilt when the game makes new ones */
+  private spotGroup = new THREE.Group();
+  private spotsShown: Spot[] | null = null;
+  private spotFx: { spot: Spot; at: THREE.Vector3; birds: THREE.Mesh[]; nextFx: number; nextRipple: number; dive: { bird: number; t0: number } | null }[] = [];
+  /** M3: the player's rod hand, torso lengths above the shoulder (null = not seen) — lifts the rod */
+  private rodLift: number | null = null;
+  private rodLiftSmooth = 0;
+  /** time of the last good pump, ms (rod flex) */
+  private pumpT = 0;
   /** per-species models, built the first time that species is caught */
   private fishes = new Map<string, THREE.Group>();
   private shadow: THREE.Mesh;
@@ -658,6 +667,97 @@ export class FishingScene {
     this.scene.add(this.float);
   }
 
+  /** The player's rod hand from pose tracking, every frame (null = not seen). */
+  setRodInput(lift: number | null): void {
+    this.rodLift = lift;
+  }
+
+  /** A pump counted: flex the rod. */
+  pumped(now: number): void {
+    this.pumpT = now;
+  }
+
+  /** Where a spot is in the scene (game: + angle = the player's left = scene −x). */
+  private spotPos(sp: { angleDeg: number; distM: number }, side: number): THREE.Vector3 {
+    const a = (sp.angleDeg * Math.PI) / 180;
+    return new THREE.Vector3(0.9 * side - Math.sin(a) * sp.distM, 0, -Math.cos(a) * sp.distM);
+  }
+
+  private birdGeo: THREE.BufferGeometry | null = null;
+  private buildSpots(spots: Spot[], side: number): void {
+    this.spotGroup.clear();
+    this.spotFx = [];
+    if (!this.birdGeo) {
+      // a gull seen from afar: a flat, slightly bent "V"
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, -0.35, 0.08, -0.05, -0.05, 0, 0.06, 0, 0, 0, 0.35, 0.08, -0.05, 0.05, 0, 0.06], 3));
+      g.computeVertexNormals();
+      this.birdGeo = g;
+    }
+    const mat = new THREE.MeshBasicMaterial({ color: 0x2b2b30, side: THREE.DoubleSide, fog: true });
+    for (const sp of spots) {
+      const at = this.spotPos(sp, side);
+      const birds: THREE.Mesh[] = [];
+      if (sp.kind === 'birds') {
+        for (let i = 0; i < 6; i++) {
+          const b = new THREE.Mesh(this.birdGeo, mat);
+          b.scale.setScalar(1.2);
+          this.spotGroup.add(b);
+          birds.push(b);
+        }
+      }
+      this.spotFx.push({ spot: sp, at, birds, nextFx: 0, nextRipple: 0, dive: null });
+    }
+  }
+
+  /** Birds circle and dive, the water boils — while the player aims and waits. */
+  private updateSpots(g: FishingGame, now: number, side: number): void {
+    if (g.spots !== this.spotsShown) {
+      this.spotsShown = g.spots;
+      this.buildSpots(g.spots, side);
+    }
+    const show = ['ready', 'flight', 'waiting', 'nibble', 'bite'].includes(g.phase);
+    this.spotGroup.visible = show;
+    if (!show) return;
+    for (const fx of this.spotFx) {
+      fx.birds.forEach((b, i) => {
+        const diving = fx.dive && fx.dive.bird === i;
+        const k = now / 1000 + i * 1.7;
+        let y = 4 + Math.sin(k * 0.9 + i) * 0.8;
+        if (diving) {
+          const u = (now - fx.dive!.t0) / 1400;
+          y = u < 0.5 ? y * (1 - u * 2) + 0.2 * u * 2 : 0.2 + (u - 0.5) * 2 * y;
+          if (u >= 1) fx.dive = null;
+        }
+        const rad = 2.4 + (i % 3) * 0.6;
+        b.position.set(fx.at.x + Math.cos(k * 0.6) * rad, y, fx.at.z + Math.sin(k * 0.6) * rad * 0.6);
+        b.rotation.set(0, -k * 0.6, 0);
+        b.scale.y = 1.2 * (0.6 + 0.4 * Math.abs(Math.sin(now / 90 + i))); // flapping
+      });
+      // baitfish dimpling the surface under the birds, so the spot on the water is visible too
+      if (fx.spot.kind === 'birds' && now >= fx.nextRipple) {
+        this.ripple(fx.at.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 2)), now, 0.7 + Math.random() * 0.5, 1.4);
+        fx.nextRipple = now + 500 + Math.random() * 500;
+      }
+      if (now >= fx.nextFx) {
+        if (fx.spot.kind === 'birds') {
+          // one bird dives now and then; the splash when it hits the water
+          if (!fx.dive && fx.birds.length) {
+            fx.dive = { bird: Math.floor(Math.random() * fx.birds.length), t0: now };
+            setTimeout(() => this.splashAt(fx.at.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 1.5)), 14, 2.5), 700);
+          }
+          fx.nextFx = now + 1800 + Math.random() * 1800;
+        } else {
+          // a boil: baitfish breaking the surface
+          const p = fx.at.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 2));
+          this.ripple(p, now, 0.9 + Math.random() * 0.6, 1.3);
+          if (Math.random() < 0.5) this.splashAt(p, 8, 1.6);
+          fx.nextFx = now + 250 + Math.random() * 450;
+        }
+      }
+    }
+  }
+
   setRodHand(side: Side): void {
     this.rodHand = side;
   }
@@ -714,6 +814,7 @@ export class FishingScene {
     );
     this.drops.frustumCulled = false;
     this.scene.add(this.drops);
+    this.scene.add(this.spotGroup);
   }
 
   /** Throw `count` droplets up from `at` with speed ~`speed` m/s. */
@@ -965,8 +1066,8 @@ export class FishingScene {
         bend = (g.location.noFloat ? 1.6 : 0.9) + Math.sin(now / 50) * 0.1;
         break;
       case 'reeling':
-        // held lower so the whole bent arc stays in view
-        elev = 0.6 - g.tension * 0.12;
+        // held lower so the whole bent arc stays in view; raised with the player's rod hand (pumping)
+        elev = 0.6 - g.tension * 0.12 + this.rodLiftSmooth;
         bend = g.running ? 1.9 + Math.sin(now / 70) * 0.12 : 0.7 + g.tension * 0.8;
         if (g.running && g.runKind === 'dive') bend = 2.5 + Math.sin(now / 90) * 0.1; // hauled down
         if (g.running && g.runKind === 'dig') bend = 1.7 + Math.sin(now / 400) * 0.03; // heavy and still
@@ -981,13 +1082,22 @@ export class FishingScene {
       default:
         break;
     }
+    // M3: the rod points where the cast was aimed (+aim = the player's left = +yaw)
+    const aimYaw = ((g.aim * AIM_MAX_DEG * Math.PI) / 180) * 0.8;
+    if (['flight', 'waiting', 'nibble', 'bite', 'reeling'].includes(g.phase)) yaw += g.phase === 'flight' ? aimYaw * Math.min(1, since / 400) : aimYaw;
+    // the rod follows the player's rod hand up and down while reeling (baseline: hand ~0.45 below the shoulder)
+    const liftTarget = g.phase === 'reeling' && this.rodLift !== null ? Math.max(-0.15, Math.min(0.55, (this.rodLift + 0.45) * 0.45)) : 0;
+    this.rodLiftSmooth += (liftTarget - this.rodLiftSmooth) * Math.min(1, dt * 10);
+    if (g.phase === 'reeling' && now - this.pumpT < 600) bend += Math.sin(((now - this.pumpT) / 600) * Math.PI) * 0.8; // the pump loads the rod
     this.poseRod(elev, yaw, bend);
     const tip = this.rodTip.getWorldPosition(new THREE.Vector3());
 
     // ---- float
     // deep drop: no float — the sinker lands as far out as it was cast, the bite shows on the rod tip
     const deepRig = !!g.location.noFloat;
-    const landing = new THREE.Vector3(0.9 * side, 0, -g.distanceM);
+    // M3: lands where the cast was aimed (game.landing: x + = the player's left = scene −x)
+    const land = g.landing();
+    const landing = new THREE.Vector3(0.9 * side - land.x, 0, -land.z);
     const fp = this.floatPos.copy(landing);
     // rise, in bands of the 찌톱: 0 = normal (3 of 4 bands showing), +1.5 = 찌올림, −4 = under
     let rise = 0;
@@ -1022,11 +1132,12 @@ export class FishingScene {
       }
     } else if (g.phase === 'reeling' && g.fish) {
       const out = g.lineOutM();
-      fp.z = -Math.max(1.5, out);
-      fp.x = 0.9 * side * (out / Math.max(1, g.distanceM)) + (g.running ? Math.sin(now / 130) * 0.8 : Math.sin(now / 700) * 0.25);
+      const k = out / Math.max(1, g.distanceM); // along the line from the rod to where it landed
+      fp.z = -Math.max(1.5, land.z * k);
+      fp.x = (0.9 * side - land.x) * k + (g.running ? Math.sin(now / 130) * 0.8 : Math.sin(now / 700) * 0.25);
       rise = g.running && g.runKind === 'dive' ? -4 : -2;
       tilt = g.running ? 0.9 : 0.5;
-      if (g.running && g.runKind === 'dig') fp.x = 0.9 * side * (out / Math.max(1, g.distanceM)); // stuck
+      if (g.running && g.runKind === 'dig') fp.x = (0.9 * side - land.x) * k; // stuck
     }
     if (g.phase !== 'flight') fp.y = deepRig ? 0 : -BAND_H * FLOAT_SCALE * (1 - rise);
     this.float.position.copy(fp);
@@ -1149,6 +1260,8 @@ export class FishingScene {
       const glow = f.userData.glow as THREE.Mesh | undefined;
       if (glow) glow.scale.setScalar(1 + Math.sin(now / 200) * 0.25); // anglerfish lure pulses
     }
+
+    this.updateSpots(g, now, side);
 
     // ripples expand and fade
     this.ripples = this.ripples.filter((rp) => {

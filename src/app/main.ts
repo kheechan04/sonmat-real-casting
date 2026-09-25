@@ -436,6 +436,22 @@ function onGameEvent(e: GameEvent, now: number): void {
       sfx.nibble();
       scene.fx('nibble');
       break;
+    case 'spot':
+      if (e.result === 'hit') {
+        sfx.milestone();
+        popText('포인트 적중!', 'gold', true);
+      } else if (e.result === 'near') popText('포인트 근처', '', true);
+      break;
+    case 'pump':
+      if (e.ok) {
+        sfx.strain();
+        scene.pumped(now);
+        popText(`영차! +${e.gainM.toFixed(1)}m`, 'gold', true);
+      } else {
+        sfx.hurry();
+        popText('차고 나갈 땐 당기지 마요!', 'red', true);
+      }
+      break;
     case 'bite':
       sfx.bite();
       scene.fx('bite');
@@ -562,7 +578,7 @@ const BITE_MSG: Record<string, string> = {
 function instruction(now: number): { msg: string; sub: string; tone?: 'alert' | 'danger' } {
   switch (game.phase) {
     case 'ready':
-      return { msg: '던지세요', sub: '대 든 손을 머리 뒤로 젖혔다가 앞으로 휘둘러요' };
+      return { msg: '던지세요', sub: game.spots.length ? `${spotText()} — 그쪽으로 휘둘러 던져요` : '대 든 손을 머리 뒤로 젖혔다가 앞으로 휘둘러요' };
     case 'flight':
       return { msg: '', sub: '' };
     case 'waiting':
@@ -583,10 +599,26 @@ function instruction(now: number): { msg: string; sub: string; tone?: 'alert' | 
         return { msg: t.now, sub: t.sub, tone: game.mustStop ? 'danger' : 'alert' };
       }
       if (game.runSoon) return { msg: RUN_TEXT[game.runKind].soon, sub: '', tone: 'alert' };
+      // M3: a heavy fish slips drag — ask for pumping; right after a pump, reel
+      if (game.fish && game.fish.heavy > 0.3) {
+        if (game.reelEfficiency(now) > 1) return { msg: '지금 감아요!', sub: '대를 내리면서 빠르게 감아요', tone: 'alert' };
+        if (game.pumpReady) return { msg: '무거워요 — 들어 올려요!', sub: '대 든 손을 쭉 들어 올려 끌어오고, 내리면서 감아요 (펌핑)' };
+      }
       return { msg: '감아요', sub: now - game.phaseT < 4000 ? '릴 손으로 작은 원을 계속 돌려요' : '' };
     default:
       return { msg: '', sub: '' };
   }
+}
+
+/** "왼쪽 멀리 새 떼 · 오른쪽 가까이 물 끓음" (M3 spots, for the ready prompt). */
+function spotText(): string {
+  return game.spots
+    .map((sp) => {
+      const side = sp.angleDeg > 6 ? '왼쪽' : sp.angleDeg < -6 ? '오른쪽' : '정면';
+      const dist = sp.distM < 14 ? '가까이' : sp.distM < 21 ? '조금 멀리' : '멀리';
+      return `${side} ${dist} ${sp.kind === 'birds' ? '새 떼' : '물 끓는 곳'}`;
+    })
+    .join(' · ');
 }
 
 function postureWarning(): string {
@@ -737,6 +769,7 @@ function loop(): void {
   lastLoop = now;
   if (started) {
     const rate = keyReel ? 3 : source.running ? tracker.state(now).reelRate : 0;
+    scene.setRodInput(source.running ? tracker.state(now).rodLift : null);
     game.update(now, rate);
     for (const e of game.drain()) onGameEvent(e, now);
     if (game.phase === 'reeling') {
