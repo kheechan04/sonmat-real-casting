@@ -339,3 +339,35 @@ describe('interference events (M2)', () => {
     expect(s.g.phase).toBe('bite');
   });
 });
+
+describe('fight length (real species table)', () => {
+  // A player reeling 2.5 turns/s who stops ~0.25 s into each run must land every species, and a
+  // legend should take about a minute at most (the M2 table made some sharks unlandable).
+  it('every species lands within 90 s at 2.5 turns/s', () => {
+    for (const def of SPECIES) {
+      let seed = 4242;
+      const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      const P = { ...defaultParams(), ...QUIET };
+      const t: Tables = {
+        species: [def],
+        baits: [{ ...BAITS[0], loc: def.loc, waitMin: 1, waitMax: 1, biteChance: 1 }],
+        locations: LOCATIONS.filter((l) => l.id === def.loc),
+      };
+      const g = new FishingGame(() => P, rng, t);
+      let now = 1;
+      g.chooseLocation(def.loc, now);
+      g.chooseBait(BAITS[0].id, now);
+      g.onGesture(cast(now), now);
+      while (g.phase !== 'bite' && now < 60000) (now += 50), g.update(now, 0);
+      g.onGesture(hook(now), now);
+      const t0 = now;
+      while (g.phase === 'reeling' && now - t0 < 120000) {
+        now += 50;
+        g.update(now, g.mustStop && g.runFrac(now) > 0.08 ? 0 : 2.5);
+        g.drain();
+      }
+      expect({ id: def.id, phase: g.phase }).toEqual({ id: def.id, phase: 'caught' });
+      expect((now - t0) / 1000, def.id).toBeLessThan(90);
+    }
+  });
+});

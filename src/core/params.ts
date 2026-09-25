@@ -72,7 +72,7 @@ const DEFS = {
   // A fish run ("차고 나감"): announced by a splash warnS before it starts, the fish takes line back
   // (distance grows) and reeling against it builds line tension — full tension snaps the line.
   'fight.warnS': [0.8, m('릴링 밀당', '차고 나가기 전 예고', 0, 2, 0.1, '초')],
-  'fight.takeRate': [1.5, m('릴링 밀당', '차고 나갈 때 풀리는 줄', 0, 5, 0.1, '회/초')],
+  'fight.takeRate': [0.9, m('릴링 밀당', '차고 나갈 때 풀리는 줄', 0, 5, 0.1, '회/초')],
   'fight.tensionPerTurn': [0.12, m('릴링 밀당', '차고 나갈 때 1회 감으면 긴장 +', 0.02, 0.6, 0.01)],
   'fight.tensionDecay': [0.6, m('릴링 밀당', '긴장 회복 /초', 0.05, 2, 0.05)],
   'fight.slackS': [10, m('릴링 밀당', '안 감으면 빠져나감', 3, 60, 1, '초')],

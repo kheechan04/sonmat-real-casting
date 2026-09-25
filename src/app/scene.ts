@@ -901,9 +901,9 @@ export class FishingScene {
     const tip = this.rodTip.getWorldPosition(new THREE.Vector3());
 
     // ---- float
-    // deep drop: no float — the line goes straight down just off the bow, the bite shows on the rod tip
+    // deep drop: no float — the sinker lands as far out as it was cast, the bite shows on the rod tip
     const deepRig = !!g.location.noFloat;
-    const landing = deepRig ? new THREE.Vector3(0.6 * side, 0, -4.2) : new THREE.Vector3(0.9 * side, 0, -g.distanceM);
+    const landing = new THREE.Vector3(0.9 * side, 0, -g.distanceM);
     const fp = this.floatPos.copy(landing);
     // rise, in bands of the 찌톱: 0 = normal (3 of 4 bands showing), +1.5 = 찌올림, −4 = under
     let rise = 0;
@@ -936,8 +936,6 @@ export class FishingScene {
           rise = -Math.min(4.5, since / 60);
           fp.x += Math.min(1, since / 800) * 0.6 * side;
       }
-    } else if (g.phase === 'reeling' && g.fish && deepRig) {
-      // the fish comes up from the deep under the bow
     } else if (g.phase === 'reeling' && g.fish) {
       const out = g.lineOutM();
       fp.z = -Math.max(1.5, out);

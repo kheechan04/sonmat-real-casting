@@ -45,7 +45,7 @@ export type RunKind = 'run' | Behavior;
 const RUN_RULES: Record<RunKind, { dur: number; take: number; tension: number; progress: number; stop: boolean; warn: boolean }> = {
   run: { dur: 1, take: 1, tension: 1, progress: 0, stop: true, warn: true },
   jump: { dur: 0.6, take: 0.5, tension: 2.5, progress: 0, stop: true, warn: true },
-  dive: { dur: 1.6, take: 2, tension: 1, progress: 0, stop: true, warn: true },
+  dive: { dur: 1, take: 1.2, tension: 1, progress: 0, stop: true, warn: true },
   thrash: { dur: 0.8, take: 0.8, tension: 1.5, progress: 0, stop: true, warn: true },
   dig: { dur: 1.5, take: 0, tension: 0, progress: 0.35, stop: false, warn: true },
   shock: { dur: 0.5, take: 0, tension: 0, progress: 0, stop: false, warn: false },
