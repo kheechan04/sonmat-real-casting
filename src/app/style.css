@@ -1,0 +1,280 @@
+:root {
+  --bg: #0f141d;
+  --panel: #161d29;
+  --line: #273142;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --rec: #ef4444;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 system-ui, 'Malgun Gothic', sans-serif;
+}
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+h1 small {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 13px;
+}
+
+.privacy {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+@media (max-width: 1000px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.stage {
+  min-width: 0;
+}
+
+.viewWrap {
+  position: relative;
+}
+
+canvas {
+  display: block;
+  max-width: 100%;
+  border-radius: 6px;
+}
+
+#view {
+  width: 100%;
+  height: auto;
+  background: #0b0f17;
+}
+
+.banner {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(127, 29, 29, 0.92);
+}
+
+.banner.ok {
+  background: rgba(15, 23, 42, 0.88);
+}
+
+.hidden {
+  display: none;
+}
+
+.replayBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.replayBar[hidden],
+.rpNote[hidden] {
+  display: none;
+}
+
+#rpSeek {
+  flex: 1;
+  min-width: 80px;
+}
+
+.rpNote {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.plots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.tsBox {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+#ts {
+  width: 100%;
+  height: auto;
+}
+
+.plotControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-content: flex-start;
+}
+
+.panel fieldset {
+  margin: 0 0 10px;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+legend {
+  padding: 0 4px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.panel label {
+  display: block;
+  margin: 4px 0;
+}
+
+.panel label.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+}
+
+.panel select,
+.panel input[type='text'] {
+  width: 100%;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.row label {
+  margin: 0;
+}
+
+input.num {
+  width: 64px;
+}
+
+button,
+select,
+input {
+  font: inherit;
+  color: var(--text);
+  background: #0b0f17;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 4px 8px;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.primary {
+  border-color: var(--accent);
+}
+
+button.rec {
+  border-color: var(--rec);
+}
+
+button.rec.recording {
+  background: var(--rec);
+  color: #fff;
+}
+
+.how {
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mono {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+
+table.status,
+table.coords {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table.status th {
+  width: 36%;
+  text-align: left;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+table.coords th,
+table.coords td {
+  padding: 1px 3px;
+  text-align: right;
+}
+
+table.coords th:first-child,
+table.coords td:first-child {
+  text-align: left;
+}
+
+table.coords .weak {
+  color: #64748b;
+}
+
+label.file input {
+  width: 100%;
+  margin-top: 2px;
+}
+
+table.coords td:first-child,
+table.coords th:first-child {
+  white-space: nowrap;
+}
