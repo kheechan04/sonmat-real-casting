@@ -157,6 +157,26 @@ export function sampleAt(tr: Track, t: number): V3 | null {
   return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
 }
 
+/**
+ * sampleAt, but when t falls in a tracking gap, the nearest valid frame within `maxMs` — searched
+ * first in direction `prefer` (-1 = earlier). The wrist drops out while it passes behind the head
+ * in an overhead cast wind-up (B1: gaps of 250–500 ms right before most casts).
+ */
+export function sampleNear(tr: Track, t: number, prefer: -1 | 1, maxMs = 300): V3 | null {
+  const direct = sampleAt(tr, t);
+  if (direct) return direct;
+  let best: { d: number; p: V3 } | null = null;
+  for (let i = 0; i < tr.t.length; i++) {
+    const p = tr.p[i];
+    const dt = tr.t[i] - t;
+    if (!p || Math.abs(dt) > maxMs) continue;
+    // same-direction candidates win ties by a wide margin
+    const d = Math.abs(dt) + (Math.sign(dt) === prefer ? 0 : maxMs);
+    if (!best || d < best.d) best = { d, p };
+  }
+  return best?.p ?? null;
+}
+
 // ---------------------------------------------------------------- which hand moved
 
 export interface HandActivity {
@@ -191,11 +211,13 @@ export interface ReachDirection {
 /**
  * For an "arm out in one direction, N times" recording: where did the wrist go, in each space?
  * Rest = median of the first 0.5 s; "reached" = frames farther than 70% of the maximum reach.
+ * A wrist hanging at the hips reads visibility ~0.35 when the hips are near the frame edge
+ * (A1: hips at the bottom edge), so callers may lower `minVis`.
  */
-export function reachDirection(rec: Recording, side: Side): ReachDirection | null {
+export function reachDirection(rec: Recording, side: Side, minVis = 0.5): ReachDirection | null {
   const arm = ARM[side];
-  const w = worldTrack(rec, arm.wrist, arm.shoulder);
-  const im = imageTrack(rec, arm.wrist, arm.shoulder);
+  const w = worldTrack(rec, arm.wrist, arm.shoulder, minVis);
+  const im = imageTrack(rec, arm.wrist, arm.shoulder, minVis);
   const t0 = rec.frames[0]?.t ?? 0;
   const restOf = (tr: Track): V3 | null => {
     const pts = tr.p.filter((p, i): p is V3 => !!p && tr.t[i] - t0 < 500);
@@ -326,10 +348,10 @@ export function findSwings(rec: Recording, side: Side, minFrac = 0.45, gapMs = 7
   const out: Swing[] = [];
   for (const i of kept) {
     const t = im.t[i];
-    const w0 = sampleAt(w, t - 300);
-    const w1 = sampleAt(w, t + 150);
-    const i0 = sampleAt(im, t - 300);
-    const i1 = sampleAt(im, t + 150);
+    const w0 = sampleNear(w, t - 300, -1);
+    const w1 = sampleNear(w, t + 150, 1);
+    const i0 = sampleNear(im, t - 300, -1);
+    const i1 = sampleNear(im, t + 150, 1);
     if (!w0 || !w1 || !i0 || !i1) continue;
     out.push({
       t: t - t0,
@@ -448,4 +470,35 @@ export function reelCircles(rec: Recording, side: Side): CircleStats[] {
   const im = imageTrack(rec, arm.wrist, arm.shoulder);
   // noise floor: ~0.03 m in world, ~0.06 torso lengths in the image (placeholder, see idle recording E1)
   return PLANES.map((pl) => (pl === 'image-xy' ? circleStats(im, pl, 1000, 0.06) : circleStats(w, pl, 1000, 0.03)));
+}
+
+// ---------------------------------------------------------------- oscillation count (reeling)
+
+/**
+ * Count back-and-forth cycles of one coordinate: the value minus its ±500 ms running mean must swing
+ * above +amp and then below −amp for one cycle. A real reel crank, seen from the front, is a small
+ * ellipse (D1: 4 cm radius, roundness 0.3–0.4) whose angle-based turn count failed (10 of ~60),
+ * but its vertical wobble counted the same ~60 cycles on every axis.
+ */
+export function oscillations(tr: Track, axis: 0 | 1 | 2, amp: number, halfWindowMs = 500): number {
+  const pts: { t: number; v: number }[] = [];
+  tr.p.forEach((p, i) => {
+    if (p) pts.push({ t: tr.t[i], v: p[axis] });
+  });
+  let lo = 0;
+  let hi = 0;
+  let sum = 0;
+  let state = 0;
+  let n = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const t = pts[i].t;
+    while (hi < pts.length && pts[hi].t <= t + halfWindowMs) sum += pts[hi++].v;
+    while (pts[lo].t < t - halfWindowMs) sum -= pts[lo++].v;
+    const d = pts[i].v - sum / (hi - lo);
+    if (state <= 0 && d > amp) {
+      state = 1;
+      n++;
+    } else if (state >= 0 && d < -amp) state = -1;
+  }
+  return n;
 }

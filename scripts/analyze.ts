@@ -11,9 +11,12 @@ import {
   findSwings,
   handActivity,
   reachDirection,
+  imageTrack,
+  oscillations,
   reelCircles,
   timing,
   worldImageAgreement,
+  worldTrack,
   type V3,
 } from '../src/core/analysis';
 import { mirrorRecording } from '../src/core/mirror';
@@ -71,9 +74,14 @@ function report(rec: Recording, name: string): void {
     const expect = { 'axis-side': '몸 바깥 옆', 'axis-up': '위', 'axis-forward': '카메라 쪽', label: '위' }[check];
     const ok = act.dominant === side;
     console.log(`   [라벨] 메모상 움직인 손 = ${hand(side)}, 데이터상 = ${hand(act.dominant)} → ${ok ? '일치' : '불일치!'}`);
-    const d = reachDirection(rec, side);
+    // hips at the frame edge make a hanging wrist read ~0.35 visibility (A1) — retry lower
+    let d = reachDirection(rec, side);
+    const lowVis = !d;
+    if (!d) d = reachDirection(rec, side, 0.2);
     if (d) {
-      console.log(`   [축] "${expect}"으로 뻗었을 때 손목(어깨 기준) 이동 방향, 평균 ${d.reachM.toFixed(2)}m`);
+      console.log(
+        `   [축] "${expect}"으로 뻗었을 때 손목(어깨 기준) 이동 방향, 평균 ${d.reachM.toFixed(2)}m${lowVis ? ' (손목 신뢰도 낮은 프레임 포함)' : ''}`,
+      );
       console.log(`        월드  ${vec(d.world)}  → 주축 ${mainAxis(d.world)}`);
       console.log(`        이미지 ${vec(d.image)}  → 주축 ${mainAxis(d.image)}`);
     }
@@ -83,12 +91,13 @@ function report(rec: Recording, name: string): void {
 
   if (check === 'cast' || check === 'hookset' || check === 'cycle' || !item) {
     const sw = findSwings(rec, rod);
-    console.log(`   [빠른 동작 · ${hand(rod)}] ${sw.length}개 (메모 기대값과 비교)`);
+    const down = sw.filter((x) => x.dImage[1] > 0).length;
+    console.log(`   [빠른 동작 · ${hand(rod)}] ${sw.length}개 — 아래로 ${down} · 위로 ${sw.length - down} (메모 기대값과 비교)`);
     if (sw.length) {
       console.log('        시각(s)  최고속도   Δ월드 (x, y, z) m          Δ이미지 (x, y, z) 몸통길이   팔꿈치 각도');
       for (const s of sw) {
         console.log(
-          `        ${(s.t / 1000).toFixed(2).padStart(6)}  ${s.peakSpeed.toFixed(1).padStart(6)}   ${vec(s.dWorld)}   ${vec(s.dImage)}   ${s.elbowFrom.toFixed(0)}°→${s.elbowTo.toFixed(0)}°`,
+          `     ${s.dImage[1] > 0 ? '↓' : '↑'}  ${(s.t / 1000).toFixed(2).padStart(6)}${s.peakSpeed.toFixed(1).padStart(6)}   ${vec(s.dWorld)}   ${vec(s.dImage)}   ${s.elbowFrom.toFixed(0)}°→${s.elbowTo.toFixed(0)}°`,
         );
       }
       // sign consistency per axis
@@ -110,6 +119,13 @@ function report(rec: Recording, name: string): void {
     for (const c of reelCircles(rec, reel)) {
       console.log(`        ${label[c.plane].padEnd(10)}  ${c.roundness.toFixed(2)}  ${f2(c.turns)}바퀴  ${c.radius.toFixed(3)}`);
     }
+    // amplitudes: still hands wobble ~0.005 m / 0.011 torso (RMS, E1); reeling 0.04 m / 0.086 (D1)
+    const w = worldTrack(rec, ARM[reel].wrist, ARM[reel].shoulder);
+    const im = imageTrack(rec, ARM[reel].wrist, ARM[reel].shoulder);
+    const oy = oscillations(w, 1, 0.015);
+    const oi = oscillations(im, 1, 0.03);
+    const perSec = tm.durationS > 0 ? (oy / tm.durationS).toFixed(1) : '-';
+    console.log(`   [위아래 흔들림 횟수 · ${hand(reel)}] 월드 y ${oy}회 · 화면 y ${oi}회 (${perSec}회/초)`);
   }
 }
 

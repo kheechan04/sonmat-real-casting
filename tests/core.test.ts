@@ -3,6 +3,7 @@ import {
   circleStats,
   findSwings,
   handActivity,
+  oscillations,
   reachDirection,
   reelCircles,
   timing,
@@ -126,6 +127,41 @@ describe('analysis', () => {
       expect(sw.dWorld[1]).toBeGreaterThan(0); // moving down
       expect(sw.dWorld[2]).toBeLessThan(0); // moving toward the camera
     }
+  });
+
+  it('findSwings: still finds a swing when the wrist is lost just before it (behind the head)', () => {
+    const cast = (t: number) => {
+      const k = t % 1500;
+      if (k < 600) return k / 600;
+      if (k < 750) return 1 - (k - 600) / 150;
+      return 0;
+    };
+    const rec = recordingOf(animate(4500, (t) => withWrist(standing(), R, [0, -0.5 * cast(t), 0.3 * cast(t)]), 30));
+    // drop the wrist for 300 ms at the top of each wind-up
+    for (const f of rec.frames) {
+      const k = f.t % 1500;
+      if (k > 300 && k < 600) f.wl![R][3] = f.lm![R][3] = 0.2;
+    }
+    const s = findSwings(rec, 'right');
+    expect(s).toHaveLength(3);
+    for (const sw of s) expect(sw.dWorld[1]).toBeGreaterThan(0.2);
+  });
+
+  it('oscillations: counts crank wobble, ignores standing-still jitter', () => {
+    const ms = 10_000;
+    const reel = recordingOf(
+      animate(ms, (t) => {
+        const a = (t / 1000) * 3 * 2 * Math.PI; // 3 turns/s, small flat ellipse
+        return withWrist(standing(), LM.WRIST_L, [0.01 * Math.cos(a), 0.04 * Math.sin(a), 0.03 * Math.cos(a)]);
+      }),
+    );
+    const n = oscillations(worldTrack(reel, LM.WRIST_L, ARM.left.shoulder), 1, 0.015);
+    expect(n).toBeGreaterThanOrEqual(29);
+    expect(n).toBeLessThanOrEqual(31);
+    const still = recordingOf(
+      animate(ms, (t) => withWrist(standing(), LM.WRIST_L, [0, 0.005 * Math.sin(t * 0.37), 0])),
+    );
+    expect(oscillations(worldTrack(still, LM.WRIST_L, ARM.left.shoulder), 1, 0.015)).toBe(0);
   });
 
   it('circleStats: a crank circle in the side (y–z) plane shows up only there', () => {
