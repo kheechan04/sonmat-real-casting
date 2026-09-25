@@ -3,7 +3,8 @@
 
 import * as THREE from 'three';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
-import { SPECIES, TIER_NAME } from '../core/species';
+import { EVENT_NAME, SPECIES, TIER_NAME, type EventKind } from '../core/species';
+import { buildAnimal } from './animals';
 import { buildSpecies } from './fishModels';
 
 const canvas = document.getElementById('c') as HTMLCanvasElement;
@@ -32,7 +33,22 @@ const items = SPECIES.map((sp, i) => {
   document.body.append(el);
   return { m, el };
 });
-const rows = Math.ceil(SPECIES.length / COLS);
+// interference animals on the last row, shrunk to fit the grid
+const ANIMALS: [EventKind, number][] = [['otter', 0.9], ['orca', 0.15], ['crocodile', 0.24], ['hippo', 0.55]];
+const animalRow = Math.ceil(SPECIES.length / COLS);
+ANIMALS.forEach(([k, sc], i) => {
+  const m = buildAnimal(k);
+  m.scale.setScalar(sc);
+  m.position.set((i - 1.5) * 1.5, -animalRow * 0.95, 0);
+  m.rotation.y = 0.35;
+  scene.add(m);
+  const el = document.createElement('div');
+  el.className = 'label';
+  el.innerHTML = `${EVENT_NAME[k]} <small>동물</small>`;
+  document.body.append(el);
+  items.push({ m, el });
+});
+const rows = animalRow + 1;
 camera.position.set(0, -((rows - 1) * 0.95) / 2, 9.2);
 
 new HDRLoader().load(`${import.meta.env.BASE_URL}env/bell_park_pier_1k.hdr`, (hdr) => {

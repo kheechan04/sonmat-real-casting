@@ -769,7 +769,16 @@ export class FishingScene {
         m.position.y = -1.5 + (1.5 + low + bob) * surface(u);
         face(target.x - act.from.x, target.z - act.from.z);
         if (act.kind === 'orca') m.rotation.z = Math.sin(now / 420) * 0.08;
-        if (Math.random() < 0.15) this.ripple(m.position, now, act.kind === 'orca' ? 2.5 : 1, 1.2);
+        // wake: ripples trailing behind
+        if (m.userData.wake && Math.random() < 0.3) {
+          const back = new THREE.Vector3(-1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), m.rotation.y).multiplyScalar(ANIMAL_SCALE[act.kind] * (act.kind === 'orca' ? 2.5 : 0.8));
+          this.ripple(m.position.clone().add(back), now, act.kind === 'orca' ? 2.5 : 1, 1.4);
+        }
+        // the orca's blow: a burst of spray from the blowhole now and then
+        if (m.userData.blow && Math.random() < 0.012) {
+          const head = new THREE.Vector3(2, 0.9, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), m.rotation.y).add(m.position);
+          this.splashAt(head, 70, 6);
+        }
         break;
       }
       case 'escape': {
@@ -777,6 +786,11 @@ export class FishingScene {
         m.position.copy(act.from).addScaledVector(away, u * 4);
         m.position.y = low - u * 2.5;
         face(away.x, away.z);
+        // diving: nose down, so the orca's flukes lift clear of the water
+        if (act.kind === 'orca') {
+          m.rotation.z = -Math.min(0.9, u * 1.6);
+          m.position.y = low - u * 1.2;
+        }
         break;
       }
       case 'steal': {
