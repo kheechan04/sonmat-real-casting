@@ -21,16 +21,24 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 
 같은 장소의 새벽 버전 [Bell Park Dawn](https://polyhaven.com/a/bell_park_dawn)(CC0)이 있어서 시간대 변화(M5)에 쓸 수 있다.
 
-## 물고기 사진 (나중에 — M2에서는 코드로 만든 모델 사용, 사용자 결정)
+## 물고기 3D 모델 (실사, 사용자: "진짜 실제 물고기처럼")
 
-| 어종 | 파일 | 출처 | 라이선스 |
-|---|---|---|---|
-| 붕어 | | | |
-| 잉어 | | | |
+`public/models/fish/<id>.glb` — 없는 어종은 코드로 만든 모델(`fishModels.ts`)을 그대로 쓴다.
+두 가지 경로:
+1. **실물 스캔** — Sketchfab의 CC0/CC-BY 모델(주로 ffish.asia 사진측량 스캔, CC0). 후보·고른 이유는 `assets-src/models/sources.json`, 받기는 `scripts/fetch-models.mjs`(Sketchfab 로그인 토큰 필요).
+2. **사진 → 3D 생성** — 무료 모델이 없는 어종. 라이선스 확인된 사진(퍼블릭 도메인/CC0/CC-BY, Wikimedia Commons)을
+   [Microsoft TRELLIS.2](https://github.com/microsoft/TRELLIS.2)(MIT, 공식 Hugging Face 무료 데모)로 3D로 만든다. 원본 사진은 `assets-src/models/ai-src/`.
+   CC-BY 사진에서 만든 모델은 그 사진의 저작자 표시를 따른다.
+
+원본(`assets-src/models/raw/`, git 제외) → `node scripts/build-fish.mjs` → 약 2만 삼각형·1024px WebP·meshopt 압축(한 마리 약 0.5MB).
+
+| 어종 | 파일 | 만든 방법 · 원본 | 원본 저작자 | 라이선스 | 받은 날 |
+|---|---|---|---|---|---|
+| 틸라피아 | `public/models/fish/tilapia.glb` | TRELLIS.2 ← [Tilapia oreochromis niloticus fish.jpg](https://commons.wikimedia.org/wiki/File:Tilapia_oreochromis_niloticus_fish.jpg) | (Wikimedia Commons, 퍼블릭 도메인) | 퍼블릭 도메인 사진 → 생성 모델 | 2026-09-25 |
 
 ## 코드로 만든 것 (외부 파일 아님)
 
-- 어종 30종 모델 — `src/app/fishModels.ts` (몸통·무늬·지느러미·특징을 코드로 생성, UV 유지)
+- 어종 모델(실사 모델이 아직 없는 어종, 그리고 실사 모델을 불러오는 동안의 대체) — `src/app/fishModels.ts`
 - 훼방 동물(수달·범고래·나일악어·하마) — `src/app/animals.ts`
 - 찌, 낚싯대, 배(난간·집어등), 바위 모양, 물결 무늬 — `src/app/scene.ts`
 - 효과음·환경음(물결·바람·새) — `src/app/sfx.ts`에서 Web Audio로 합성 (음원 파일 없음)

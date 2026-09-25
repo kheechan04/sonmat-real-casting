@@ -15,6 +15,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { Water } from 'three/examples/jsm/objects/Water.js';
 import { buildAnimal } from './animals';
+import { loadSpecies, setSwimTime, swim } from './fishAssets';
 import { buildSpecies } from './fishModels';
 import { FLIGHT_S, type FishingGame } from '../core/game';
 import type { Side } from '../core/pose';
@@ -330,7 +331,8 @@ export class FishingScene {
     const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
     for (const id of species) {
       if (this.fishes.has(id)) continue;
-      const m = buildSpecies(id);
+      const m = await loadSpecies(id); // the real model when there is one (fishAssets.ts)
+      if (this.fishes.has(id)) continue; // a catch during the download already made a stand-in
       m.visible = false;
       this.fishes.set(id, m);
       this.scene.add(m);
@@ -933,6 +935,7 @@ export class FishingScene {
     this.lastRenderT = now;
     const since = now - g.phaseT;
     const side = this.rodHand === 'right' ? 1 : -1;
+    setSwimTime(now / 1000);
     // the reel turns with the player's hand; line pulled out spins the spool backwards
     const turning = g.phase === 'reeling' && !g.mustStop ? g.reelRate : 0;
     this.crank.rotation.x -= turning * Math.PI * 2 * dt;
@@ -1098,6 +1101,7 @@ export class FishingScene {
       jf.scale.setScalar(Math.max(0.6, lenM) * 1.4);
       jf.position.set(fp.x + (u - 0.5) * lenM, Math.sin(u * Math.PI) * (1.2 + lenM * 0.6) - 0.2, fp.z);
       jf.rotation.set(0, side * 0.6, Math.cos(u * Math.PI) * 1.1 + Math.sin(now / 60) * 0.25);
+      swim(jf, now, 3); // thrashing in the air
       if (u > 0.92 && !this.jumpSplashed) {
         this.splashAt(fp, 120, 5);
         this.ripple(fp, now, 2.5, 1.4);
@@ -1141,7 +1145,7 @@ export class FishingScene {
         f.position.copy(held);
         f.rotation.set(0.05, 0.25 + Math.sin(now / 1400) * 0.25, Math.sin(now / 180) * 0.06);
       }
-      (f.userData.tail as THREE.Mesh).rotation.y = Math.sin(now / 120) * 0.35;
+      swim(f, now, since < LEAP_MS ? 3 : 1.2);
       const glow = f.userData.glow as THREE.Mesh | undefined;
       if (glow) glow.scale.setScalar(1 + Math.sin(now / 200) * 0.25); // anglerfish lure pulses
     }

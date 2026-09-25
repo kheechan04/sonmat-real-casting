@@ -1,0 +1,155 @@
+[
+ {
+  "id": "crucian",
+  "uid": "da1829c8fc1d4ed3b06f311ad23788ae",
+  "name": "CC0 ギンブナ 🐟 Crucian Carp, C. auratus langsdorfii",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/da1829c8fc1d4ed3b06f311ad23788ae",
+  "faces": 583440
+ },
+ {
+  "id": "carp",
+  "uid": "6b404d20bab34fa99fba848060c42ca7",
+  "name": "CC0 コイ 🐟 Carp, Cyprinus carpio",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/6b404d20bab34fa99fba848060c42ca7",
+  "faces": 964176
+ },
+ {
+  "id": "bass",
+  "uid": "62e182cf1f2d4d5692dde7348e648f76",
+  "name": "CC0 オオクチバス類 🐟 ♂, Micropterus sp.",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/62e182cf1f2d4d5692dde7348e648f76",
+  "faces": 451132
+ },
+ {
+  "id": "catfish",
+  "uid": "0b28048d20ea4883990b0a8de2166c6f",
+  "name": "CC0 ナマズ 🐟 Amur Catfish, Silurus asotus",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/0b28048d20ea4883990b0a8de2166c6f",
+  "faces": 813324
+ },
+ {
+  "id": "snakehead",
+  "uid": "f00d3f9e6f59431e9a438f5d7571645d",
+  "name": "CC0 カムルチー 🐟 Spotted Snakehead, Channa argus",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/f00d3f9e6f59431e9a438f5d7571645d",
+  "faces": 1054995
+ },
+ {
+  "id": "mandarin",
+  "uid": "448a3538ffc74687ac0c5daf946fcfca",
+  "name": "CC0 オヤニラミ 🐟 ♂ Japanese Aucha Perch",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/448a3538ffc74687ac0c5daf946fcfca",
+  "faces": 707867
+ },
+ {
+  "id": "rockfish",
+  "uid": "97a5468e21994160b93c10b643c1f777",
+  "name": "CC0 クロメバル 🐟 Blueback Seaperch, S. ventricosus",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/97a5468e21994160b93c10b643c1f777",
+  "faces": 706350
+ },
+ {
+  "id": "red_seabream",
+  "uid": "7b27c8bfd19449eb83d35b497f02bf2d",
+  "name": "CC0 マダイ 🐟 Red Seabream, Pagrus major",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/7b27c8bfd19449eb83d35b497f02bf2d",
+  "faces": 661392
+ },
+ {
+  "id": "flounder",
+  "uid": "8abb6d1daa1744e293a005560c5f4107",
+  "name": "CC0 ガンゾウビラメ 🐟 Cinnamon Flounder, P. cinnamoneus",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/8abb6d1daa1744e293a005560c5f4107",
+  "faces": 795750
+ },
+ {
+  "id": "seabass",
+  "uid": "7460e749039547a783a85f612cca3ceb",
+  "name": "CC0 スズキ 🐟 Japanese Seabass, L. japonicus",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/7460e749039547a783a85f612cca3ceb",
+  "faces": 602817
+ },
+ {
+  "id": "yellowtail",
+  "uid": "e27d30bd4d7347238e428a8e36d9fde4",
+  "name": "CC0 ブリ 🐟 Five-ray Yellowtail, S. quinqueradiata",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/e27d30bd4d7347238e428a8e36d9fde4",
+  "faces": 1169491
+ },
+ {
+  "id": "tuna",
+  "uid": "88d6e843abfb44d086341323e99b83ac",
+  "name": "CC0 クロマグロ 🐟 Pacific Bluefin Tuna, T. orientalis",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/88d6e843abfb44d086341323e99b83ac",
+  "faces": 1167191
+ },
+ {
+  "id": "hammerhead",
+  "uid": "b68fdc989ba74bec9495ac907995739e",
+  "name": "CC0 アカシュモクザメ 🦈 ♀ Scalloped Hammerhead Shark",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/b68fdc989ba74bec9495ac907995739e",
+  "faces": 897206
+ },
+ {
+  "id": "isopod",
+  "uid": "3979c291d1f9454c90851efe291eab60",
+  "name": "CC0 オオグソクムシ Giant Isopod, B. doederleinii",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/3979c291d1f9454c90851efe291eab60",
+  "faces": 582561
+ },
+ {
+  "id": "anglerfish",
+  "uid": "6538a4e7b31949c2a01449b83b196796",
+  "name": "CC0 キアンコウ 🐟 Yellow Goosefish, Lophius litulon",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/6538a4e7b31949c2a01449b83b196796",
+  "faces": 1623063
+ },
+ {
+  "id": "great_white",
+  "uid": "e913e5092d2341749ff66e4359b1e4a3",
+  "name": "Realistic Shark",
+  "lic": "CC Attribution",
+  "user": "MotionStreamStudios",
+  "url": "https://sketchfab.com/3d-models/e913e5092d2341749ff66e4359b1e4a3",
+  "faces": 423800
+ },
+ {
+  "id": "nile_perch",
+  "uid": "699ae7b41ed14962a4d1afa008a8ba2a",
+  "name": "Barramundi fish",
+  "lic": "CC Attribution",
+  "user": "ryan_saputra",
+  "url": "https://sketchfab.com/3d-models/699ae7b41ed14962a4d1afa008a8ba2a",
+  "faces": 4104
+ }
+]

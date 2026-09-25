@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { EVENT_NAME, SPECIES, TIER_NAME, type EventKind } from '../core/species';
 import { buildAnimal } from './animals';
+import { loadSpecies, setSwimTime, swim } from './fishAssets';
 import { buildSpecies } from './fishModels';
 
 const canvas = document.getElementById('c') as HTMLCanvasElement;
@@ -31,7 +32,17 @@ const items = SPECIES.map((sp, i) => {
   el.className = 'label';
   el.innerHTML = `${sp.name} <small>${TIER_NAME[sp.tier]}</small>`;
   document.body.append(el);
-  return { m, el };
+  const item = { m: m as THREE.Object3D, el };
+  // swap in the real model once it has loaded (procedural until then, or for good if there is none)
+  void loadSpecies(sp.id).then((real) => {
+    if (!real.userData.real) return;
+    real.position.copy(m.position);
+    scene.remove(m);
+    scene.add(real);
+    item.m = real;
+    el.innerHTML += ' <small>실사</small>';
+  });
+  return item;
 });
 // interference animals on the last row, shrunk to fit the grid
 const ANIMALS: [EventKind, number][] = [['otter', 0.9], ['orca', 0.15], ['crocodile', 0.24], ['hippo', 0.55]];
@@ -68,9 +79,10 @@ resize();
 
 const v = new THREE.Vector3();
 function loop(t: number): void {
+  setSwimTime(t / 1000);
   for (const { m, el } of items) {
     m.rotation.y = 0.35 + Math.sin(t / 2000) * 0.25;
-    (m.userData.tail as THREE.Object3D | undefined)?.rotation.set(0, Math.sin(t / 150) * 0.3, 0);
+    swim(m, t);
     v.copy(m.position).add(new THREE.Vector3(0, -0.42, 0)).project(camera);
     el.style.left = `${((v.x + 1) / 2) * innerWidth}px`;
     el.style.top = `${((1 - v.y) / 2) * innerHeight}px`;
