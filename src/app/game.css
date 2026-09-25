@@ -1266,3 +1266,7 @@ a {
 .dexCard.tier-legend { border-color: rgba(244, 213, 141, 0.7); box-shadow: 0 0 18px rgba(244, 213, 141, 0.15); }
 .dexCard.animal { border-style: dashed; }
 .dexCard.unknown { opacity: 0.5; }
+
+.flash.blue {
+  background: radial-gradient(circle at 50% 50%, rgba(160, 220, 255, 0.9), rgba(60, 120, 255, 0.5));
+}

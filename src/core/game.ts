@@ -23,6 +23,7 @@ import {
   LOCATIONS,
   SPECIES,
   type BaitDef,
+  type Behavior,
   type EventKind,
   type LocationDef,
   type LocationId,
@@ -33,6 +34,24 @@ import {
 export type Phase = 'place' | 'bait' | 'ready' | 'flight' | 'waiting' | 'nibble' | 'bite' | 'reeling' | 'caught' | 'missed';
 
 export type MissReason = 'early' | 'late' | 'snap' | 'escape' | 'stolen';
+
+/** A fish run: the plain one, or the species' own behaviour (species.ts Behavior). */
+export type RunKind = 'run' | Behavior;
+
+/**
+ * How each kind of run plays. stop: the player should stop reeling (reeling builds tension ×tension);
+ * dig is the opposite (keep reeling, at ×progress); shock just freezes reeling.
+ */
+const RUN_RULES: Record<RunKind, { dur: number; take: number; tension: number; progress: number; stop: boolean; warn: boolean }> = {
+  run: { dur: 1, take: 1, tension: 1, progress: 0, stop: true, warn: true },
+  jump: { dur: 0.6, take: 0.5, tension: 2.5, progress: 0, stop: true, warn: true },
+  dive: { dur: 1.6, take: 2, tension: 1, progress: 0, stop: true, warn: true },
+  thrash: { dur: 0.8, take: 0.8, tension: 1.5, progress: 0, stop: true, warn: true },
+  dig: { dur: 1.5, take: 0, tension: 0, progress: 0.35, stop: false, warn: true },
+  shock: { dur: 0.5, take: 0, tension: 0, progress: 0, stop: false, warn: false },
+};
+/** Share of runs that are the species' behaviour rather than a plain run. */
+const BEHAVIOR_SHARE = 0.55;
 export const MISS_TEXT: Record<MissReason, string> = {
   early: '너무 일찍 챘어요 — 톡톡 건드리는 건 가짜 입질이에요',
   late: '입질을 놓쳤어요 — 찌가 움직이면 바로 채요',
@@ -58,8 +77,8 @@ export type GameEvent =
   | { type: 'nibble' }
   | { type: 'bite' }
   | { type: 'hooked' }
-  | { type: 'runWarn' }
-  | { type: 'run'; on: boolean }
+  | { type: 'runWarn'; kind: RunKind }
+  | { type: 'run'; on: boolean; kind: RunKind }
   | { type: 'thief'; kind: EventKind }
   | { type: 'thiefEscaped'; kind: EventKind }
   | { type: 'spook'; kind: EventKind }
@@ -105,6 +124,8 @@ export class FishingGame {
   running = false;
   /** reeling: a run is about to start (splash warning) */
   runSoon = false;
+  /** what the current / next run is (plain run or the species' behaviour) */
+  runKind: RunKind = 'run';
   /** reeling: an animal is coming for the fish */
   thief: { kind: EventKind; until: number; from: number } | null = null;
   /** the reel rate the game last saw, turns/s (for the HUD) */
@@ -122,6 +143,7 @@ export class FishingGame {
   private biteUntil = 0;
   private nextRun = 0;
   private runUntil = 0;
+  private runStart = 0;
   private lastReelT = 0;
   private lastT = 0;
   /** progress at which the thief shows up this fight (Infinity = not this time) */
@@ -233,6 +255,7 @@ export class FishingGame {
     this.tension = 0;
     this.running = false;
     this.runSoon = false;
+    this.runKind = 'run';
     this.thief = null;
     this.lastReelT = now;
     this.scheduleRun(now);
@@ -246,6 +269,13 @@ export class FishingGame {
   private scheduleRun(now: number): void {
     const P = this.params();
     this.nextRun = now + this.fish!.def.runEveryS * P['scale.runEvery'] * 1000 * this.uniform(0.7, 1.3);
+    const b = this.fish!.def.behavior;
+    this.runKind = b && this.rng() < BEHAVIOR_SHARE ? b : 'run';
+  }
+
+  /** The player should stop reeling right now (run, jump, dive, thrash — not dig or shock). */
+  get mustStop(): boolean {
+    return this.running && RUN_RULES[this.runKind].stop;
   }
 
   private miss(reason: MissReason, now: number): void {
@@ -392,26 +422,30 @@ export class FishingGame {
       }
     } else {
       // ---- runs: warning → run → pause
-      if (!this.running && !this.runSoon && now >= this.nextRun - P['fight.warnS'] * 1000) {
+      const rule = RUN_RULES[this.runKind];
+      if (!this.running && !this.runSoon && rule.warn && now >= this.nextRun - P['fight.warnS'] * 1000) {
         this.runSoon = true;
-        this.emit({ type: 'runWarn' });
+        this.emit({ type: 'runWarn', kind: this.runKind });
       }
       if (!this.running && now >= this.nextRun) {
         this.running = true;
         this.runSoon = false;
-        this.runUntil = now + fish.def.runS * 1000 * this.uniform(0.8, 1.2);
-        this.emit({ type: 'run', on: true });
+        this.runStart = now;
+        this.runUntil = now + fish.def.runS * rule.dur * 1000 * this.uniform(0.8, 1.2);
+        this.emit({ type: 'run', on: true, kind: this.runKind });
       } else if (this.running && now >= this.runUntil) {
+        const kind = this.runKind;
         this.running = false;
         this.lastReelT = now; // the player was told to wait — don't count the run as slack
         this.scheduleRun(now);
-        this.emit({ type: 'run', on: false });
+        this.emit({ type: 'run', on: false, kind });
       }
 
       if (this.running) {
-        this.progress = Math.max(0, this.progress - P['fight.takeRate'] * dt);
-        this.tension += P['fight.tensionPerTurn'] * rate * dt;
-        if (rate === 0) this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
+        this.progress = Math.max(0, this.progress - P['fight.takeRate'] * rule.take * dt + rate * rule.progress * dt);
+        this.tension += P['fight.tensionPerTurn'] * rule.tension * rate * dt;
+        if (rate === 0 || rule.tension === 0) this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
+        if (rate > 0) this.lastReelT = now;
         if (this.tension >= 1) {
           this.tension = 1;
           this.miss('snap', now);
@@ -449,6 +483,12 @@ export class FishingGame {
     this.biteUntil = now + this.fish!.biteWindowS * 1000;
     this.emit({ type: 'bite' });
     this.setPhase('bite', now);
+  }
+
+  /** How far through the current run we are, 0–1 (0 when not running) — drives the jump animation. */
+  runFrac(now: number): number {
+    if (!this.running) return 0;
+    return Math.min(1, (now - this.runStart) / Math.max(1, this.runUntil - this.runStart));
   }
 
   /** Seconds left to hook-set in the bite phase (for the HUD). */

@@ -2,7 +2,7 @@
 // Pose pipeline: poseSource.ts. Gesture rules: core/gestures.ts. Game rules: core/game.ts.
 // Every number is a placeholder in core/params.ts, adjustable from the ⚙ panel.
 
-import { FishingGame, FLIGHT_S, MISS_TEXT, type Fish, type GameEvent } from '../core/game';
+import { FishingGame, FLIGHT_S, MISS_TEXT, type Fish, type GameEvent, type RunKind } from '../core/game';
 import { GestureTracker, type GestureEvent } from '../core/gestures';
 import { EVENT_NAME, LOCATIONS, SPECIES, speciesAt, TIER_NAME, type EventKind, type LocationId } from '../core/species';
 import { ARM, LM, other, type PoseFrame, type Side } from '../core/pose';
@@ -349,7 +349,7 @@ $('dexClose').addEventListener('click', () => show('dexBox', false));
 
 // ---------------------------------------------------------------- big-moment effects (exaggerated on purpose)
 
-function flash(color: 'white' | 'gold' | 'red'): void {
+function flash(color: 'white' | 'gold' | 'red' | 'blue'): void {
   const el = $('flash');
   el.className = `flash ${color}`;
   void el.offsetWidth; // restart the animation
@@ -440,13 +440,29 @@ function onGameEvent(e: GameEvent, now: number): void {
     case 'runWarn':
       sfx.splash();
       scene.fx('runWarn');
-      popText('첨벙!', '', true);
+      popText(e.kind === 'dig' ? '끙…' : '첨벙!', '', true);
       break;
-    case 'run':
-      sfx.setDrag(e.on);
-      if (e.on) scene.fx('run');
-      $('runFlash').classList.toggle('on', e.on);
+    case 'run': {
+      const stop = e.kind !== 'dig' && e.kind !== 'shock';
+      sfx.setDrag(e.on && stop, e.kind === 'dive' ? 0.6 : 1);
+      $('runFlash').classList.toggle('on', e.on && stop);
+      if (!e.on) break;
+      scene.fx('run');
+      if (e.kind === 'jump') {
+        sfx.jump();
+        popText('점프!!', 'gold');
+      } else if (e.kind === 'dive') popText('파고든다!', 'red', true);
+      else if (e.kind === 'thrash') popText('몸부림!', 'red', true);
+      else if (e.kind === 'dig') {
+        sfx.strain();
+        popText('힘껏 감아요!', 'gold', true);
+      } else if (e.kind === 'shock') {
+        sfx.zap();
+        flash('blue');
+        popText('찌릿!!', 'gold');
+      }
       break;
+    }
     case 'caught': {
       const trophy = showCatch(e.fish);
       sfx.caught(trophy);
@@ -514,6 +530,16 @@ function onGameEvent(e: GameEvent, now: number): void {
 
 // ---------------------------------------------------------------- HUD
 
+/** What each kind of run says: [warning, while it lasts, sub line] */
+const RUN_TEXT: Record<RunKind, { soon: string; now: string; sub: string }> = {
+  run: { soon: '첨벙! 곧 차고 나가요', now: '손 멈춰요!', sub: '물고기가 줄을 차고 나가는 중 — 지금 감으면 끊어져요' },
+  jump: { soon: '수면이 부풀어요 — 점프 온다!', now: '점프!! 감지 마요', sub: '바늘을 털어내려고 뛰어올라요 — 감으면 줄이 확 팽팽해져요' },
+  dive: { soon: '줄이 무거워져요 — 파고들 거예요', now: '깊이 파고들어요!', sub: '줄이 쭉쭉 풀려요 — 끝날 때까지 기다려요' },
+  thrash: { soon: '첨벙첨벙! 몸부림 온다', now: '몸부림쳐요! 멈춰요', sub: '수면에서 요동쳐요 — 잠깐 기다려요' },
+  dig: { soon: '바닥으로 파고들어요!', now: '바닥에 붙었어요! 힘껏 감아요!', sub: '이번엔 반대로 — 계속 세게 감아야 떼어내요' },
+  shock: { soon: '', now: '찌릿!! 전기다!', sub: '잠깐 손이 저려요 — 곧 다시 감을 수 있어요' },
+};
+
 const BITE_MSG: Record<string, string> = {
   rise: '찌가 올라와요! 지금!',
   sink: '쭉 빨려 들어가요! 지금!',
@@ -541,8 +567,11 @@ function instruction(now: number): { msg: string; sub: string; tone?: 'alert' | 
           sub: `빨리 감아서 따돌려요 — ${game.thiefLeftS(now).toFixed(1)}초`,
           tone: 'danger',
         };
-      if (game.running) return { msg: '손 멈춰요!', sub: '물고기가 줄을 차고 나가는 중 — 지금 감으면 끊어져요', tone: 'danger' };
-      if (game.runSoon) return { msg: '첨벙!', sub: '곧 차고 나가요', tone: 'alert' };
+      if (game.running) {
+        const t = RUN_TEXT[game.runKind];
+        return { msg: t.now, sub: t.sub, tone: game.mustStop ? 'danger' : 'alert' };
+      }
+      if (game.runSoon) return { msg: RUN_TEXT[game.runKind].soon, sub: '', tone: 'alert' };
       return { msg: '감아요', sub: now - game.phaseT < 4000 ? '릴 손으로 작은 원을 계속 돌려요' : '' };
     default:
       return { msg: '', sub: '' };
@@ -585,14 +614,14 @@ function updateHud(now: number): void {
     $('rateText').textContent = game.reelRate.toFixed(1);
     const lit = Math.round((game.reelRate / params['reel.maxRate']) * 8);
     $('rateDots').querySelectorAll('i').forEach((d, i) => d.classList.toggle('on', i < lit));
-    $('rateDots').classList.toggle('blocked', game.running);
+    $('rateDots').classList.toggle('blocked', game.mustStop);
     const t = game.tension;
     gFill.style.strokeDasharray = `${t * 100} 100`;
     gFill.classList.toggle('hot', t >= 0.75);
     $('tensionText').textContent = t >= 0.75 ? '위험!' : t >= 0.3 ? '팽팽' : '여유';
     const alert = $('runAlert');
-    alert.className = `runAlert${game.running ? ' run' : game.runSoon ? ' soon' : ''}`;
-    alert.textContent = game.running ? '차고 나가요 — 손 멈춰요!' : game.runSoon ? '첨벙! 곧 차고 나가요' : '';
+    alert.className = `runAlert${game.mustStop ? ' run' : game.running || game.runSoon ? ' soon' : ''}`;
+    alert.textContent = game.running ? RUN_TEXT[game.runKind].now : game.runSoon ? RUN_TEXT[game.runKind].soon : '';
   }
 
   const warn = postureWarning();
@@ -707,7 +736,7 @@ function loop(): void {
         sfx.milestone();
         popText('거의 다 왔어요!', 'gold', true);
       }
-      sfx.setRoll(frac >= 0.85 && !game.running);
+      sfx.setRoll(frac >= 0.85 && !game.mustStop);
     }
     if (game.phase === 'bite') {
       const left = game.biteLeftS(now);

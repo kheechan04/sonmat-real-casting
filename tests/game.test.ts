@@ -249,6 +249,55 @@ describe('species, places and baits (M2)', () => {
   });
 });
 
+describe('species behaviours (M2)', () => {
+  /** hooked, reeling up to just before the first run (due at 2 s, rng 0.5 → behaviour: 0.5 < 0.55) */
+  const fight = (behavior: SpeciesDef['behavior'], over: Partial<Params> = {}) => {
+    const s = setup({ 'fight.warnS': 0.5, ...over }, seq(0.5), tables([fishDef({ behavior, reelTurns: 100, runEveryS: 2, runS: 2 })]));
+    s.toBite();
+    s.act(hook(0));
+    s.step(2000, 0);
+    return s;
+  };
+
+  it('jump: announced, and reeling through it builds tension 2.5× faster than a plain run', () => {
+    const tensionAfter = (b: SpeciesDef['behavior']) => {
+      const s = fight(b, { 'fight.tensionPerTurn': 0.05 });
+      expect(s.g.running).toBe(true);
+      s.step(400, 2);
+      return s.g.tension;
+    };
+    const s = fight('jump');
+    expect(s.g.runKind).toBe('jump');
+    expect(s.g.mustStop).toBe(true);
+    expect(s.log.some((e) => e.type === 'runWarn' && e.kind === 'jump')).toBe(true);
+    expect(tensionAfter('jump')).toBeCloseTo(tensionAfter(undefined) * 2.5, 5);
+  });
+
+  it('dig: keep reeling — it moves at 35% and builds no tension', () => {
+    const s = fight('dig');
+    expect(s.g.runKind).toBe('dig');
+    expect(s.g.mustStop).toBe(false);
+    const before = s.g.progress;
+    s.step(1000, 2);
+    expect(s.g.progress - before).toBeCloseTo(2 * 0.35, 1);
+    expect(s.g.tension).toBe(0);
+  });
+
+  it('shock: reeling does nothing for a moment, and there is no warning', () => {
+    const s = fight('shock');
+    expect(s.g.runKind).toBe('shock');
+    expect(s.log.some((e) => e.type === 'runWarn')).toBe(false);
+    const before = s.g.progress;
+    s.step(300, 3);
+    expect(s.g.progress).toBe(before);
+  });
+
+  it('a species without a behaviour only ever does plain runs', () => {
+    const s = fight(undefined);
+    expect(s.g.runKind).toBe('run');
+  });
+});
+
 describe('interference events (M2)', () => {
   const thiefSetup = () => {
     // event.thief 1: the thief always comes; rng 0.5 → at 30–75% of the fight (≈ 52%)

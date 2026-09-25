@@ -245,7 +245,7 @@ export class Sfx {
   }
 
   /** The drag screaming while the fish runs. */
-  setDrag(on: boolean): void {
+  setDrag(on: boolean, pitch = 1): void {
     const c = this.ctx;
     if (!c || !this.noise || !this.fx) return;
     if (on && !this.drag) {
@@ -254,10 +254,10 @@ export class Sfx {
       src.loop = true;
       const f = c.createBiquadFilter();
       f.type = 'bandpass';
-      f.frequency.value = 3200;
+      f.frequency.value = 3200 * pitch;
       f.Q.value = 6;
       const lfo = c.createOscillator();
-      lfo.frequency.value = 38;
+      lfo.frequency.value = 38 * pitch;
       const lfoGain = c.createGain();
       lfoGain.gain.value = 900;
       lfo.connect(lfoGain).connect(f.frequency);
@@ -383,6 +383,23 @@ export class Sfx {
         this.boom(0.35);
         break;
     }
+  }
+
+  /** The fish leaps clear of the water: rush out, and the slap back in. */
+  jump(): void {
+    this.noiseBurst(0.5, 2000, 0.6, 0.45, 0, 4000);
+    this.drop(0.9, 0.5, 0.55);
+    this.boom(0.3, 0.55);
+  }
+  /** Hugging the bottom: a low strain and rod creak. */
+  strain(): void {
+    this.tone(55, 1.2, 0.3, 'sawtooth', 0, 0.9);
+    this.noiseBurst(0.5, 260, 8, 0.25, 0.1, 180);
+  }
+  /** Electric catfish: a crackling zap. */
+  zap(): void {
+    for (let i = 0; i < 6; i++) this.tone(900 + Math.random() * 2500, 0.05, 0.12, 'square', i * 0.05, 0.3);
+    this.noiseBurst(0.35, 5000, 1, 0.3, 0, 8000, 'highpass');
   }
 
   /** Short rising "ding" for milestones (e.g. the fish is almost in). */

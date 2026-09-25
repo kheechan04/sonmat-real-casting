@@ -192,6 +192,8 @@ export class FishingScene {
   // ---- interference animals (M2)
   private animals = new Map<EventKind, THREE.Group>();
   private animalAct: { kind: EventKind; action: AnimalAction; t0: number; dur: number; from: THREE.Vector3 } | null = null;
+  private jumpStart = 0;
+  private jumpSplashed = false;
   /** where the fish leapt out of the water (catch) */
   private leapFrom = new THREE.Vector3();
 
@@ -862,7 +864,9 @@ export class FishingScene {
         // held lower so the whole bent arc stays in view
         elev = 0.6 - g.tension * 0.12;
         bend = g.running ? 1.9 + Math.sin(now / 70) * 0.12 : 0.7 + g.tension * 0.8;
-        if (g.running) yaw = Math.sin(now / 160) * 0.05;
+        if (g.running && g.runKind === 'dive') bend = 2.5 + Math.sin(now / 90) * 0.1; // hauled down
+        if (g.running && g.runKind === 'dig') bend = 1.7 + Math.sin(now / 400) * 0.03; // heavy and still
+        if (g.running && g.runKind !== 'dig') yaw = Math.sin(now / 160) * 0.05;
         break;
       case 'caught':
         // rod swung aside so it doesn't cross the fish held up in front
@@ -918,8 +922,9 @@ export class FishingScene {
       const out = g.lineOutM();
       fp.z = -Math.max(1.5, out);
       fp.x = 0.9 * side * (out / Math.max(1, g.distanceM)) + (g.running ? Math.sin(now / 130) * 0.8 : Math.sin(now / 700) * 0.25);
-      rise = -2;
+      rise = g.running && g.runKind === 'dive' ? -4 : -2;
       tilt = g.running ? 0.9 : 0.5;
+      if (g.running && g.runKind === 'dig') fp.x = 0.9 * side * (out / Math.max(1, g.distanceM)); // stuck
     }
     if (g.phase !== 'flight') fp.y = deepRig ? 0 : -BAND_H * FLOAT_SCALE * (1 - rise);
     this.float.position.copy(fp);
@@ -936,7 +941,10 @@ export class FishingScene {
     if (g.phase === 'waiting' && r < 0.004) this.ripple(fp, now, 0.6, 2.5);
     if (g.phase === 'nibble' && g.nibbling && r < 0.08) this.ripple(fp, now, 0.5, 1);
     if (g.phase === 'reeling') {
-      if ((g.running || g.runSoon) && r < 0.2) this.ripple(fp, now, g.running ? 1.6 : 1.2, 1.1);
+      if (g.running && g.runKind === 'thrash' && r < 0.5) {
+        this.ripple(fp, now, 2, 1);
+        if (r < 0.2) this.splashAt(fp, 25, 3.5);
+      } else if ((g.running || g.runSoon) && g.runKind !== 'dig' && r < 0.2) this.ripple(fp, now, g.running ? 1.6 : 1.2, 1.1);
       else if (r < 0.05) this.ripple(fp, now, 0.8, 1.4);
     }
 
@@ -950,13 +958,14 @@ export class FishingScene {
         const u = i / (LINE_POINTS - 1);
         const p = new THREE.Vector3().lerpVectors(tip, top, u);
         p.y -= Math.sin(u * Math.PI) * sag;
-        if (g.running) p.x += Math.sin(u * Math.PI) * Math.sin(now / 25) * 0.01; // vibrating line
+        if (g.running) p.x += Math.sin(u * Math.PI) * Math.sin(now / 25) * (g.runKind === 'shock' ? 0.04 : 0.01); // vibrating line
         if (p.y < 0.003 && u > 0.5) p.y = 0.003;
         this.linePos.set([p.x, p.y, p.z], i * 3);
       }
       this.line.geometry.attributes.position.needsUpdate = true;
       const t = g.phase === 'reeling' ? g.tension : 0;
       this.lineMat.color.setRGB(0.95, 0.95 - 0.55 * t, 0.95 - 0.7 * t);
+      if (g.running && g.runKind === 'shock' && Math.sin(now / 30) > 0) this.lineMat.color.setRGB(0.5, 0.85, 1); // crackling blue
       this.lineMat.opacity = 0.6 + 0.35 * t;
     }
 
@@ -968,9 +977,40 @@ export class FishingScene {
       this.shadow.scale.set(len, len * 0.35, 1);
     }
 
+    // ---- a jump: the hooked fish leaps clear of the water, twisting (바늘털이)
+    const jumping = g.phase === 'reeling' && g.running && g.runKind === 'jump' && !!g.fish;
+    if (jumping && !this.jumpStart) {
+      this.jumpStart = now;
+      this.splashAt(fp, 90, 5);
+    }
+    if (!jumping) this.jumpStart = 0;
+    if (jumping && g.fish) {
+      const id = g.fish.def.id;
+      let jf = this.fishes.get(id);
+      if (!jf) {
+        jf = buildSpecies(id);
+        this.fishes.set(id, jf);
+        this.scene.add(jf);
+      }
+      const lenM = g.fish.lengthCm / 100;
+      // the leap spans the whole jump run (a fixed 0.9 s could fall between two frames on a slow PC)
+      const u = g.runFrac(now);
+      jf.visible = u < 1;
+      jf.scale.setScalar(Math.max(0.6, lenM) * 1.4);
+      jf.position.set(fp.x + (u - 0.5) * lenM, Math.sin(u * Math.PI) * (1.2 + lenM * 0.6) - 0.2, fp.z);
+      jf.rotation.set(0, side * 0.6, Math.cos(u * Math.PI) * 1.1 + Math.sin(now / 60) * 0.25);
+      if (u > 0.92 && !this.jumpSplashed) {
+        this.splashAt(fp, 120, 5);
+        this.ripple(fp, now, 2.5, 1.4);
+        this.jumpSplashed = true;
+      }
+    } else this.jumpSplashed = false;
+    // a jump that ended early must not leave the fish hanging in the air
+    if (!jumping && g.phase !== 'caught') for (const f of this.fishes.values()) f.visible = false;
+
     // ---- catch close-up: the fish held up in front of the camera
     const showFish = g.phase === 'caught' && g.fish ? g.fish.def.id : null;
-    if (showFish !== this.catchSpecies) {
+    if (showFish !== this.catchSpecies && !jumping) {
       if (showFish && !this.fishes.has(showFish)) {
         const m = buildSpecies(showFish);
         this.fishes.set(showFish, m);
