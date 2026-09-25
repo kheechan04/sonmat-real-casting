@@ -5,7 +5,6 @@
 
 ## 현재 상태 (2026-09-25 기준)
 - **M0 완료, 녹화 13개 분석 끝(2026-09-25).** 축·라벨·fps 결과와 M1 판정 방향 제안은 `docs/VERIFICATION.md`. 사용자가 확인하면 M1 시작.
-  `docs/VERIFICATION.md`의 빈칸을 채우고, 그 결과로 M1 판정 규칙을 정한다.
 - 설계서는 `DESIGN.md`(사용자가 별도 Claude 대화에서 만듦, 내용을 고치지 않는다). 확인 결과는 `docs/VERIFICATION.md`.
 
 ## 사용자
