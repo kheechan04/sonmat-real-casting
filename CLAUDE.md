@@ -5,7 +5,7 @@
 
 ## 현재 상태 (2026-09-25 기준)
 - **M0 완료. M1 기본 루프 → 첫 피드백 반영해 M1.5(디자인·UI 고급화, 3D 물·데크+먼 풍경 사진, 릴링 속도 방식, 차고 나가기 밀당, 새 미끼, 효과음) 구현, 가까이 선 자세 확인 완료(F1~F4), 효과 과장 반영 → 사용자 OK.
-  M2(장소 4곳·어종 30종·훼방 이벤트·도감·코드 생성 3D 모델) → 사용자 OK. 이어서 대기 단축·전설 상향·어종별 행동·동물 품질·배포 준비 → 피드백으로 릴링 길이 재조정(전설 약 50초)·심해 캐스팅 거리 수정, 사용자 확인 대기(2026-09-25). 모델 갤러리: `/models.html`.**
+  M2(장소 4곳·어종 30종·훼방 이벤트·도감·코드 생성 3D 모델) → 사용자 OK. 이어서 대기 단축·전설 상향·어종별 행동·동물 품질·배포 준비 → 피드백으로 릴링 길이 재조정(전설 약 50초)·심해 캐스팅 거리 수정 → 릴링을 줄 길이(m)로·버벅임 수정·**실사 물고기 18종**(ffish.asia 스캔 등, 나머지 11종은 사진→3D 생성 대기), 사용자 확인 대기(2026-09-25). 모델 갤러리: `/models.html`.**
   안내 `docs/PLAYTEST.md`, 바뀐 결정 `docs/DECISIONS.md`, 외부 에셋 출처 `docs/ASSETS.md`(새 사진·파일을 쓰면 반드시 기록).
 - 설계서는 `DESIGN.md`(사용자가 별도 Claude 대화에서 만듦, 내용을 고치지 않는다). 확인 결과는 `docs/VERIFICATION.md`.
 
@@ -35,6 +35,8 @@
 | `npm test` | 단위 테스트 (카메라 불필요) |
 | `npm run analyze [-- 파일…] [--mirror] [--rod=left]` | 녹화 분석 보고서 (축·라벨·fps·빠른 동작·원 그리기) |
 | `npm run build` | 타입 검사 + 빌드 |
+| `node scripts/fetch-models.mjs` → `node scripts/build-fish.mjs` | 물고기 3D 받기(Sketchfab 토큰 `%USERPROFILE%\.sketchfab-token`) → 게임용으로 줄이기 (docs/ASSETS.md) |
+| `python scripts/trellis.py 사진 출력.glb` | 사진 → 3D (TRELLIS.2 무료 데모, 하루 사용량 제한) |
 | `node scripts/make-backdrops.mjs` | 배경 원본(`assets-src/env/*.jpg`) → 물가선 위만 WebP(`public/env/*_top.webp`) |
 
 ## 배포
@@ -58,7 +60,7 @@
 ## 코드 구조
 - `src/core/` — DOM 없는 순수 로직(Node 테스트 가능): `species.ts`(장소·어종·미끼·이벤트 표), `params.ts`(인식 기준·전체 배율), `gestures.ts`(실시간 캐스팅·챔질·릴링 인식),
   `game.ts`(낚시 상태 기계, 릴링은 속도로 채움, 차고 나가기), `pose.ts`, `recording.ts`, `mirror.ts`, `analysis.ts`(M0 분석), `protocol.ts`(녹화 체크리스트)
-- `src/app/` — 브라우저: `main.ts`(게임 페이지), `scene.ts`(three.js: 먼 풍경 사진+HDR 조명, 3D 물(Water)·데크·소품, 휘는 대, 찌, 임시 물고기), `sfx.ts`(합성 효과음), `fishModels.ts`(어종 모델), `animals.ts`(훼방 동물), `gallery.ts`(models.html), `tuning.ts`(⚙ 슬라이더), `poseSource.ts`(카메라+추론, 공용),
+- `src/app/` — 브라우저: `main.ts`(게임 페이지), `scene.ts`(three.js: 먼 풍경 사진+HDR 조명, 3D 물(Water)·데크·소품, 휘는 대, 찌, 임시 물고기), `sfx.ts`(합성 효과음), `fishModels.ts`(코드로 만든 어종 모델 — 실사 모델이 없을 때), `fishAssets.ts`(실사 glb 불러오기·방향 맞추기·헤엄 셰이더), `animals.ts`(훼방 동물), `gallery.ts`(models.html), `tuning.ts`(⚙ 슬라이더), `poseSource.ts`(카메라+추론, 공용),
   `observer.ts`(M0 관찰 도구), `overlay.ts`, `plots.ts`, `landmarker.ts`·`poseWorker.ts`(전작 그대로)
 - 테스트: `tests/game.test.ts`(게임 흐름), `tests/recordings.test.ts`(사용자 녹화로 30/15fps 인식 개수 고정 — 파일 없으면 건너뜀)
 - 문체: 사용자용 문서는 "\~해요", 개발 문서는 "\~한다".
