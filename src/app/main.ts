@@ -673,6 +673,9 @@ $('muteBtn').addEventListener('click', () => {
   $('muteBtn').classList.toggle('off', sfx.muted);
 });
 
+// the ⚙ play-test panel is a development tool: on the published site only with ?dev
+const devTools = import.meta.env.DEV || new URLSearchParams(location.search).has('dev');
+show('tuneBtn', devTools);
 $('tuneBtn').addEventListener('click', () => $('tunePanel').classList.toggle('hidden'));
 buildTuningPanel($('tuneBody'), params, () => {
   if (game.phase === 'bait') fillBaits();

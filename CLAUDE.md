@@ -5,7 +5,7 @@
 
 ## 현재 상태 (2026-09-25 기준)
 - **M0 완료. M1 기본 루프 → 첫 피드백 반영해 M1.5(디자인·UI 고급화, 3D 물·데크+먼 풍경 사진, 릴링 속도 방식, 차고 나가기 밀당, 새 미끼, 효과음) 구현, 가까이 선 자세 확인 완료(F1~F4), 효과 과장 반영 → 사용자 OK.
-  M2(장소 4곳·어종 30종·훼방 이벤트·도감·코드 생성 3D 모델) 구현, 사용자 확인 대기(2026-09-25). 모델 갤러리: `/models.html`.**
+  M2(장소 4곳·어종 30종·훼방 이벤트·도감·코드 생성 3D 모델) → 사용자 OK. 이어서 대기 단축·전설 상향·어종별 행동·동물 품질·배포 준비, 사용자 확인 대기(2026-09-25). 모델 갤러리: `/models.html`.**
   안내 `docs/PLAYTEST.md`, 바뀐 결정 `docs/DECISIONS.md`, 외부 에셋 출처 `docs/ASSETS.md`(새 사진·파일을 쓰면 반드시 기록).
 - 설계서는 `DESIGN.md`(사용자가 별도 Claude 대화에서 만듦, 내용을 고치지 않는다). 확인 결과는 `docs/VERIFICATION.md`.
 
@@ -35,6 +35,12 @@
 | `npm test` | 단위 테스트 (카메라 불필요) |
 | `npm run analyze [-- 파일…] [--mirror] [--rod=left]` | 녹화 분석 보고서 (축·라벨·fps·빠른 동작·원 그리기) |
 | `npm run build` | 타입 검사 + 빌드 |
+| `node scripts/make-backdrops.mjs` | 배경 원본(`assets-src/env/*.jpg`) → 물가선 위만 WebP(`public/env/*_top.webp`) |
+
+## 배포
+- 배포 준비 완료: Vercel 정적 사이트(`vercel.json`, `npm run build` → `dist`), `README.md`. **GitHub 원격 저장소·Vercel 연결은 아직 — 사용자 확인 후.**
+- 배포판에선 ⚙ 패널·키보드 입력·`window.__game`이 꺼진다 (`?dev`, `?keys`로 켬).
+- 배경 원본 8K JPG는 `assets-src/env/`(배포 안 함), 게임은 `public/env/*_top.webp`.
 
 ## 헤드리스 확인 (Windows, 전작과 동일)
 - 크롬 `C:/Program Files/Google/Chrome/Application/chrome.exe`, `npm i --no-save puppeteer-core`.

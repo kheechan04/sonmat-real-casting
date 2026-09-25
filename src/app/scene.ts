@@ -33,8 +33,8 @@ const EYE_M = 2.0;
 /**
  * One fishing place (M2). Backdrop + lighting photos are Poly Haven CC0 (docs/ASSETS.md).
  * yaw: panorama turn so the open water is straight ahead; shoreRow: row (fraction of the photo's
- * height) where the far shore / horizon meets the water — below it the photo is replaced by a
- * mirror image (see mirroredBackdrop). Both tuned by screenshot.
+ * height) where the far shore / horizon meets the water — scripts/make-backdrops.mjs keeps only the
+ * rows above it, and mirroredBackdrop fills the rest with a mirror image. Both tuned by screenshot.
  */
 interface PlaceConfig {
   photo: string;
@@ -105,15 +105,20 @@ function horizonColor(c: HTMLCanvasElement, shoreRow: number): THREE.Color {
   return new THREE.Color().setRGB(r / n / 255, gr / n / 255, b / n / 255, THREE.SRGBColorSpace);
 }
 
-function mirroredBackdrop(img: HTMLImageElement, maxWidth: number, shoreRow: number): HTMLCanvasElement {
-  const w = Math.min(maxWidth, img.width);
+/**
+ * The full 2:1 panorama from its top part only: the shipped file (scripts/make-backdrops.mjs) holds just
+ * the rows above the shore line, since everything below is replaced by the mirror image anyway —
+ * 22 MB of 8K JPGs became 2.4 MB of WebP.
+ */
+function mirroredBackdrop(top: HTMLImageElement, maxWidth: number): HTMLCanvasElement {
+  const w = Math.min(maxWidth, top.width);
   const h = w / 2;
+  const sy = Math.round(top.height * (w / top.width));
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
   const g = c.getContext('2d')!;
-  g.drawImage(img, 0, 0, w, h);
-  const sy = Math.round(shoreRow * h);
+  g.drawImage(top, 0, 0, w, sy);
   g.save();
   g.translate(0, 2 * sy);
   g.scale(1, -1);
@@ -265,7 +270,7 @@ export class FishingScene {
       p = (async () => {
         const [hdr, photo] = await Promise.all([
           new HDRLoader().loadAsync(`${BASE}env/${cfg.photo}_1k.hdr`),
-          new THREE.TextureLoader().loadAsync(`${BASE}env/${cfg.photo}.jpg`),
+          new THREE.TextureLoader().loadAsync(`${BASE}env/${cfg.photo}_top.webp`),
         ]);
         const pmrem = new THREE.PMREMGenerator(this.renderer);
         hdr.mapping = THREE.EquirectangularReflectionMapping;
@@ -273,8 +278,9 @@ export class FishingScene {
         hdr.dispose();
         pmrem.dispose();
         // (older GPUs: 8192 px can be over the texture limit — mirroredBackdrop downscales then)
-        const canvas = mirroredBackdrop(photo.image as HTMLImageElement, this.renderer.capabilities.maxTextureSize, cfg.shoreRow);
-        const haze = horizonColor(canvas, cfg.shoreRow);
+        const img = photo.image as HTMLImageElement;
+        const canvas = mirroredBackdrop(img, this.renderer.capabilities.maxTextureSize);
+        const haze = horizonColor(canvas, (img.height / img.width) * 2);
         const sky = new THREE.CanvasTexture(canvas);
         sky.colorSpace = THREE.SRGBColorSpace;
         sky.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
