@@ -14,6 +14,14 @@
 // the hook-set (the opening run). Big fish fight longer through that extra line, not through dead
 // turns (user, M2 playtest: "큰 물고기일수록 줄 감기는 속도가 느려서 릴링이 반영이 잘 안 되는 느낌").
 //
+// M3 (user: "더 창의적인 게임 진행 방식" → 펌핑 + 포인트 공략):
+//  - SPOTS: 1–2 signs on the water (birds working, a boil) while you get ready. The cast lands where it
+//    was aimed (gesture aim × AIM_MAX_DEG) at its distance; landing on a spot means a quicker bite and
+//    bigger / rarer fish ("hit"; "near" = half of that).
+//  - PUMPING: a heavy fish slips drag — reeling alone brings in less line. Lifting the rod (a pump)
+//    drags it in at once and makes reeling efficient for a few seconds; pumping into a run spikes the
+//    tension. After a pump you must reel a little before the next one counts (no rod-waving).
+//
 // Interference (M2, user: animals only rarely and realistically): a THIEF (otter / orca / crocodile)
 // may come for the hooked fish once per fight — reel `event.escapeTurns` turns within `event.warnS`
 // to get away, or lose the fish. A SPOOKER (hippo) may surface near the float while you wait —
@@ -75,13 +83,17 @@ export interface Fish {
   pullMps: number;
   /** line the opening run strips right after the hook-set, m (0 = no opening run) */
   openM: number;
+  /** how much it slips drag and needs pumping, 0 (light) … 1 (the heaviest fights) */
+  heavy: number;
   fakeNibbles: number;
   biteWindowS: number;
 }
 
 export type GameEvent =
   | { type: 'phase'; phase: Phase }
-  | { type: 'cast'; strength: number; distanceM: number }
+  | { type: 'cast'; strength: number; distanceM: number; aim: number }
+  | { type: 'spot'; result: SpotResult; kind: SpotKind | null }
+  | { type: 'pump'; ok: boolean; gainM: number }
   | { type: 'nibble' }
   | { type: 'bite' }
   | { type: 'hooked' }
@@ -100,6 +112,18 @@ export interface Tables {
   locations: readonly LocationDef[];
 }
 const DEFAULT_TABLES: Tables = { species: SPECIES, baits: BAITS, locations: LOCATIONS };
+
+export type SpotKind = 'birds' | 'boil';
+export type SpotResult = 'hit' | 'near' | 'miss';
+/** A sign of fish on the water: direction (degrees, + = the player's left) and distance. */
+export interface Spot {
+  kind: SpotKind;
+  angleDeg: number;
+  distM: number;
+}
+/** The widest a cast can be aimed, degrees either side. */
+export const AIM_MAX_DEG = 30;
+const THREE_DEG = Math.PI / 180;
 
 /** Flight time of the cast, s. */
 export const FLIGHT_S = 1.2;
@@ -144,6 +168,16 @@ export class FishingGame {
   reelRate = 0;
   /** in the nibble phase: is a fake nibble showing right now */
   nibbling = false;
+  /** where this cast was aimed, −1 … 1 (+ = the player's left) */
+  aim = 0;
+  /** signs of fish on the water for the next cast */
+  spots: Spot[] = [];
+  /** how the last cast met the spots (null before landing) */
+  spotResult: SpotResult | null = null;
+  /** reeling: a pump now would count (reeled enough since the last one) */
+  pumpReady = true;
+  /** reeling: efficient reeling after a pump until this time, ms */
+  pumpBoostUntil = 0;
 
   private events: GameEvent[] = [];
   private waitStart = 0;
@@ -159,6 +193,10 @@ export class FishingGame {
   private lastReelT = 0;
   /** the current run is the opening run after the hook-set */
   private openRun = false;
+  /** 0 … 1: how well the cast met a spot (1 = hit, 0.5 = near) */
+  private spotBonus = 0;
+  private hookT = 0;
+  private reelSincePump = 0;
   private lastT = 0;
   /** line left (m) at which the thief shows up this fight (-Infinity = not this time) */
   private thiefAt = -Infinity;
@@ -214,6 +252,7 @@ export class FishingGame {
     const b = this.baitsHere().find((x) => x.id === id);
     if (this.phase !== 'bait' || !b) return;
     this.bait = b;
+    this.spawnSpots();
     this.setPhase('ready', now);
   }
 
@@ -240,6 +279,8 @@ export class FishingGame {
     this.runSoon = false;
     this.thief = null;
     this.nibbling = false;
+    this.spotResult = null;
+    this.spotBonus = 0;
   }
 
   // ---------------------------------------------------------------- gestures
@@ -250,8 +291,12 @@ export class FishingGame {
         if (this.phase !== 'ready') return;
         this.castStrength = ev.strength;
         this.distanceM = MIN_DISTANCE_M + (MAX_DISTANCE_M - MIN_DISTANCE_M) * ev.strength;
-        this.emit({ type: 'cast', strength: ev.strength, distanceM: this.distanceM });
+        this.aim = Math.max(-1, Math.min(1, ev.aim ?? 0));
+        this.emit({ type: 'cast', strength: ev.strength, distanceM: this.distanceM, aim: this.aim });
         this.setPhase('flight', now);
+        return;
+      case 'pump':
+        this.pump(ev.rise, now);
         return;
       case 'hookset':
         if (this.phase === 'bite') this.hook(now);
@@ -276,6 +321,10 @@ export class FishingGame {
     this.lastReelT = now;
     this.scheduleRun(now);
     this.openRun = false;
+    this.hookT = now;
+    this.pumpReady = true;
+    this.pumpBoostUntil = 0;
+    this.reelSincePump = 0;
     const fish = this.fish!;
     // a thief may come once this fight, somewhere in the middle of it
     this.thiefAt =
@@ -326,7 +375,10 @@ export class FishingGame {
     // rarity the same odds no matter how many species it has (per-species weights made legends ~1%)
     const tierCount = (t: SpeciesDef['tier']) => here.filter((x) => x.tier === t).length || 1;
     const weight = (s: SpeciesDef) =>
-      Math.max(0, (P[TIER_KEY[s.tier]] / tierCount(s.tier)) * (b.tierMul?.[s.tier] ?? 1) * (b.speciesMul?.[s.id] ?? 1));
+      Math.max(0, (P[TIER_KEY[s.tier]] / tierCount(s.tier)) * (b.tierMul?.[s.tier] ?? 1) * (b.speciesMul?.[s.id] ?? 1) * spotMul(s.tier));
+    // a cast onto a spot: rare / legend more likely (common less)
+    const spotMul = (t: Tier) =>
+      t === 'rare' || t === 'legend' ? 1 + (P['spot.rareMul'] - 1) * this.spotBonus : t === 'common' ? 1 - 0.4 * this.spotBonus : 1;
     const total = here.reduce((sum, s) => sum + weight(s), 0);
     let r = this.rng() * (total || 1);
     let def = here[0];
@@ -339,7 +391,7 @@ export class FishingGame {
     }
     // bait size bias: > 0 skews toward big fish, < 0 toward small ones
     const u = this.rng();
-    const bias = b.sizeBias;
+    const bias = b.sizeBias + P['spot.sizeBias'] * this.spotBonus;
     const size = bias >= 0 ? 1 - (1 - u) ** (1 + bias) : u ** (1 - bias);
     const lengthCm = Math.round((def.lenMin + (def.lenMax - def.lenMin) * size) * 10) / 10;
     // 0 = the lightest fight (small 붕어), 1 = the heaviest (a big 백상아리)
@@ -352,6 +404,7 @@ export class FishingGame {
       mPerTurn: (P['reel.mPerTurn'] * (1 - P['fight.heavy'] * heavy)) / P['scale.reel'],
       pullMps: P['fight.takeRate'] * (0.4 + 0.6 * heavy),
       openM: P['fight.openM'] * Math.max(0, (heavy - 0.3) / 0.7),
+      heavy: Math.max(0, (heavy - 0.3) / 0.7),
       fakeNibbles: Math.floor(this.rng() * (def.fakeMax + 1)),
       biteWindowS: def.biteWindowS * P['scale.biteWindow'],
     };
@@ -368,6 +421,7 @@ export class FishingGame {
     switch (this.phase) {
       case 'flight':
         if (now - this.phaseT >= FLIGHT_S * 1000) {
+          this.judgeLanding();
           this.waitStart = now;
           this.nextCheck = now + this.waitRoll(1);
           // a hippo may surface somewhere before the first bite check
@@ -438,7 +492,7 @@ export class FishingGame {
       this.emit({ type: 'thief', kind: this.thief.kind });
     }
     if (this.thief) {
-      this.lineM -= rate * fish.mPerTurn * dt;
+      this.lineM -= rate * fish.mPerTurn * this.reelEfficiency(now) * dt;
       this.thief.turns += rate * dt;
       this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
       if (this.thief.turns >= P['event.escapeTurns']) {
@@ -474,7 +528,7 @@ export class FishingGame {
 
       if (this.running) {
         const take = this.openRun ? fish.openM / OPEN_RUN_S : fish.pullMps * rule.take;
-        this.lineM += (take - rate * fish.mPerTurn * rule.progress) * dt;
+        this.lineM += (take - rate * fish.mPerTurn * this.reelEfficiency(now) * rule.progress) * dt;
         this.peakLineM = Math.max(this.peakLineM, this.lineM);
         this.tension += P['fight.tensionPerTurn'] * rule.tension * rate * dt;
         if (rate === 0 || rule.tension === 0) this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
@@ -485,7 +539,9 @@ export class FishingGame {
           return;
         }
       } else {
-        this.lineM -= rate * fish.mPerTurn * dt;
+        this.lineM -= rate * fish.mPerTurn * this.reelEfficiency(now) * dt;
+        this.reelSincePump += rate * dt;
+        if (!this.pumpReady && this.reelSincePump >= P['pump.rearmTurns']) this.pumpReady = true;
         this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
         if (rate > 0) this.lastReelT = now;
         else if (now - this.lastReelT >= P['fight.slackS'] * 1000) {
@@ -508,7 +564,8 @@ export class FishingGame {
     const P = this.params();
     const lo = this.bait.waitMin;
     const hi = Math.max(lo, this.bait.waitMax);
-    return Math.max(1, this.uniform(lo, hi) * scale * P['scale.wait']) * 1000;
+    const spot = 1 - P['spot.waitCut'] * this.spotBonus;
+    return Math.max(1, this.uniform(lo, hi) * scale * P['scale.wait'] * spot) * 1000;
   }
 
   private startBite(now: number): void {
@@ -516,6 +573,72 @@ export class FishingGame {
     this.biteUntil = now + this.fish!.biteWindowS * 1000;
     this.emit({ type: 'bite' });
     this.setPhase('bite', now);
+  }
+
+  /** New signs of fish for the next cast (called when the player gets ready). */
+  private spawnSpots(): void {
+    const P = this.params();
+    this.spots = [];
+    const n = Math.round(P['spot.count']);
+    for (let i = 0; i < n; i++) {
+      const kinds: SpotKind[] = this.location.id === 'reservoir' || this.location.id === 'river' ? ['boil', 'boil', 'birds'] : ['birds', 'boil'];
+      this.spots.push({
+        kind: kinds[Math.floor(this.rng() * kinds.length)],
+        // keep two spots apart: one on each side when there are two
+        angleDeg: (n > 1 ? (i === 0 ? 1 : -1) : this.rng() < 0.5 ? 1 : -1) * this.uniform(4, AIM_MAX_DEG * 0.9),
+        distM: this.uniform(MIN_DISTANCE_M + 2, MAX_DISTANCE_M - 2),
+      });
+    }
+  }
+
+  /** Where the last cast landed: x (m, + = the player's left), forward distance (m). */
+  landing(): { x: number; z: number } {
+    const a = THREE_DEG * this.aim * AIM_MAX_DEG;
+    return { x: Math.sin(a) * this.distanceM, z: Math.cos(a) * this.distanceM };
+  }
+
+  private judgeLanding(): void {
+    const P = this.params();
+    const at = this.landing();
+    let best: { d: number; s: Spot } | null = null;
+    for (const s of this.spots) {
+      const a = THREE_DEG * s.angleDeg;
+      const d = Math.hypot(at.x - Math.sin(a) * s.distM, at.z - Math.cos(a) * s.distM);
+      if (!best || d < best.d) best = { d, s };
+    }
+    if (!best) return;
+    const r = P['spot.radiusM'];
+    this.spotResult = best.d <= r ? 'hit' : best.d <= r * 2 ? 'near' : 'miss';
+    this.spotBonus = this.spotResult === 'hit' ? 1 : this.spotResult === 'near' ? 0.5 : 0;
+    this.emit({ type: 'spot', result: this.spotResult, kind: this.spotResult === 'miss' ? null : best.s.kind });
+  }
+
+  /** Line brought in per turn, relative: heavy fish slip drag unless just pumped. */
+  reelEfficiency(now: number): number {
+    const P = this.params();
+    const h = this.fish?.heavy ?? 0;
+    return now < this.pumpBoostUntil ? 1 + P['pump.boost'] * h : 1 - P['pump.slip'] * h;
+  }
+
+  /** The rod was lifted (gesture 'pump'). Counts only while reeling, not right after the hook-set. */
+  private pump(rise: number, now: number): void {
+    const P = this.params();
+    if (this.phase !== 'reeling' || !this.fish || this.thief || now - this.hookT < 800) return;
+    if (this.mustStop) {
+      // pulling against a running fish: the line takes it
+      this.tension = Math.min(1, this.tension + P['pump.runTension']);
+      this.emit({ type: 'pump', ok: false, gainM: 0 });
+      if (this.tension >= 1) this.miss('snap', now);
+      return;
+    }
+    if (!this.pumpReady) return;
+    const gainM = P['pump.m'] * Math.min(1.6, Math.max(0.6, rise)) * (0.4 + this.fish.heavy);
+    this.lineM = Math.max(0, this.lineM - gainM);
+    this.pumpBoostUntil = now + P['pump.boostS'] * 1000;
+    this.pumpReady = false;
+    this.reelSincePump = 0;
+    this.lastReelT = now;
+    this.emit({ type: 'pump', ok: true, gainM });
   }
 
   /** How far through the current run we are, 0–1 (0 when not running) — drives the jump animation. */
