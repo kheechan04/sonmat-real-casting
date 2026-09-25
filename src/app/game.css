@@ -988,3 +988,144 @@ a {
     width: 46vw;
   }
 }
+
+/* ---- big-moment effects (exaggerated on purpose) */
+.flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.flash.go {
+  animation: flash 0.45s ease-out;
+}
+
+@keyframes flash {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.flash.white {
+  background: radial-gradient(circle at 50% 45%, #fff, rgba(255, 255, 255, 0.6));
+}
+
+.flash.gold {
+  background: radial-gradient(circle at 50% 45%, rgba(255, 236, 170, 0.95), rgba(233, 196, 106, 0.4));
+}
+
+.flash.red {
+  background: radial-gradient(circle at 50% 50%, rgba(255, 90, 60, 0.2), rgba(200, 30, 20, 0.75));
+}
+
+.pop {
+  position: fixed;
+  left: 50%;
+  top: 38%;
+  transform: translate(-50%, -50%) scale(0);
+  pointer-events: none;
+  white-space: nowrap;
+  font-weight: 900;
+  font-size: clamp(56px, 10vw, 140px);
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: #fff;
+  -webkit-text-stroke: 3px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 6px 30px rgba(0, 0, 0, 0.5), 0 0 40px rgba(255, 220, 140, 0.5);
+  opacity: 0;
+  z-index: 5;
+}
+
+.pop.go {
+  animation: pop 1.3s cubic-bezier(0.2, 1.6, 0.4, 1) forwards;
+}
+
+.pop.small {
+  font-size: clamp(34px, 5.5vw, 72px);
+}
+
+.pop.gold {
+  background: linear-gradient(180deg, #fff6d6 10%, #f4d58d 45%, #d9a63c 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.pop.red {
+  color: #ffb4a8;
+}
+
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2) rotate(-8deg);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.15) rotate(2deg);
+  }
+  30% {
+    transform: translate(-50%, -50%) scale(1) rotate(0);
+  }
+  75% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.02);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -62%) scale(0.96);
+  }
+}
+
+.confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.confetti i {
+  position: absolute;
+  top: -20px;
+  width: 10px;
+  height: 16px;
+  border-radius: 2px;
+  animation: fall var(--dur) cubic-bezier(0.25, 0.4, 0.6, 1) var(--delay) forwards;
+}
+
+@keyframes fall {
+  to {
+    transform: translate(var(--dx), 110vh) rotate(var(--rot));
+  }
+}
+
+.rays {
+  position: fixed;
+  left: 50%;
+  top: 36%;
+  width: 180vmax;
+  height: 180vmax;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  background: repeating-conic-gradient(rgba(255, 228, 150, 0.16) 0deg 7deg, transparent 7deg 18deg);
+  /* hollow centre: the rays sit over the 3D view, so keep the fish itself clear */
+  -webkit-mask: radial-gradient(circle, transparent 0 9%, #000 16%, transparent 50%);
+  mask: radial-gradient(circle, transparent 0 9%, #000 16%, transparent 50%);
+  animation: spin 14s linear infinite, fadein 0.8s ease-out;
+}
+
+@keyframes spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes fadein {
+  from {
+    opacity: 0;
+  }
+}

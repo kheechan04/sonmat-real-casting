@@ -245,19 +245,62 @@ function showMiss(reason: keyof typeof MISS_TEXT): void {
 
 $('again').addEventListener('click', () => game.again(performance.now()));
 
+// ---------------------------------------------------------------- big-moment effects (exaggerated on purpose)
+
+function flash(color: 'white' | 'gold' | 'red'): void {
+  const el = $('flash');
+  el.className = `flash ${color}`;
+  void el.offsetWidth; // restart the animation
+  el.classList.add('go');
+}
+
+function popText(text: string, style: '' | 'gold' | 'red' = '', small = false): void {
+  const el = $('pop');
+  el.textContent = text;
+  el.className = `pop${style ? ` ${style}` : ''}${small ? ' small' : ''}`;
+  void el.offsetWidth;
+  el.classList.add('go');
+}
+
+function confetti(n: number): void {
+  const box = $('confetti');
+  const colors = ['#f4d58d', '#e9c46a', '#ffffff', '#8fd694', '#7fc8f8', '#ff9f87'];
+  for (let i = 0; i < n; i++) {
+    const p = document.createElement('i');
+    p.style.left = `${Math.random() * 100}%`;
+    p.style.background = colors[i % colors.length];
+    p.style.setProperty('--dx', `${(Math.random() - 0.5) * 300}px`);
+    p.style.setProperty('--rot', `${(Math.random() - 0.5) * 1440}deg`);
+    p.style.setProperty('--dur', `${1.8 + Math.random() * 1.6}s`);
+    p.style.setProperty('--delay', `${Math.random() * 0.5}s`);
+    box.append(p);
+    setTimeout(() => p.remove(), 4200);
+  }
+}
+
+/** The fish is almost in: drum roll + one "거의 다 왔어요!" per fight. */
+let almostShown = false;
+
 function onGameEvent(e: GameEvent, now: number): void {
   round?.events.push({ t: now, e: e.type === 'phase' ? `phase:${e.phase}` : e.type });
   switch (e.type) {
     case 'phase':
       show('baitBox', e.phase === 'bait');
-      show('resultBox', e.phase === 'caught' || e.phase === 'missed');
+      // caught: shown after the leap (see 'caught' below)
+      show('resultBox', e.phase === 'missed');
       show('reelBox', e.phase === 'reeling');
       if (e.phase !== 'reeling') {
         sfx.setDrag(false);
+        sfx.setRoll(false);
         $('runFlash').classList.remove('on');
       }
+      if (e.phase !== 'caught') show('rays', false); // caught: set by the 'caught' event just before
+      if (e.phase === 'reeling') almostShown = false;
       if (e.phase === 'bait') fillBaits();
-      if (e.phase === 'waiting') sfx.plop();
+      if (e.phase === 'waiting') {
+        sfx.plop();
+        scene.fx('land');
+      }
       if ((e.phase === 'caught' || e.phase === 'missed') && round) {
         const fish = game.fish ? SPECIES_NAME[game.fish.species] : '';
         round.note = `게임: ${BAIT_NAME[game.bait]}, ${fish} ${e.phase === 'caught' ? '잡음' : `놓침(${game.missReason})`}`.trim();
@@ -266,30 +309,62 @@ function onGameEvent(e: GameEvent, now: number): void {
       }
       break;
     case 'cast':
-      sfx.cast(FLIGHT_S);
+      sfx.cast(FLIGHT_S, e.strength);
+      if (e.strength >= 0.75) popText(`나이스 캐스팅! ${Math.round(e.distanceM)}m`, 'gold', true);
+      else popText(`${Math.round(e.distanceM)}m`, '', true);
       break;
     case 'nibble':
       sfx.nibble();
+      scene.fx('nibble');
       break;
     case 'bite':
       sfx.bite();
+      scene.fx('bite');
+      flash('gold');
+      popText('입질!', 'gold', true);
       break;
     case 'hooked':
       sfx.hook();
+      scene.fx('hook');
+      flash('white');
+      popText('HIT!', 'gold');
       break;
     case 'runWarn':
       sfx.splash();
+      scene.fx('runWarn');
+      popText('첨벙!', '', true);
       break;
     case 'run':
       sfx.setDrag(e.on);
+      if (e.on) scene.fx('run');
       $('runFlash').classList.toggle('on', e.on);
       break;
-    case 'caught':
-      sfx.caught(showCatch(e.fish));
+    case 'caught': {
+      const trophy = showCatch(e.fish);
+      sfx.caught(trophy);
+      scene.fx('catch');
+      flash('gold');
+      popText(trophy ? (e.fish.species === 'crucian' ? '월척!!' : '대물!!') : '낚았다!', 'gold');
+      confetti(trophy ? 160 : 70);
+      show('rays', trophy);
+      // let the leap out of the water play before the card slides up
+      show('resultBox', false);
+      setTimeout(() => {
+        if (game.phase === 'caught') show('resultBox', true);
+      }, 1100);
       break;
+    }
     case 'missed':
-      if (e.reason === 'snap') sfx.snap();
-      else sfx.miss();
+      if (e.reason === 'snap') {
+        sfx.snap();
+        scene.fx('snap');
+        flash('red');
+        popText('툭… 끊어졌다', 'red', true);
+      } else {
+        sfx.miss();
+        scene.fx('miss');
+        popText('놓쳤다…', 'red', true);
+      }
       showMiss(e.reason);
       break;
     case 'ignored':
@@ -473,8 +548,15 @@ function loop(): void {
     if (game.phase === 'reeling') {
       sfx.reel(rate, dt);
       sfx.tension(game.tension, dt);
-      // the fish splashes more as it comes close
-      if (game.fish && game.progress / game.fish.turnsNeeded > 0.75 && Math.random() < dt * 0.8) sfx.nearSplash();
+      // the fish splashes more as it comes close; the last stretch gets a drum roll
+      const frac = game.fish ? game.progress / game.fish.turnsNeeded : 0;
+      if (frac > 0.75 && Math.random() < dt * 0.8) sfx.nearSplash();
+      if (frac >= 0.85 && !almostShown) {
+        almostShown = true;
+        sfx.milestone();
+        popText('거의 다 왔어요!', 'gold', true);
+      }
+      sfx.setRoll(frac >= 0.85 && !game.running);
     }
     if (game.phase === 'bite') {
       const left = game.biteLeftS(now);

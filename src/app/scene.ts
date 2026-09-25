@@ -36,6 +36,9 @@ const SWING_MS = 350;
 const LINE_POINTS = 40;
 /** The float's visible top (찌톱) is scaled up so it reads at 20 m on a webcam-game screen. */
 const FLOAT_SCALE = 5.5;
+/** Splash droplet pool size. */
+const MAX_DROPS = 700;
+const BASE_FOV = 50;
 /** Height of one coloured band of the 찌톱, m (before FLOAT_SCALE). */
 const BAND_H = 0.03;
 
@@ -226,7 +229,7 @@ export class FishingScene {
   readonly ready: Promise<void>;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(50, 16 / 9, 0.05, 3000);
+  private camera = new THREE.PerspectiveCamera(50, 16 / 9, 0.05, 7000);
   private water: Water | null = null;
   private rodBase = new THREE.Group();
   private rodSegs: THREE.Group[] = [];
@@ -243,6 +246,18 @@ export class FishingScene {
   private rodHand: Side = 'right';
   private floatPos = new THREE.Vector3();
   private catchSpecies: Species | null = null;
+  // ---- exaggerated effects (M1.5 feedback: "화면 이펙트 더 과장돼도 좋을 거 같아")
+  /** camera shake energy 0–1 (squared for the offset) */
+  private trauma = 0;
+  /** field-of-view punch-in, degrees */
+  private fovKick = 0;
+  private lastRenderT = 0;
+  private drops!: THREE.Points;
+  private dropVel = new Float32Array(MAX_DROPS * 3);
+  private dropLife = new Float32Array(MAX_DROPS);
+  private dropNext = 0;
+  /** where the fish leapt out of the water (catch) */
+  private leapFrom = new THREE.Vector3();
 
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -286,6 +301,7 @@ export class FishingScene {
       this.scene.add(f);
     }
 
+    this.buildDrops();
     this.ready = this.loadEnvironment();
     this.resize();
   }
@@ -331,7 +347,8 @@ export class FishingScene {
   private async buildWater(): Promise<void> {
     const normals = await new THREE.TextureLoader().loadAsync(WATER_NORMALS_URL);
     normals.wrapS = normals.wrapT = THREE.RepeatWrapping;
-    const water = new Water(new THREE.PlaneGeometry(2600, 2600), {
+    // big enough that its edge sits on the horizon (a smaller plane left a dark line there)
+    const water = new Water(new THREE.PlaneGeometry(9000, 9000), {
       textureWidth: 512,
       textureHeight: 512,
       waterNormals: normals,
@@ -514,9 +531,128 @@ export class FishingScene {
     this.rodBase.updateMatrixWorld(true);
   }
 
+  // ---------------------------------------------------------------- effects
+
+  private buildDrops(): void {
+    const c = document.createElement('canvas');
+    c.width = c.height = 32;
+    const g = c.getContext('2d')!;
+    const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.4, 'rgba(235,245,250,0.8)');
+    grad.addColorStop(1, 'rgba(235,245,250,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 32, 32);
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(MAX_DROPS * 3).fill(-1000);
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    this.drops = new THREE.Points(
+      geo,
+      new THREE.PointsMaterial({ size: 0.045, map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, color: 0xf2f8fa }),
+    );
+    this.drops.frustumCulled = false;
+    this.scene.add(this.drops);
+  }
+
+  /** Throw `count` droplets up from `at` with speed ~`speed` m/s. */
+  private splashAt(at: THREE.Vector3, count: number, speed: number): void {
+    const pos = this.drops.geometry.attributes.position as THREE.BufferAttribute;
+    for (let n = 0; n < count; n++) {
+      const i = this.dropNext;
+      this.dropNext = (this.dropNext + 1) % MAX_DROPS;
+      const a = Math.random() * Math.PI * 2;
+      const h = speed * (0.3 + 0.7 * Math.random());
+      pos.setXYZ(i, at.x + Math.cos(a) * 0.15, Math.max(0.02, at.y), at.z + Math.sin(a) * 0.15);
+      this.dropVel.set([Math.cos(a) * h * 0.45, speed * (0.6 + Math.random() * 0.8), Math.sin(a) * h * 0.45], i * 3);
+      this.dropLife[i] = 1.4;
+    }
+    pos.needsUpdate = true;
+  }
+
+  private updateDrops(dt: number): void {
+    const pos = this.drops.geometry.attributes.position as THREE.BufferAttribute;
+    let any = false;
+    for (let i = 0; i < MAX_DROPS; i++) {
+      if (this.dropLife[i] <= 0) continue;
+      any = true;
+      this.dropLife[i] -= dt;
+      this.dropVel[i * 3 + 1] -= 9.8 * dt;
+      const y = pos.getY(i) + this.dropVel[i * 3 + 1] * dt;
+      if (y < 0 || this.dropLife[i] <= 0) {
+        this.dropLife[i] = 0;
+        pos.setXYZ(i, 0, -1000, 0);
+        continue;
+      }
+      pos.setXYZ(i, pos.getX(i) + this.dropVel[i * 3] * dt, y, pos.getZ(i) + this.dropVel[i * 3 + 2] * dt);
+    }
+    if (any) pos.needsUpdate = true;
+  }
+
+  /** Big-moment effects, called by the page on game events. */
+  fx(kind: 'land' | 'nibble' | 'bite' | 'hook' | 'runWarn' | 'run' | 'catch' | 'snap' | 'miss'): void {
+    const at = this.floatPos;
+    switch (kind) {
+      case 'land':
+        this.splashAt(at, 40, 3);
+        this.trauma = Math.max(this.trauma, 0.15);
+        break;
+      case 'nibble':
+        this.splashAt(at, 6, 1.2);
+        break;
+      case 'bite':
+        this.splashAt(at, 60, 3.5);
+        this.trauma = Math.max(this.trauma, 0.3);
+        this.fovKick = Math.max(this.fovKick, 3);
+        break;
+      case 'hook':
+        this.splashAt(at, 90, 5);
+        this.trauma = 0.75;
+        this.fovKick = 8;
+        break;
+      case 'runWarn':
+        this.splashAt(at, 120, 5.5);
+        this.trauma = Math.max(this.trauma, 0.45);
+        break;
+      case 'run':
+        this.splashAt(at, 60, 4);
+        this.fovKick = Math.max(this.fovKick, 4);
+        break;
+      case 'catch':
+        this.leapFrom.copy(at);
+        this.splashAt(at, 200, 6.5);
+        this.trauma = 0.6;
+        this.fovKick = 7;
+        break;
+      case 'snap':
+        this.trauma = 1;
+        this.fovKick = 5;
+        break;
+      case 'miss':
+        this.trauma = Math.max(this.trauma, 0.2);
+        break;
+    }
+  }
+
+  /** Camera shake + FOV punch, applied every frame. `floor` keeps a tremble going (fish running). */
+  private applyCamera(now: number, dt: number, floor: number): void {
+    this.trauma = Math.max(floor, this.trauma - 1.4 * dt);
+    const s = this.trauma * this.trauma;
+    const n = (f: number, p: number) => Math.sin(now / f + p) * 0.6 + Math.sin(now / (f * 0.43) + p * 2) * 0.4;
+    this.camera.position.set(s * 0.09 * n(37, 1), EYE_M + s * 0.07 * n(29, 2), 0);
+    this.camera.rotation.set(-0.11 + s * 0.03 * n(41, 3), s * 0.03 * n(47, 4), s * 0.05 * n(53, 5), 'YXZ');
+    this.fovKick *= Math.exp(-5 * dt);
+    const fov = BASE_FOV - this.fovKick;
+    if (Math.abs(this.camera.fov - fov) > 0.01) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
   /** Draw one frame for the game's current state. `now` in ms (same clock as the game). */
   render(g: FishingGame, now: number): void {
     if (this.water) this.water.material.uniforms.time.value = now / 1000 * 0.35;
+    const dt = this.lastRenderT ? Math.min(0.1, (now - this.lastRenderT) / 1000) : 0;
+    this.lastRenderT = now;
     const since = now - g.phaseT;
     const side = this.rodHand === 'right' ? 1 : -1;
 
@@ -648,11 +784,20 @@ export class FishingScene {
       const f = this.fishes[showFish];
       const lenM = g.fish.lengthCm / 100;
       f.scale.setScalar(lenM * 1.25);
-      const up = Math.min(1, since / 700);
-      const ease = 1 - (1 - up) ** 3;
-      // held up above the result card
-      f.position.set(0.05, EYE_M - 0.4 + ease * 0.42 + Math.sin(now / 500) * 0.01, -0.75 - lenM * 0.7);
-      f.rotation.set(0.05, 0.25 + Math.sin(now / 1400) * 0.25, Math.sin(now / 180) * 0.06 * (1 - ease * 0.6));
+      const held = new THREE.Vector3(0.05, EYE_M + 0.02 + Math.sin(now / 500) * 0.01, -0.75 - lenM * 0.7);
+      const LEAP_MS = 750;
+      if (since < LEAP_MS) {
+        // leaps out of the water where the float was and arcs up to the camera, thrashing
+        const u = since / LEAP_MS;
+        const e = 1 - (1 - u) ** 2;
+        f.position.lerpVectors(this.leapFrom, held, e);
+        f.position.y += Math.sin(u * Math.PI) * 1.6;
+        f.rotation.set(0.2, 0.25 + (1 - u) * 1.5, Math.sin(now / 45) * 0.5 * (1 - u) + (1 - u) * 1.2);
+      } else {
+        // held up above the result card
+        f.position.copy(held);
+        f.rotation.set(0.05, 0.25 + Math.sin(now / 1400) * 0.25, Math.sin(now / 180) * 0.06);
+      }
       (f.userData.tail as THREE.Mesh).rotation.y = Math.sin(now / 120) * 0.35;
     }
 
@@ -671,6 +816,9 @@ export class FishingScene {
       return true;
     });
 
+    this.updateDrops(dt);
+    const floor = g.phase === 'reeling' ? (g.running ? 0.32 : g.tension >= 0.75 ? 0.3 : 0) : 0;
+    this.applyCamera(now, dt, floor);
     this.renderer.render(this.scene, this.camera);
   }
 }
