@@ -5,3 +5,6 @@ dist
 recordings/*.json
 # downloaded 3D scans (hundreds of MB) — re-fetch with scripts/fetch-models.mjs
 assets-src/models/raw/
+# never commit API tokens
+*token*.txt
+.sketchfab-token

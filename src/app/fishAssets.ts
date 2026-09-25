@@ -20,11 +20,33 @@ interface ModelDef {
   rot?: [number, number, number];
   /** multiply the texture with this colour, after turning it grey (황쏘가리 = 쏘가리 in gold) */
   tint?: number;
+  /** add a glowing lure on the forehead (the goosefish scan stands in for a deep-sea anglerfish) */
+  lure?: boolean;
 }
 
 /** Species that have a real model, and how to orient it. */
 export const MODELS: Record<string, ModelDef> = {
-  tilapia: { rot: [0, -90, 0] },
+  // ffish.asia scans: head at −x, back up
+  crucian: { rot: [0, 180, 0] },
+  carp: { rot: [0, 180, 0] },
+  bass: { rot: [0, 180, 0] },
+  catfish: { rot: [0, 180, 0] },
+  snakehead: { rot: [0, 180, 0] },
+  mandarin: { rot: [0, 180, 0] },
+  golden_mandarin: { file: 'mandarin.glb', rot: [0, 180, 0], tint: 0xffc23a }, // 황쏘가리 = 금빛 쏘가리
+  rockfish: { rot: [0, 180, 0] },
+  red_seabream: { rot: [0, 180, 0] },
+  flounder: { rot: [90, 180, 0] }, // scanned lying flat: stood up, eyed side to the camera
+  seabass: { rot: [0, 180, 0] },
+  yellowtail: { rot: [0, 180, 0] },
+  tuna: { rot: [0, 180, 0] },
+  hammerhead: { rot: [0, 180, 0] },
+  isopod: { rot: [0, 180, 0] },
+  anglerfish: { rot: [0, 180, 0], lure: true },
+  // others
+  great_white: { rot: [-90, 0, -90] }, // modelled head-up along +y
+  nile_perch: {}, // barramundi (same genus) — already head +x
+  tilapia: { rot: [0, -90, 0] }, // TRELLIS.2: head −z
 };
 
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
@@ -69,7 +91,7 @@ async function loadModel(file: string, def: ModelDef): Promise<THREE.Group> {
   });
   const box = new THREE.Box3();
   for (const m of meshes) {
-    m.geometry = m.geometry.clone();
+    m.geometry = dequantize(m.geometry);
     m.geometry.applyMatrix4(new THREE.Matrix4().multiplyMatrices(turn, m.matrixWorld));
     m.geometry.computeBoundingBox();
     box.union(m.geometry.boundingBox!);
@@ -87,13 +109,40 @@ async function loadModel(file: string, def: ModelDef): Promise<THREE.Group> {
     m.material = swimMaterial(m.material as THREE.MeshStandardMaterial, def.tint);
     g.add(m);
   }
+  if (def.lure) addLure(g, size.y / size.x / 2);
   g.userData.real = true;
+  return g;
+}
+
+/** Illicium + glowing esca on the forehead; the bulb pulses via userData.glow (scene.ts). */
+function addLure(g: THREE.Group, top: number): void {
+  const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(0.3, top * 0.7, 0), new THREE.Vector3(0.36, top + 0.2, 0), new THREE.Vector3(0.52, top + 0.1, 0));
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.005, 6), new THREE.MeshStandardMaterial({ color: 0x3a2a22, roughness: 0.6 })));
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.028, 16, 12), new THREE.MeshStandardMaterial({ color: 0xbffcff, emissive: 0x5ff2ff, emissiveIntensity: 4 }));
+  bulb.name = 'lureBulb';
+  bulb.position.copy(curve.getPoint(1));
+  g.add(bulb);
+}
+
+/**
+ * A float copy of the geometry. meshopt-compressed files store positions / normals / UVs as 16-bit
+ * integers (KHR_mesh_quantization); baking a rotation + scale into those overflowed them (scans turned
+ * into stretched boxes).
+ */
+function dequantize(src: THREE.BufferGeometry): THREE.BufferGeometry {
+  const g = src.clone();
+  for (const [name, attr] of Object.entries(g.attributes)) {
+    if (!(attr instanceof THREE.InterleavedBufferAttribute) && attr.array instanceof Float32Array) continue;
+    const out = new Float32Array(attr.count * attr.itemSize);
+    for (let i = 0; i < attr.count; i++) for (let k = 0; k < attr.itemSize; k++) out[i * attr.itemSize + k] = attr.getComponent(i, k);
+    g.setAttribute(name, new THREE.BufferAttribute(out, attr.itemSize));
+  }
   return g;
 }
 
 function cloneModel(src: THREE.Group): THREE.Group {
   const g = src.clone(true); // geometry + materials are shared; only the object tree is copied
-  g.userData = { ...src.userData };
+  g.userData = { ...src.userData, glow: g.getObjectByName('lureBulb') };
   return g;
 }
 
@@ -125,7 +174,7 @@ function swimMaterial(src: THREE.MeshStandardMaterial, tint?: number): THREE.Mes
           '#include <map_fragment>',
           `#include <map_fragment>
           float lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-          diffuseColor.rgb = uTint * (0.35 + 1.4 * lum);`,
+          diffuseColor.rgb = mix(diffuseColor.rgb, uTint * lum * 2.6, 0.85); // gold, keeping the pattern`,
         );
     }
   };

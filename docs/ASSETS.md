@@ -25,7 +25,8 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 
 `public/models/fish/<id>.glb` — 없는 어종은 코드로 만든 모델(`fishModels.ts`)을 그대로 쓴다.
 두 가지 경로:
-1. **실물 스캔** — Sketchfab의 CC0/CC-BY 모델(주로 ffish.asia 사진측량 스캔, CC0). 후보·고른 이유는 `assets-src/models/sources.json`, 받기는 `scripts/fetch-models.mjs`(Sketchfab 로그인 토큰 필요).
+1. **실물 스캔** — Sketchfab의 CC0/CC-BY 모델(주로 ffish.asia 사진측량 스캔, CC0). 후보·고른 이유는 `assets-src/models/sources.json`, 받기는 `scripts/fetch-models.mjs`(Sketchfab 로그인 토큰 필요 — 토큰은 프로젝트 밖 `%USERPROFILE%\.sketchfab-token`).
+   CC-BY 모델(백상아리·나일퍼치)은 게임 도움말(?)에도 저작자를 표시한다. 뼈대 애니메이션이 있는 모델은 기본 자세만 쓴다.
 2. **사진 → 3D 생성** — 무료 모델이 없는 어종. 라이선스 확인된 사진(퍼블릭 도메인/CC0/CC-BY, Wikimedia Commons)을
    [Microsoft TRELLIS.2](https://github.com/microsoft/TRELLIS.2)(MIT, 공식 Hugging Face 무료 데모)로 3D로 만든다. 원본 사진은 `assets-src/models/ai-src/`.
    CC-BY 사진에서 만든 모델은 그 사진의 저작자 표시를 따른다.
@@ -34,6 +35,23 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 
 | 어종 | 파일 | 만든 방법 · 원본 | 원본 저작자 | 라이선스 | 받은 날 |
 |---|---|---|---|---|---|
+| 붕어 | `public/models/fish/crucian.glb` | Sketchfab [CC0 ギンブナ 🐟 Crucian Carp, C. auratus langsdorfii](https://sketchfab.com/3d-models/da1829c8fc1d4ed3b06f311ad23788ae) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 잉어 | `public/models/fish/carp.glb` | Sketchfab [CC0 コイ 🐟 Carp, Cyprinus carpio](https://sketchfab.com/3d-models/6b404d20bab34fa99fba848060c42ca7) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 배스 | `public/models/fish/bass.glb` | Sketchfab [CC0 オオクチバス類 🐟 ♂, Micropterus sp.](https://sketchfab.com/3d-models/62e182cf1f2d4d5692dde7348e648f76) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 메기 | `public/models/fish/catfish.glb` | Sketchfab [CC0 ナマズ 🐟 Amur Catfish, Silurus asotus](https://sketchfab.com/3d-models/0b28048d20ea4883990b0a8de2166c6f) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 가물치 | `public/models/fish/snakehead.glb` | Sketchfab [CC0 カムルチー 🐟 Spotted Snakehead, Channa argus](https://sketchfab.com/3d-models/f00d3f9e6f59431e9a438f5d7571645d) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 쏘가리 (황쏘가리는 같은 모델을 금빛으로) | `public/models/fish/mandarin.glb` | Sketchfab [CC0 オヤニラミ 🐟 ♂ Japanese Aucha Perch](https://sketchfab.com/3d-models/448a3538ffc74687ac0c5daf946fcfca) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 우럭 (クロメバル — 같은 볼락속) | `public/models/fish/rockfish.glb` | Sketchfab [CC0 クロメバル 🐟 Blueback Seaperch, S. ventricosus](https://sketchfab.com/3d-models/97a5468e21994160b93c10b643c1f777) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 참돔 | `public/models/fish/red_seabream.glb` | Sketchfab [CC0 マダイ 🐟 Red Seabream, Pagrus major](https://sketchfab.com/3d-models/7b27c8bfd19449eb83d35b497f02bf2d) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 광어 (ガンゾウビラメ — 가까운 넙치류) | `public/models/fish/flounder.glb` | Sketchfab [CC0 ガンゾウビラメ 🐟 Cinnamon Flounder, P. cinnamoneus](https://sketchfab.com/3d-models/8abb6d1daa1744e293a005560c5f4107) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 농어 | `public/models/fish/seabass.glb` | Sketchfab [CC0 スズキ 🐟 Japanese Seabass, L. japonicus](https://sketchfab.com/3d-models/7460e749039547a783a85f612cca3ceb) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 방어 | `public/models/fish/yellowtail.glb` | Sketchfab [CC0 ブリ 🐟 Five-ray Yellowtail, S. quinqueradiata](https://sketchfab.com/3d-models/e27d30bd4d7347238e428a8e36d9fde4) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 참다랑어 | `public/models/fish/tuna.glb` | Sketchfab [CC0 クロマグロ 🐟 Pacific Bluefin Tuna, T. orientalis](https://sketchfab.com/3d-models/88d6e843abfb44d086341323e99b83ac) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 귀상어 | `public/models/fish/hammerhead.glb` | Sketchfab [CC0 アカシュモクザメ 🦈 ♀ Scalloped Hammerhead Shark](https://sketchfab.com/3d-models/b68fdc989ba74bec9495ac907995739e) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 대왕구족 | `public/models/fish/isopod.glb` | Sketchfab [CC0 オオグソクムシ Giant Isopod, B. doederleinii](https://sketchfab.com/3d-models/3979c291d1f9454c90851efe291eab60) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 심해아귀 (キアンコウ 스캔 + 코드로 단 발광 미끼) | `public/models/fish/anglerfish.glb` | Sketchfab [CC0 キアンコウ 🐟 Yellow Goosefish, Lophius litulon](https://sketchfab.com/3d-models/6538a4e7b31949c2a01449b83b196796) | ffishAsia-and-floraZia | CC0 | 2026-09-25 |
+| 백상아리 | `public/models/fish/great_white.glb` | Sketchfab [White Pointer](https://sketchfab.com/3d-models/8e429052939a4677861d0d550a0e27cd) | 3dartstevenz | CC-BY 4.0 (저작자 표시) | 2026-09-25 |
+| 나일퍼치 (바라문디 — 같은 Lates속) | `public/models/fish/nile_perch.glb` | Sketchfab [Barramundi fish](https://sketchfab.com/3d-models/699ae7b41ed14962a4d1afa008a8ba2a) | ryan_saputra | CC-BY 4.0 (저작자 표시) | 2026-09-25 |
 | 틸라피아 | `public/models/fish/tilapia.glb` | TRELLIS.2 ← [Tilapia oreochromis niloticus fish.jpg](https://commons.wikimedia.org/wiki/File:Tilapia_oreochromis_niloticus_fish.jpg) | (Wikimedia Commons, 퍼블릭 도메인) | 퍼블릭 도메인 사진 → 생성 모델 | 2026-09-25 |
 
 ## 코드로 만든 것 (외부 파일 아님)
