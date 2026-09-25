@@ -11,17 +11,17 @@ const seq = (...v: number[]) => {
 
 const cast = (t: number, strength = 0.5): GestureEvent => ({ type: 'cast', t, strength, peakSpeed: 8 });
 const hook = (t: number): GestureEvent => ({ type: 'hookset', t, peakSpeed: 6, rise: 0.8 });
-const reel = (t: number): GestureEvent => ({ type: 'reel', t, rate: 3 });
 
 function setup(over: Partial<Params> = {}, rng = seq(0.5)) {
   const P = { ...defaultParams(), ...over };
   const g = new FishingGame(() => P, rng);
   let now = 0;
   const log: GameEvent[] = [];
-  const step = (ms: number, every = 50) => {
+  /** Advance ms, reeling at `rate` turns/s. */
+  const step = (ms: number, rate = 0, every = 50) => {
     for (let t = 0; t < ms; t += every) {
       now += every;
-      g.update(now);
+      g.update(now, rate);
       log.push(...g.drain());
     }
   };
@@ -38,6 +38,7 @@ const FAST: Partial<Params> = {
   'bait.worm.waitMin': 1, 'bait.worm.waitMax': 1, 'bait.worm.biteChance': 1,
   'fish.crucian.spawn': 100, 'fish.carp.spawn': 0, 'fish.crucian.fakeMax': 0,
   'fish.crucian.reelTurns': 10, 'fish.crucian.pullEveryS': 100,
+  'bait.worm.crucianMul': 1, 'bait.worm.carpMul': 1, 'bait.worm.sizeBias': 0,
 };
 
 describe('fishing loop', () => {
@@ -47,7 +48,7 @@ describe('fishing loop', () => {
     expect(s.g.phase).toBe('ready');
     s.act(cast(0, 1));
     expect(s.g.phase).toBe('flight');
-    expect(s.g.distanceM).toBe(26);
+    expect(s.g.distanceM).toBe(28);
     s.step(1300);
     expect(s.g.phase).toBe('waiting');
     s.step(1000);
@@ -55,10 +56,10 @@ describe('fishing loop', () => {
     s.act(hook(0));
     expect(s.g.phase).toBe('reeling');
     const need = s.g.fish!.turnsNeeded;
-    for (let i = 0; i < need; i++) {
-      s.step(300);
-      s.act(reel(0));
-    }
+    s.step((need / 3) * 1000 - 300, 3);
+    expect(s.g.phase).toBe('reeling');
+    expect(s.g.lineOutM()).toBeGreaterThan(0);
+    s.step(600, 3);
     expect(s.g.phase).toBe('caught');
     const caught = s.log.find((e) => e.type === 'caught');
     expect(caught && caught.type === 'caught' && caught.fish.species).toBe('crucian');
@@ -123,17 +124,39 @@ describe('fishing loop', () => {
     expect(b.log.some((e) => e.type === 'bite')).toBe(true);
   });
 
-  it('reeling while the fish pulls raises tension until the line snaps', () => {
-    const s = setup({ ...FAST, 'fish.crucian.pullEveryS': 1, 'fish.crucian.pullS': 5, 'fight.tensionPerTurn': 0.3 });
+  it('a run is announced first, takes line back, and reeling through it snaps the line', () => {
+    const over = { ...FAST, 'fish.crucian.pullEveryS': 2, 'fish.crucian.pullS': 5, 'fight.warnS': 0.8, 'fight.tensionPerTurn': 0.2 };
+    const s = setup(over);
     s.act('bait');
     s.act(cast(0));
     s.step(2300);
     s.act(hook(0));
-    s.step(1400); // pull starts (0.7–1.3 s)
-    expect(s.g.pulling).toBe(true);
-    for (let i = 0; i < 4; i++) s.act(reel(0));
-    expect(s.g.phase).toBe('missed');
+    s.step(1000, 3); // run due at 2 s (rng 0.5 → ×1.0); warning from 1.2 s
+    expect(s.g.running).toBe(false);
+    s.step(300, 3);
+    expect(s.g.runSoon).toBe(true);
+    expect(s.log.some((e) => e.type === 'runWarn')).toBe(true);
+    s.step(800, 3);
+    expect(s.g.running).toBe(true);
+    const before = s.g.progress;
+    s.step(500, 0); // waiting it out: line goes back out, no tension
+    expect(s.g.progress).toBeLessThan(before);
+    expect(s.g.tension).toBe(0);
+    s.step(2000, 3); // 3 turns/s × 0.2 per turn = 0.6/s → snaps within 2 s
     expect(s.g.missReason).toBe('snap');
+  });
+
+  it('waiting out a run is safe and reeling resumes afterwards', () => {
+    const over = { ...FAST, 'fish.crucian.reelTurns': 30, 'fish.crucian.pullEveryS': 2, 'fish.crucian.pullS': 1 };
+    const s = setup(over);
+    s.act('bait');
+    s.act(cast(0));
+    s.step(2300);
+    s.act(hook(0));
+    // reel only while the fish is not running
+    for (let i = 0; i < 400 && s.g.phase === 'reeling'; i++) s.step(50, s.g.running ? 0 : 3, 50);
+    expect(s.g.phase).toBe('caught');
+    expect(s.log.filter((e) => e.type === 'run' && e.on).length).toBeGreaterThan(0);
   });
 
   it('not reeling at all lets the fish escape after fight.slackS', () => {
@@ -142,7 +165,7 @@ describe('fishing loop', () => {
     s.act(cast(0));
     s.step(2300);
     s.act(hook(0));
-    s.step(3100);
+    s.step(3100, 0);
     expect(s.g.missReason).toBe('escape');
   });
 
@@ -162,6 +185,22 @@ describe('fishing loop', () => {
     };
     expect(turns(0.9, 'crucian')).toBeGreaterThan(turns(0.1, 'crucian'));
     expect(turns(0.5, 'carp')).toBeGreaterThan(turns(0.5, 'crucian'));
+  });
+
+  it('baits change which fish bite and how big', () => {
+    const pick = (bait: 'worm' | 'corn', u: number[]) => {
+      const P = { ...defaultParams(), [`bait.${bait}.waitMin`]: 1, [`bait.${bait}.waitMax`]: 1, [`bait.${bait}.biteChance`]: 1 } as Params;
+      const g = new FishingGame(() => P, seq(...u));
+      g.chooseBait(bait, 0);
+      g.onGesture(cast(0), 0);
+      for (let t = 50; t < 2600; t += 50) g.update(t);
+      return g.fish!;
+    };
+    // same random numbers: [wait roll, bite roll, species roll, size roll, nibbles]
+    const u = [0, 0, 0.5, 0.5, 0];
+    expect(pick('worm', u).species).toBe('crucian'); // worm: crucian ×1.5 vs carp ×0.5
+    expect(pick('corn', u).species).toBe('carp'); // corn: carp ×3
+    expect(pick('corn', [0, 0, 0.5, 0.4, 0]).size).toBeGreaterThan(pick('worm', [0, 0, 0.5, 0.4, 0]).size);
   });
 
   it('never waits longer than wait.maxS, even with a 0% bite chance', () => {

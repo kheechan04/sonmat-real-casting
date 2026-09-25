@@ -1,23 +1,28 @@
-// M1 fishing loop — a pure, time-driven state machine (no DOM, testable with a fake clock + RNG).
+// Fishing loop — a pure, time-driven state machine (no DOM, testable with a fake clock + RNG).
 //
 //   bait ─(UI click)→ ready ─(cast)→ flight → waiting ─(bite roll)→ nibble* → bite ─(hook-set)→ reeling → caught
 //                                                                     │           │                │
-//                                                           hook-set too early   timeout   line break / escape → missed
+//                                                           hook-set too early   timeout   line snap / escape → missed
 //
 // Hook-set differences between species are timing only (bite window + fake nibbles); strength
 // is never judged (user decision, docs/VERIFICATION.md). Reeling length grows with size / rarity.
+//
+// Reeling fight: progress fills at the player's reel rate. Every few seconds the fish RUNS —
+// announced by a splash `fight.warnS` earlier — and takes line back (progress drops). Reeling
+// during a run builds line tension; full tension snaps the line. So the rule the player learns is
+// "when it splashes and runs, stop reeling; reel again when it stops".
 
 import type { GestureEvent } from './gestures';
-import { baitKey, fishKey, SPECIES, type Bait, type Params, type Species } from './params';
+import { baitKey, baitSpeciesKey, fishKey, SPECIES, type Bait, type Params, type Species } from './params';
 
 export type Phase = 'bait' | 'ready' | 'flight' | 'waiting' | 'nibble' | 'bite' | 'reeling' | 'caught' | 'missed';
 
 export type MissReason = 'early' | 'late' | 'snap' | 'escape';
 export const MISS_TEXT: Record<MissReason, string> = {
-  early: '너무 일찍 챘어요 — 가짜 입질이었어요',
-  late: '입질을 놓쳤어요',
-  snap: '줄이 끊어졌어요 — 물고기가 당길 땐 잠깐 멈춰요',
-  escape: '물고기가 빠져나갔어요',
+  early: '너무 일찍 챘어요 — 톡톡 건드리는 건 가짜 입질이에요',
+  late: '입질을 놓쳤어요 — 찌가 쑥 들어가면 바로 채요',
+  snap: '줄이 끊어졌어요 — 물고기가 차고 나갈 땐 감지 말고 기다려요',
+  escape: '물고기가 빠져나갔어요 — 줄을 너무 오래 안 감았어요',
 };
 
 export interface Fish {
@@ -36,32 +41,38 @@ export type GameEvent =
   | { type: 'nibble' }
   | { type: 'bite' }
   | { type: 'hooked' }
-  | { type: 'reel'; progress: number }
-  | { type: 'pull'; on: boolean }
+  | { type: 'runWarn' }
+  | { type: 'run'; on: boolean }
   | { type: 'caught'; fish: Fish }
   | { type: 'missed'; reason: MissReason }
   | { type: 'ignored'; gesture: GestureEvent['type']; why: string };
 
 /** Flight time of the cast, s. */
-const FLIGHT_S = 1.2;
-const MIN_DISTANCE_M = 6;
-const MAX_DISTANCE_M = 26;
-/** Weight from length: w = k·L³ (g, cm). Rough freshwater-fish constants; placeholder flavour only. */
+export const FLIGHT_S = 1.2;
+const MIN_DISTANCE_M = 8;
+const MAX_DISTANCE_M = 28;
+/** Weight from length: w = k·L³ (g, cm). Rough freshwater-fish constants; flavour only. */
 const WEIGHT_K: Record<Species, number> = { crucian: 0.02, carp: 0.016 };
 
 export class FishingGame {
   phase: Phase = 'bait';
   /** time the current phase started, ms */
   phaseT = 0;
-  bait: Bait = 'normal';
+  bait: Bait = 'paste';
   castStrength = 0;
   distanceM = 0;
   fish: Fish | null = null;
   missReason: MissReason | null = null;
-  /** reeling */
+  /** reeling: turns reeled so far (fractional) */
   progress = 0;
+  /** reeling: line tension 0–1 (1 = snap) */
   tension = 0;
-  pulling = false;
+  /** reeling: the fish is running (taking line) */
+  running = false;
+  /** reeling: a run is about to start (splash warning) */
+  runSoon = false;
+  /** the reel rate the game last saw, turns/s (for the HUD) */
+  reelRate = 0;
   /** in the nibble phase: is a fake nibble showing right now */
   nibbling = false;
 
@@ -72,8 +83,8 @@ export class FishingGame {
   private nibbleUntil = 0;
   private nextNibble = 0;
   private biteUntil = 0;
-  private nextPull = 0;
-  private pullUntil = 0;
+  private nextRun = 0;
+  private runUntil = 0;
   private lastReelT = 0;
   private lastT = 0;
 
@@ -117,7 +128,8 @@ export class FishingGame {
     this.missReason = null;
     this.progress = 0;
     this.tension = 0;
-    this.pulling = false;
+    this.running = false;
+    this.runSoon = false;
     this.nibbling = false;
     this.setPhase('bait', now);
   }
@@ -125,7 +137,6 @@ export class FishingGame {
   // ---------------------------------------------------------------- gestures
 
   onGesture(ev: GestureEvent, now: number): void {
-    const P = this.params();
     switch (ev.type) {
       case 'cast':
         if (this.phase !== 'ready') return;
@@ -135,49 +146,36 @@ export class FishingGame {
         this.setPhase('flight', now);
         return;
       case 'hookset':
-        if (this.phase === 'bite') {
-          this.hook(now);
-        } else if (this.phase === 'nibble') {
-          this.miss('early', now);
-        } else if (this.phase === 'waiting') {
+        if (this.phase === 'bite') this.hook(now);
+        else if (this.phase === 'nibble') this.miss('early', now);
+        else if (this.phase === 'waiting') {
           // no penalty: nothing is on the line yet
           this.emit({ type: 'ignored', gesture: 'hookset', why: '아직 입질이 없어요' });
-        }
-        return;
-      case 'reel':
-        if (this.phase !== 'reeling') return;
-        this.lastReelT = now;
-        if (this.pulling) {
-          this.tension += P['fight.tensionPerTurn'];
-          if (this.tension >= 1) this.miss('snap', now);
-        } else if (this.fish) {
-          this.progress = Math.min(this.fish.turnsNeeded, this.progress + 1);
-          this.emit({ type: 'reel', progress: this.progress });
-          if (this.progress >= this.fish.turnsNeeded) {
-            this.pulling = false;
-            this.emit({ type: 'caught', fish: this.fish });
-            this.setPhase('caught', now);
-          }
         }
         return;
     }
   }
 
   private hook(now: number): void {
-    const P = this.params();
-    const s = this.fish!.species;
     this.progress = 0;
     this.tension = 0;
-    this.pulling = false;
+    this.running = false;
+    this.runSoon = false;
     this.lastReelT = now;
-    this.nextPull = now + P[fishKey(s, 'pullEveryS')] * 1000 * this.uniform(0.7, 1.3);
+    this.scheduleRun(now);
     this.emit({ type: 'hooked' });
     this.setPhase('reeling', now);
   }
 
+  private scheduleRun(now: number): void {
+    const s = this.fish!.species;
+    this.nextRun = now + this.params()[fishKey(s, 'pullEveryS')] * 1000 * this.uniform(0.7, 1.3);
+  }
+
   private miss(reason: MissReason, now: number): void {
     this.missReason = reason;
-    this.pulling = false;
+    this.running = false;
+    this.runSoon = false;
     this.nibbling = false;
     this.emit({ type: 'missed', reason });
     this.setPhase('missed', now);
@@ -187,11 +185,12 @@ export class FishingGame {
 
   private pickFish(): Fish {
     const P = this.params();
-    const total = SPECIES.reduce((s, sp) => s + Math.max(0, P[fishKey(sp, 'spawn')]), 0);
+    const weight = (sp: Species) => Math.max(0, P[fishKey(sp, 'spawn')] * P[baitSpeciesKey(this.bait, sp)]);
+    const total = SPECIES.reduce((s, sp) => s + weight(sp), 0);
     let r = this.rng() * (total || 1);
     let species: Species = SPECIES[0];
     for (const sp of SPECIES) {
-      r -= Math.max(0, P[fishKey(sp, 'spawn')]);
+      r -= weight(sp);
       if (r < 0) {
         species = sp;
         break;
@@ -199,7 +198,10 @@ export class FishingGame {
     }
     const lo = P[fishKey(species, 'lenMin')];
     const hi = Math.max(lo, P[fishKey(species, 'lenMax')]);
-    const size = this.rng();
+    // bait size bias: > 0 skews toward big fish, < 0 toward small ones
+    const u = this.rng();
+    const bias = P[baitKey(this.bait, 'sizeBias')];
+    const size = bias >= 0 ? 1 - (1 - u) ** (1 + bias) : u ** (1 - bias);
     const lengthCm = Math.round((lo + (hi - lo) * size) * 10) / 10;
     const factor = P['size.turnsMin'] + (P['size.turnsMax'] - P['size.turnsMin']) * size;
     return {
@@ -214,10 +216,12 @@ export class FishingGame {
 
   // ---------------------------------------------------------------- clock
 
-  update(now: number): void {
+  /** Advance to `now` (ms). `reelRate` = the player's current reel rate, turns/s. */
+  update(now: number, reelRate = 0): void {
     const P = this.params();
-    const dt = Math.max(0, (now - this.lastT) / 1000);
+    const dt = this.lastT ? Math.max(0, Math.min(0.25, (now - this.lastT) / 1000)) : 0;
     this.lastT = now;
+    this.reelRate = reelRate;
     switch (this.phase) {
       case 'flight':
         if (now - this.phaseT >= FLIGHT_S * 1000) {
@@ -260,23 +264,58 @@ export class FishingGame {
       case 'bite':
         if (now >= this.biteUntil) this.miss('late', now);
         break;
-      case 'reeling': {
-        const s = this.fish!.species;
-        if (!this.pulling && now >= this.nextPull) {
-          this.pulling = true;
-          this.pullUntil = now + P[fishKey(s, 'pullS')] * 1000 * this.uniform(0.8, 1.2);
-          this.emit({ type: 'pull', on: true });
-        } else if (this.pulling && now >= this.pullUntil) {
-          this.pulling = false;
-          this.nextPull = now + P[fishKey(s, 'pullEveryS')] * 1000 * this.uniform(0.7, 1.3);
-          this.emit({ type: 'pull', on: false });
-        }
-        this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
-        if (now - this.lastReelT >= P['fight.slackS'] * 1000) this.miss('escape', now);
+      case 'reeling':
+        this.fight(now, dt, reelRate);
         break;
-      }
       default:
         break;
+    }
+  }
+
+  private fight(now: number, dt: number, rate: number): void {
+    const P = this.params();
+    const fish = this.fish!;
+    // run schedule: warning → run → pause
+    if (!this.running && !this.runSoon && now >= this.nextRun - P['fight.warnS'] * 1000) {
+      this.runSoon = true;
+      this.emit({ type: 'runWarn' });
+    }
+    if (!this.running && now >= this.nextRun) {
+      this.running = true;
+      this.runSoon = false;
+      this.runUntil = now + P[fishKey(fish.species, 'pullS')] * 1000 * this.uniform(0.8, 1.2);
+      this.emit({ type: 'run', on: true });
+    } else if (this.running && now >= this.runUntil) {
+      this.running = false;
+      this.lastReelT = now; // the player was told to wait — don't count the run as slack
+      this.scheduleRun(now);
+      this.emit({ type: 'run', on: false });
+    }
+
+    if (this.running) {
+      this.progress = Math.max(0, this.progress - P['fight.takeRate'] * dt);
+      this.tension += P['fight.tensionPerTurn'] * rate * dt;
+      if (rate === 0) this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
+      if (this.tension >= 1) {
+        this.tension = 1;
+        this.miss('snap', now);
+        return;
+      }
+    } else {
+      this.progress += rate * dt;
+      this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
+      if (rate > 0) this.lastReelT = now;
+      else if (now - this.lastReelT >= P['fight.slackS'] * 1000) {
+        this.miss('escape', now);
+        return;
+      }
+    }
+    if (this.progress >= fish.turnsNeeded) {
+      this.progress = fish.turnsNeeded;
+      this.running = false;
+      this.runSoon = false;
+      this.emit({ type: 'caught', fish });
+      this.setPhase('caught', now);
     }
   }
 
@@ -297,5 +336,11 @@ export class FishingGame {
   /** Seconds left to hook-set in the bite phase (for the HUD). */
   biteLeftS(now: number): number {
     return this.phase === 'bite' ? Math.max(0, (this.biteUntil - now) / 1000) : 0;
+  }
+
+  /** Line still out while reeling, m (for the HUD and the scene). */
+  lineOutM(): number {
+    if (!this.fish) return this.distanceM;
+    return this.distanceM * (1 - this.progress / this.fish.turnsNeeded);
   }
 }

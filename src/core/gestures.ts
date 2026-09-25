@@ -1,10 +1,13 @@
-// Real-time gesture recognition (M1): cast, hook-set, reel turns. Causal versions of the M0
+// Real-time gesture recognition (M1): cast, hook-set events + a continuous reel rate. Causal versions of the M0
 // analysis measures (src/core/analysis.ts) — each decision uses only frames up to "now".
 // Rules and numbers: docs/VERIFICATION.md "M1 판정". Thresholds live in params.ts.
 //
 // The tracker reports every gesture it sees; the game (game.ts) decides which ones count in its
 // current phase. That is how a cast wind-up (fast upward) is kept apart from a hook-set, and a
 // hook-set's return (fast downward) from a cast.
+//
+// Reeling is a rate (turns/s from the reel hand's speed), not a turn count: counting single turns
+// lost a third of fast reeling at 10 fps, and "faster than we can count" should never hurt.
 
 import { imageRel, type V3 } from './analysis';
 import type { Params } from './params';
@@ -23,15 +26,14 @@ const CAST_SETTLE_MS = 200;
 
 export type GestureEvent =
   | { type: 'cast'; t: number; /** 0–1 */ strength: number; peakSpeed: number }
-  | { type: 'hookset'; t: number; peakSpeed: number; rise: number }
-  | { type: 'reel'; t: number; /** turns per second over the last 2 s, this one included */ rate: number };
+  | { type: 'hookset'; t: number; peakSpeed: number; rise: number };
 
 export interface GestureState {
   rodVisible: boolean;
   reelVisible: boolean;
   /** current rod-wrist speed, torso lengths / s */
   rodSpeed: number;
-  /** reel turns per second (last 2 s) */
+  /** reel turns per second (0 when the reel hand is still or not visible) */
   reelRate: number;
 }
 
@@ -78,8 +80,8 @@ export class GestureTracker {
   private pendingCast: { since: number; peak: number } | null = null;
   private lastCastT = -Infinity;
   private lastHookT = -Infinity;
-  private reelState = 0;
-  private reelTurns: number[] = [];
+  private reelRate = 0;
+  private reelT = -Infinity;
   private lastSpeed = 0;
 
   constructor(private params: () => Params) {}
@@ -89,8 +91,7 @@ export class GestureTracker {
     this.reel.clear();
     this.speeds = [];
     this.pendingCast = null;
-    this.reelState = 0;
-    this.reelTurns = [];
+    this.reelRate = 0;
   }
 
   state(now: number): GestureState {
@@ -100,7 +101,8 @@ export class GestureTracker {
       rodVisible: !!lastRod,
       reelVisible: !!lastReel,
       rodSpeed: this.lastSpeed,
-      reelRate: this.reelTurns.filter((t) => t > now - 2000).length / 2,
+      // a stale estimate (no reel-hand frame lately) counts as not reeling
+      reelRate: now - this.reelT > 300 ? 0 : this.reelRate,
     };
   }
 
@@ -160,30 +162,23 @@ export class GestureTracker {
       }
     }
 
-    // ---- reel wrist: up/down wobble of world y (m, relative to its shoulder), hysteresis
-    const wl = frame.wl;
-    const reelP: V3 | null =
-      wl && wl[reelArm.wrist][3] >= P.minVis
-        ? [wl[reelArm.wrist][0] - wl[reelArm.shoulder][0], wl[reelArm.wrist][1] - wl[reelArm.shoulder][1], wl[reelArm.wrist][2] - wl[reelArm.shoulder][2]]
-        : null;
-    this.reel.push(t, reelP, P['reel.meanMs']);
+    // ---- reel wrist: path speed (image, torso lengths/s, relative to its shoulder) → turns/s
+    const reelP =
+      lm && lm[reelArm.wrist][3] >= P.minVis ? imageRel(lm, reelArm.wrist, reelArm.shoulder, aspect) : null;
+    this.reel.push(t, reelP, P['reel.windowMs']);
     if (reelP) {
-      let s = 0;
-      let n = 0;
-      for (const q of this.reel.p) {
-        if (q) {
-          s += q[1];
-          n++;
-        }
+      let path = 0;
+      let span = 0;
+      for (let i = 1; i < this.reel.t.length; i++) {
+        const q0 = this.reel.p[i - 1];
+        const q1 = this.reel.p[i];
+        if (!q0 || !q1) continue;
+        path += Math.hypot(q1[0] - q0[0], q1[1] - q0[1]);
+        span += this.reel.t[i] - this.reel.t[i - 1];
       }
-      const d = reelP[1] - s / n;
-      const amp = P['reel.ampM'];
-      if (this.reelState <= 0 && d > amp) {
-        this.reelState = 1;
-        this.reelTurns.push(t);
-        while (this.reelTurns.length && this.reelTurns[0] < t - 2000) this.reelTurns.shift();
-        out.push({ type: 'reel', t, rate: this.reelTurns.length / 2 });
-      } else if (this.reelState >= 0 && d < -amp) this.reelState = -1;
+      const v = span > 0 ? path / (span / 1000) : 0;
+      this.reelRate = v >= P['reel.speedMin'] ? Math.min(P['reel.maxRate'], v * P['reel.turnsPerTorso']) : 0;
+      this.reelT = t;
     }
     return out;
   }

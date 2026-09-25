@@ -4,8 +4,8 @@
 전작 Shadow Mitts(`../shadow-mitts`, 웹캠 복싱)의 포즈 파이프라인을 복사해서 시작했다.
 
 ## 현재 상태 (2026-09-25 기준)
-- **M0 완료(사용자 확인). M1(기본 낚시 루프) 구현 완료, 사용자 플레이테스트 대기(2026-09-25).** 안내는 `docs/PLAYTEST.md`.
-  판정 기준·결정 사항은 `docs/VERIFICATION.md` 끝부분. 플레이테스트 피드백으로 `params.ts` 기본값을 조정한 뒤 확인받고 M2.
+- **M0 완료. M1 기본 루프 → 첫 피드백 반영해 M1.5(디자인·UI 고급화, 실사 배경, 릴링 속도 방식, 차고 나가기 밀당, 새 미끼) 구현, 사용자 확인 대기(2026-09-25).**
+  안내 `docs/PLAYTEST.md`, 바뀐 결정 `docs/DECISIONS.md`, 외부 에셋 출처 `docs/ASSETS.md`(새 사진·파일을 쓰면 반드시 기록).
 - 설계서는 `DESIGN.md`(사용자가 별도 Claude 대화에서 만듦, 내용을 고치지 않는다). 확인 결과는 `docs/VERIFICATION.md`.
 
 ## 사용자
@@ -23,6 +23,7 @@
 
 ## 개인정보·보안
 - **`recordings/*.json`은 커밋하지 않는다**(.gitignore). `PROCESS_LOG.md`는 `.git/info/exclude`로 로컬 전용 — 사용자가 공개하라고 할 때만.
+- 외부 사진·에셋은 CC0/CC-BY/직접 촬영만, `docs/ASSETS.md`에 출처·라이선스를 적는다 (DESIGN.md §4.1).
 - 영상·얼굴은 브라우저 밖으로 나가지 않는다. 녹화 파일에는 좌표만. 분석 도구(Analytics 등)를 붙이지 않는다.
 - 커밋은 저장소 로컬 git 설정(이름 `HC KIM`, noreply 이메일). 원격 push·배포는 사용자가 요청할 때만.
 
@@ -38,8 +39,9 @@
 - 크롬 `C:/Program Files/Google/Chrome/Application/chrome.exe`, `npm i --no-save puppeteer-core`.
 - `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`. 먼저 `getUserMedia`를 한 번 열었다 닫고, 버튼은 `element.click()`.
 - 개발 모드에서만 `window.__obs`(관찰 도구)·`window.__game`(game, params, tracker, start, source)이 열려 있다.
-- 게임은 개발 모드나 `?keys`에서 키보드 대체 입력: C 던지기 · H 챔질 · R 감기. "카메라 없이 시작" 버튼도 이때만 보인다.
+- 게임은 개발 모드나 `?keys`에서 키보드 대체 입력: C 던지기 · H 챔질 · R(누르고 있기) 감기. "카메라 없이 시작" 버튼도 이때만 보인다.
 - 헤드리스의 GPU는 소프트웨어 GL이라 실제 GPU 성능 확인이 아니다.
+- `npm install`을 하면 `--no-save`로 깐 puppeteer-core가 지워진다 → 다시 설치.
 
 ## 이 환경의 함정 (전작에서 옮김)
 - bash `sed`/heredoc에 백틱·정규식 이스케이프가 섞이면 망가진다 → 긴 수정은 Edit/Write 도구로.
@@ -48,8 +50,8 @@
 
 ## 코드 구조
 - `src/core/` — DOM 없는 순수 로직(Node 테스트 가능): `params.ts`(임시값 전부), `gestures.ts`(실시간 캐스팅·챔질·릴링 인식),
-  `game.ts`(낚시 상태 기계), `pose.ts`, `recording.ts`, `mirror.ts`, `analysis.ts`(M0 분석), `protocol.ts`(녹화 체크리스트)
-- `src/app/` — 브라우저: `main.ts`(게임 페이지), `scene.ts`(three.js, 임시 도형), `tuning.ts`(⚙ 슬라이더), `poseSource.ts`(카메라+추론, 공용),
+  `game.ts`(낚시 상태 기계, 릴링은 속도로 채움, 차고 나가기), `pose.ts`, `recording.ts`, `mirror.ts`, `analysis.ts`(M0 분석), `protocol.ts`(녹화 체크리스트)
+- `src/app/` — 브라우저: `main.ts`(게임 페이지), `scene.ts`(three.js, 실사 360° 배경+HDR 조명, 휘는 대, 찌, 임시 물고기), `sfx.ts`(합성 효과음), `tuning.ts`(⚙ 슬라이더), `poseSource.ts`(카메라+추론, 공용),
   `observer.ts`(M0 관찰 도구), `overlay.ts`, `plots.ts`, `landmarker.ts`·`poseWorker.ts`(전작 그대로)
 - 테스트: `tests/game.test.ts`(게임 흐름), `tests/recordings.test.ts`(사용자 녹화로 30/15fps 인식 개수 고정 — 파일 없으면 건너뜀)
 - 문체: 사용자용 문서는 "\~해요", 개발 문서는 "\~한다".

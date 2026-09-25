@@ -17,9 +17,11 @@ const m = (group: string, label: string, min: number, max: number, step: number,
   group, label, min, max, step, unit,
 });
 
-export const BAITS = ['rubber', 'normal', 'worm'] as const;
+// Baits (user, 2026-09-25: the DESIGN.md trio was only an example). Freshwater reservoir baits that
+// differ in more than bite speed: which species they attract and how big. Controls stay the same.
+export const BAITS = ['worm', 'paste', 'corn'] as const;
 export type Bait = (typeof BAITS)[number];
-export const BAIT_NAME: Record<Bait, string> = { rubber: '고무 미끼', normal: '일반 미끼', worm: '갯지렁이' };
+export const BAIT_NAME: Record<Bait, string> = { worm: '지렁이', paste: '떡밥', corn: '옥수수' };
 
 export const SPECIES = ['crucian', 'carp'] as const;
 export type Species = (typeof SPECIES)[number];
@@ -36,20 +38,35 @@ const DEFS = {
   'cast.cooldownMs': [1000, m('캐스팅', '재인식 간격', 200, 3000, 100, 'ms')],
   'hook.speedMin': [3, m('챔질', '최소 속도', 1, 8, 0.25, '몸통/s')], // weakest hook-set 4.3, fidget max 1.98
   'hook.riseMin': [0.4, m('챔질', '최소 상승 (0.45초)', 0.1, 1.2, 0.05, '몸통')], // weakest 0.52, fidget max 0.26
-  'reel.ampM': [0.015, m('릴링', '흔들림 진폭', 0.005, 0.05, 0.001, 'm')], // reeling RMS 0.04, still 0.005
-  'reel.meanMs': [1000, m('릴링', '평균 창', 300, 2000, 50, 'ms')],
+  // Reeling is measured as a RATE, not counted turn by turn: counting lost a third of fast reeling at
+  // 10 fps (M1 playtest "빠르게 하면 인식을 잘 못 해"). Reel-hand speed (torso lengths/s over ~0.4 s):
+  // still 95% ≤ 0.39, slow reeling median 1.3–1.6 → rate = speed × turnsPerTorso, capped at maxRate.
+  'reel.speedMin': [0.6, m('릴링', '감는 중으로 볼 최소 손 속도', 0.2, 2, 0.05, '몸통/s')],
+  'reel.turnsPerTorso': [2.2, m('릴링', '손 속도 → 회/초 배율', 0.5, 5, 0.1)], // D1: 3.5 turns/s at 1.56
+  'reel.maxRate': [4, m('릴링', '최대 감기 속도 (이보다 빨라도 같음)', 1, 8, 0.25, '회/초')],
+  'reel.windowMs': [400, m('릴링', '속도 평균 창', 150, 1000, 50, 'ms')],
 
-  // ---- baits (DESIGN.md §3 examples). A bite check happens after a random wait in [waitMin, waitMax];
-  // it succeeds with biteChance, otherwise the next check comes after half as long. wait.maxS forces a bite.
-  'bait.rubber.waitMin': [25, m('미끼: 고무', '대기 최소', 1, 60, 1, '초')],
-  'bait.rubber.waitMax': [40, m('미끼: 고무', '대기 최대', 1, 60, 1, '초')],
-  'bait.rubber.biteChance': [0.15, m('미끼: 고무', '입질 확률', 0, 1, 0.05)],
-  'bait.normal.waitMin': [12, m('미끼: 일반', '대기 최소', 1, 60, 1, '초')],
-  'bait.normal.waitMax': [20, m('미끼: 일반', '대기 최대', 1, 60, 1, '초')],
-  'bait.normal.biteChance': [0.35, m('미끼: 일반', '입질 확률', 0, 1, 0.05)],
-  'bait.worm.waitMin': [5, m('미끼: 갯지렁이', '대기 최소', 1, 60, 1, '초')],
-  'bait.worm.waitMax': [10, m('미끼: 갯지렁이', '대기 최대', 1, 60, 1, '초')],
-  'bait.worm.biteChance': [0.6, m('미끼: 갯지렁이', '입질 확률', 0, 1, 0.05)],
+  // ---- baits. A bite check happens after a random wait in [waitMin, waitMax]; it succeeds with
+  // biteChance, otherwise the next check comes after half as long. wait.maxS forces a bite.
+  // Species weight = spawn × the bait's multiplier. sizeBias > 0 skews toward bigger fish.
+  'bait.worm.waitMin': [5, m('미끼: 지렁이', '대기 최소', 1, 60, 1, '초')],
+  'bait.worm.waitMax': [10, m('미끼: 지렁이', '대기 최대', 1, 60, 1, '초')],
+  'bait.worm.biteChance': [0.6, m('미끼: 지렁이', '입질 확률', 0, 1, 0.05)],
+  'bait.worm.crucianMul': [1.5, m('미끼: 지렁이', '붕어 배율', 0, 5, 0.1)],
+  'bait.worm.carpMul': [0.5, m('미끼: 지렁이', '잉어 배율', 0, 5, 0.1)],
+  'bait.worm.sizeBias': [-0.3, m('미끼: 지렁이', '크기 치우침 (−작게 +크게)', -0.9, 3, 0.1)],
+  'bait.paste.waitMin': [10, m('미끼: 떡밥', '대기 최소', 1, 60, 1, '초')],
+  'bait.paste.waitMax': [18, m('미끼: 떡밥', '대기 최대', 1, 60, 1, '초')],
+  'bait.paste.biteChance': [0.4, m('미끼: 떡밥', '입질 확률', 0, 1, 0.05)],
+  'bait.paste.crucianMul': [1, m('미끼: 떡밥', '붕어 배율', 0, 5, 0.1)],
+  'bait.paste.carpMul': [1, m('미끼: 떡밥', '잉어 배율', 0, 5, 0.1)],
+  'bait.paste.sizeBias': [0, m('미끼: 떡밥', '크기 치우침 (−작게 +크게)', -0.9, 3, 0.1)],
+  'bait.corn.waitMin': [20, m('미끼: 옥수수', '대기 최소', 1, 60, 1, '초')],
+  'bait.corn.waitMax': [32, m('미끼: 옥수수', '대기 최대', 1, 60, 1, '초')],
+  'bait.corn.biteChance': [0.25, m('미끼: 옥수수', '입질 확률', 0, 1, 0.05)],
+  'bait.corn.crucianMul': [0.4, m('미끼: 옥수수', '붕어 배율', 0, 5, 0.1)],
+  'bait.corn.carpMul': [3, m('미끼: 옥수수', '잉어 배율', 0, 5, 0.1)],
+  'bait.corn.sizeBias': [1, m('미끼: 옥수수', '크기 치우침 (−작게 +크게)', -0.9, 3, 0.1)],
   'wait.maxS': [40, m('미끼: 공통', '최대 대기 (넘으면 무조건 입질)', 5, 90, 1, '초')], // DESIGN §3: never over 40 s
 
   // ---- species. Hook-set differences are timing only (user decision): bite window + fake nibbles.
@@ -74,8 +91,12 @@ const DEFS = {
   'size.turnsMax': [1.3, m('어종: 공통', '가장 클 때 릴링 배율', 0.5, 3, 0.05)],
 
   // ---- reeling fight ("밀당")
-  'fight.tensionPerTurn': [0.25, m('릴링 밀당', '당길 때 1회 감으면 긴장도 +', 0.05, 1, 0.05)],
-  'fight.tensionDecay': [0.5, m('릴링 밀당', '긴장도 회복 /초', 0.05, 2, 0.05)],
+  // A fish run ("차고 나감"): announced by a splash warnS before it starts, the fish takes line back
+  // (distance grows) and reeling against it builds line tension — full tension snaps the line.
+  'fight.warnS': [0.8, m('릴링 밀당', '차고 나가기 전 예고', 0, 2, 0.1, '초')],
+  'fight.takeRate': [1.5, m('릴링 밀당', '차고 나갈 때 풀리는 줄', 0, 5, 0.1, '회/초')],
+  'fight.tensionPerTurn': [0.12, m('릴링 밀당', '차고 나갈 때 1회 감으면 긴장 +', 0.02, 0.6, 0.01)],
+  'fight.tensionDecay': [0.6, m('릴링 밀당', '긴장 회복 /초', 0.05, 2, 0.05)],
   'fight.slackS': [10, m('릴링 밀당', '안 감으면 빠져나감', 3, 60, 1, '초')],
   'fight.nibbleS': [0.6, m('입질', '가짜 입질 길이', 0.2, 2, 0.1, '초')],
   'fight.nibbleGapS': [1.2, m('입질', '가짜 입질 뒤 쉼', 0.3, 4, 0.1, '초')],
@@ -93,7 +114,9 @@ export function defaultParams(): Params {
   return Object.fromEntries(PARAM_KEYS.map((k) => [k, DEFS[k][0]])) as Params;
 }
 
-export const baitKey = (b: Bait, f: 'waitMin' | 'waitMax' | 'biteChance') => `bait.${b}.${f}` as ParamKey;
+export const baitKey = (b: Bait, f: 'waitMin' | 'waitMax' | 'biteChance' | 'crucianMul' | 'carpMul' | 'sizeBias') =>
+  `bait.${b}.${f}` as ParamKey;
+export const baitSpeciesKey = (b: Bait, s: Species) => `bait.${b}.${s}Mul` as ParamKey;
 export const fishKey = (
   s: Species,
   f: 'spawn' | 'biteWindowS' | 'fakeMax' | 'reelTurns' | 'pullEveryS' | 'pullS' | 'lenMin' | 'lenMax',

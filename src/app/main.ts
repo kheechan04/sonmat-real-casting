@@ -1,16 +1,17 @@
-// M1 game page: camera → gestures → game → 3D scene + HUD.
+// Game page: camera → gestures → game → 3D scene + HUD + sound.
 // Pose pipeline: poseSource.ts. Gesture rules: core/gestures.ts. Game rules: core/game.ts.
 // Every number is a placeholder in core/params.ts, adjustable from the ⚙ panel.
 
-import { FishingGame, MISS_TEXT, type GameEvent } from '../core/game';
+import { FishingGame, MISS_TEXT, type Fish, type GameEvent } from '../core/game';
 import { GestureTracker, type GestureEvent } from '../core/gestures';
-import { BAIT_NAME, BAITS, baitKey, SPECIES_NAME, type Bait } from '../core/params';
+import { BAIT_NAME, BAITS, baitKey, baitSpeciesKey, fishKey, SPECIES, SPECIES_NAME, type Bait, type Species } from '../core/params';
 import { ARM, LM, other, type PoseFrame, type Side } from '../core/pose';
 import { serializeRecording, type RecordedFrame, type Recording } from '../core/recording';
 import './game.css';
 import { drawOverlay } from './overlay';
 import { listCameras, PoseSource } from './poseSource';
 import { FishingScene } from './scene';
+import { Sfx } from './sfx';
 import { store } from './store';
 import { buildTuningPanel, loadParams } from './tuning';
 
@@ -22,6 +23,7 @@ const tracker = new GestureTracker(() => params);
 const game = new FishingGame(() => params);
 const scene = new FishingScene($<HTMLCanvasElement>('world'));
 const source = new PoseSource();
+const sfx = new Sfx();
 const pip = $<HTMLCanvasElement>('pipCanvas');
 const pipCtx = pip.getContext('2d')!;
 
@@ -30,6 +32,28 @@ let started = false;
 let lastFrame: PoseFrame | null = null;
 const trail: PoseFrame[] = [];
 scene.setRodHand(rodHand);
+
+// ---------------------------------------------------------------- records (this browser only)
+
+interface Records {
+  best: Partial<Record<Species, number>>;
+  today: { date: string; count: number };
+}
+function loadRecords(): Records {
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const r = JSON.parse(store.get('records.v1') ?? '') as Records;
+    if (r.today.date !== today) r.today = { date: today, count: 0 };
+    return r;
+  } catch {
+    return { best: {}, today: { date: today, count: 0 } };
+  }
+}
+const records = loadRecords();
+function renderTally(): void {
+  const bests = SPECIES.filter((s) => records.best[s]).map((s) => `${SPECIES_NAME[s]} <b>${records.best[s]}cm</b>`);
+  $('tally').innerHTML = `오늘 <b>${records.today.count}</b>마리${bests.length ? ` · 최고 ${bests.join(' · ')}` : ''}`;
+}
 
 // ---------------------------------------------------------------- banner / setup
 
@@ -40,6 +64,7 @@ function showBanner(text: string, ok = false): void {
   b.classList.toggle('hidden', !text);
 }
 source.onStatus = showBanner;
+scene.ready.catch((e) => showBanner(`배경을 불러오지 못했어요: ${e instanceof Error ? e.message : String(e)}`));
 
 const rodSel = $<HTMLSelectElement>('rodHand');
 rodSel.value = rodHand;
@@ -61,6 +86,7 @@ async function fillCameras(): Promise<void> {
 }
 
 async function start(withCamera: boolean): Promise<void> {
+  sfx.start();
   if (withCamera) {
     try {
       await source.start({ deviceId: $<HTMLSelectElement>('camera').value, width: 640, height: 480, model: 'lite', useGpu: false });
@@ -77,6 +103,9 @@ async function start(withCamera: boolean): Promise<void> {
   }
   started = true;
   show('startBox', false);
+  show('hud', true);
+  show('tally', true);
+  renderTally();
   game.again(performance.now());
 }
 
@@ -97,13 +126,12 @@ let lastRound: Round | null = null;
 const gestLog: { t: number; text: string }[] = [];
 function logGesture(text: string, now: number): void {
   gestLog.push({ t: now, text });
-  while (gestLog.length > 4) gestLog.shift();
+  while (gestLog.length > 3) gestLog.shift();
 }
 
 function onGesture(ev: GestureEvent, now: number): void {
-  if (ev.type === 'cast') logGesture(`던지기 인식 (세기 ${Math.round(ev.strength * 100)}%)`, now);
-  else if (ev.type === 'hookset') logGesture('챔질 인식', now);
-  else if (game.phase === 'reeling') logGesture(`감기 ${ev.rate.toFixed(1)}회/초`, now);
+  if (ev.type === 'cast') logGesture(`던지기 ${Math.round(ev.strength * 100)}%`, now);
+  else logGesture('챔질', now);
   round?.events.push({ t: now, e: `gesture:${ev.type}` });
   game.onGesture(ev, now);
 }
@@ -118,29 +146,47 @@ source.onFrame = (f) => {
 
 // keyboard stand-ins for testing without moving (dev server, or ?keys)
 const keysOn = import.meta.env.DEV || new URLSearchParams(location.search).has('keys');
+let keyReel = false;
 show('keysHelp', keysOn);
 if (keysOn) {
   document.addEventListener('keydown', (e) => {
     if (!started || e.target instanceof HTMLInputElement) return;
     const now = performance.now();
     const k = e.key.toLowerCase();
-    if (k === 'c') onGesture({ type: 'cast', t: now, strength: 0.6, peakSpeed: 9 }, now);
-    else if (k === 'h') onGesture({ type: 'hookset', t: now, peakSpeed: 6, rise: 0.8 }, now);
-    else if (k === 'r') onGesture({ type: 'reel', t: now, rate: 3 }, now);
+    if (k === 'c' && !e.repeat) onGesture({ type: 'cast', t: now, strength: 0.6, peakSpeed: 9 }, now);
+    else if (k === 'h' && !e.repeat) onGesture({ type: 'hookset', t: now, peakSpeed: 6, rise: 0.8 }, now);
+    else if (k === 'r') keyReel = true;
+  });
+  document.addEventListener('keyup', (e) => {
+    if (e.key.toLowerCase() === 'r') keyReel = false;
   });
 }
 
-// ---------------------------------------------------------------- UI
+// ---------------------------------------------------------------- bait choice
+
+const BAIT_ICON: Record<Bait, string> = {
+  worm: `<svg viewBox="0 0 40 40"><path d="M6 26c4-8 8 4 12-4s8 4 12-4 5 2 5 2" fill="none" stroke="#e58f8f" stroke-width="5" stroke-linecap="round"/></svg>`,
+  paste: `<svg viewBox="0 0 40 40"><circle cx="20" cy="21" r="11" fill="#d8c08c"/><circle cx="16" cy="18" r="2" fill="#b89d62"/><circle cx="23" cy="24" r="1.6" fill="#b89d62"/><circle cx="24" cy="16" r="1.3" fill="#b89d62"/></svg>`,
+  corn: `<svg viewBox="0 0 40 40"><path d="M20 7c7 0 10 7 9 14s-5 12-9 12-8-5-9-12 2-14 9-14z" fill="#f2c94c"/><path d="M20 10v20M14 14c3 2 9 2 12 0M13 20c4 2 10 2 14 0M14 26c3 2 9 2 12 0" stroke="#d9a927" stroke-width="1.4" fill="none"/></svg>`,
+};
 
 function fillBaits(): void {
   const box = $('baits');
   box.textContent = '';
-  const feel: Record<Bait, string> = { rubber: '여유롭게 오래', normal: '보통', worm: '잘 잡혀요' };
   for (const b of BAITS) {
+    const wait = (params[baitKey(b, 'waitMin')] + params[baitKey(b, 'waitMax')]) / 2;
+    const speed = Math.max(0.05, Math.min(1, 1 - (wait - 4) / 30));
+    const big = Math.max(0.05, Math.min(1, (params[baitKey(b, 'sizeBias')] + 0.9) / 2.2));
+    const likes = SPECIES.map((s) => [s, params[baitSpeciesKey(b, s)]] as const)
+      .filter(([, v]) => v >= 1.2)
+      .map(([s]) => SPECIES_NAME[s]);
     const btn = document.createElement('button');
     btn.className = 'baitCard';
-    const wait = `${params[baitKey(b, 'waitMin')]}~${params[baitKey(b, 'waitMax')]}초`;
-    btn.innerHTML = `<b>${BAIT_NAME[b]}</b><span>${feel[b]}</span><span>대기 ${wait} · 입질 ${Math.round(params[baitKey(b, 'biteChance')] * 100)}%</span>`;
+    btn.innerHTML = `
+      <div class="baitTop">${BAIT_ICON[b]}<div><b>${BAIT_NAME[b]}</b><span>대기 ${params[baitKey(b, 'waitMin')]}~${params[baitKey(b, 'waitMax')]}초</span></div></div>
+      <div class="statRow">입질 속도<div class="track"><div style="width:${speed * 100}%"></div></div></div>
+      <div class="statRow">큰 물고기<div class="track"><div style="width:${big * 100}%"></div></div></div>
+      <div class="baitNote">${likes.length ? `${likes.join('·')}가 좋아해요` : '어느 물고기나 고루'}</div>`;
     btn.addEventListener('click', () => {
       round = { frames: [], events: [], note: '' };
       game.chooseBait(b, performance.now());
@@ -149,56 +195,115 @@ function fillBaits(): void {
   }
 }
 
+// ---------------------------------------------------------------- results
+
+function showCatch(f: Fish): void {
+  records.today.count++;
+  const prevBest = records.best[f.species] ?? 0;
+  const isRecord = f.lengthCm > prevBest;
+  if (isRecord) records.best[f.species] = f.lengthCm;
+  store.set('records.v1', JSON.stringify(records));
+  renderTally();
+
+  // 월척: a crucian of one 척 (30.3 cm) or more — the Korean angler's milestone
+  const trophy = f.species === 'crucian' ? f.lengthCm >= 30.3 : f.lengthCm >= 60;
+  const badge = trophy ? (f.species === 'crucian' ? '월척!' : '대물!') : isRecord && prevBest > 0 ? '개인 기록!' : '';
+  $('resBadge').textContent = badge;
+  show('resBadge', !!badge);
+  $('resKicker').textContent = '낚았어요';
+  $('resTitle').className = '';
+  $('resTitle').textContent = SPECIES_NAME[f.species];
+  const kg = f.weightG >= 1000 ? `${(f.weightG / 1000).toFixed(2)}<small>kg</small>` : `${f.weightG}<small>g</small>`;
+  $('resStats').innerHTML = `<div><b>${f.lengthCm}<small>cm</small></b><span>길이</span></div><div><b>${kg}</b><span>무게</span></div>`;
+  show('resStats', true);
+  $('resBody').textContent = `${BAIT_NAME[game.bait]}로 ${Math.round(game.distanceM)}m 던져서 잡았어요`;
+}
+
+function showMiss(reason: keyof typeof MISS_TEXT): void {
+  show('resBadge', false);
+  $('resKicker').textContent = '놓쳤어요';
+  $('resTitle').className = 'bad';
+  $('resTitle').textContent = { early: '너무 일찍 챘어요', late: '입질을 놓쳤어요', snap: '줄이 끊어졌어요', escape: '빠져나갔어요' }[reason];
+  show('resStats', false);
+  $('resBody').textContent = `${MISS_TEXT[reason].split(' — ')[1] ?? ''} · 미끼만 사라졌어요`;
+}
+
 $('again').addEventListener('click', () => game.again(performance.now()));
 
 function onGameEvent(e: GameEvent, now: number): void {
   round?.events.push({ t: now, e: e.type === 'phase' ? `phase:${e.phase}` : e.type });
-  if (e.type === 'phase') {
-    show('baitBox', e.phase === 'bait');
-    show('resultBox', e.phase === 'caught' || e.phase === 'missed');
-    show('reelBox', e.phase === 'reeling');
-    if (e.phase === 'bait') fillBaits();
-    if ((e.phase === 'caught' || e.phase === 'missed') && round) {
-      const fish = game.fish ? SPECIES_NAME[game.fish.species] : '';
-      round.note = `게임: ${BAIT_NAME[game.bait]}, ${fish} ${e.phase === 'caught' ? '잡음' : `놓침(${game.missReason})`}`.trim();
-      lastRound = round;
-      round = null;
-    }
-  } else if (e.type === 'caught') {
-    const f = e.fish;
-    $('resTitle').className = 'good';
-    $('resTitle').textContent = `${SPECIES_NAME[f.species]}를 낚았어요!`;
-    const kg = f.weightG >= 1000 ? `${(f.weightG / 1000).toFixed(2)}kg` : `${f.weightG}g`;
-    $('resBody').textContent = `길이 ${f.lengthCm}cm · 무게 ${kg} · 릴링 ${f.turnsNeeded}회`;
-  } else if (e.type === 'missed') {
-    $('resTitle').className = 'bad';
-    $('resTitle').textContent = '놓쳤어요';
-    $('resBody').textContent = `${MISS_TEXT[e.reason]} · 미끼만 사라졌어요`;
-  } else if (e.type === 'ignored') {
-    logGesture(e.why, now);
+  switch (e.type) {
+    case 'phase':
+      show('baitBox', e.phase === 'bait');
+      show('resultBox', e.phase === 'caught' || e.phase === 'missed');
+      show('reelBox', e.phase === 'reeling');
+      if (e.phase !== 'reeling') {
+        sfx.setDrag(false);
+        $('runFlash').classList.remove('on');
+      }
+      if (e.phase === 'bait') fillBaits();
+      if (e.phase === 'waiting') sfx.plop();
+      if ((e.phase === 'caught' || e.phase === 'missed') && round) {
+        const fish = game.fish ? SPECIES_NAME[game.fish.species] : '';
+        round.note = `게임: ${BAIT_NAME[game.bait]}, ${fish} ${e.phase === 'caught' ? '잡음' : `놓침(${game.missReason})`}`.trim();
+        lastRound = round;
+        round = null;
+      }
+      break;
+    case 'cast':
+      sfx.whoosh();
+      break;
+    case 'nibble':
+      sfx.tick();
+      break;
+    case 'bite':
+      sfx.bite();
+      break;
+    case 'hooked':
+      sfx.hook();
+      break;
+    case 'runWarn':
+      sfx.splash();
+      break;
+    case 'run':
+      sfx.setDrag(e.on);
+      $('runFlash').classList.toggle('on', e.on);
+      break;
+    case 'caught':
+      sfx.caught();
+      showCatch(e.fish);
+      break;
+    case 'missed':
+      if (e.reason === 'snap') sfx.snap();
+      else sfx.miss();
+      showMiss(e.reason);
+      break;
+    case 'ignored':
+      logGesture(e.why, now);
+      break;
   }
 }
 
-function instruction(): { msg: string; sub: string; alert?: boolean } {
+// ---------------------------------------------------------------- HUD
+
+function instruction(now: number): { msg: string; sub: string; tone?: 'alert' | 'danger' } {
   switch (game.phase) {
-    case 'bait':
-      return { msg: '', sub: '' };
     case 'ready':
-      return { msg: '던지세요!', sub: '대 든 손을 머리 뒤로 젖혔다가 앞으로 휘둘러요' };
+      return { msg: '던지세요', sub: '대 든 손을 머리 뒤로 젖혔다가 앞으로 휘둘러요' };
     case 'flight':
-      return { msg: '휙—', sub: `${Math.round(game.distanceM)}m` };
+      return { msg: '', sub: '' };
     case 'waiting':
-      return { msg: '기다리는 중…', sub: `${BAIT_NAME[game.bait]} · 찌를 지켜보세요` };
+      return { msg: '', sub: `${BAIT_NAME[game.bait]} · 찌를 지켜보세요` };
     case 'nibble':
-      return game.nibbling
-        ? { msg: '톡톡…', sub: '아직! 찌가 쑥 들어갈 때 채요' }
-        : { msg: '뭔가 건드려요…', sub: '찌를 지켜보세요' };
+      return game.nibbling ? { msg: '톡톡…', sub: '아직이에요 — 간만 보는 중' } : { msg: '', sub: '뭔가 건드려요… 찌를 지켜보세요' };
     case 'bite':
-      return { msg: '지금! 채요!', sub: '손을 빠르게 위로 "툭"', alert: true };
+      return game.fish?.species === 'crucian'
+        ? { msg: '찌가 올라와요! 지금!', sub: '손을 빠르게 위로 "툭"', tone: 'alert' }
+        : { msg: '쭉 빨려 들어가요! 지금!', sub: '손을 빠르게 위로 "툭"', tone: 'alert' };
     case 'reeling':
-      return game.pulling
-        ? { msg: '버텨요!', sub: '당길 땐 감지 말고 잠깐 멈춰요', alert: true }
-        : { msg: '감아요!', sub: '릴 손으로 작은 원을 계속 돌려요' };
+      if (game.running) return { msg: '손 멈춰요!', sub: '물고기가 줄을 차고 나가는 중 — 지금 감으면 끊어져요', tone: 'danger' };
+      if (game.runSoon) return { msg: '첨벙!', sub: '곧 차고 나가요', tone: 'alert' };
+      return { msg: '감아요', sub: now - game.phaseT < 4000 ? '릴 손으로 작은 원을 계속 돌려요' : '' };
     default:
       return { msg: '', sub: '' };
   }
@@ -216,34 +321,49 @@ function postureWarning(): string {
   return '';
 }
 
+const gFill = document.getElementById('gFill') as unknown as SVGPathElement;
+gFill.setAttribute('pathLength', '100');
+const biteArc = document.getElementById('biteArc') as unknown as SVGCircleElement;
+biteArc.setAttribute('pathLength', '100');
+
 function updateHud(now: number): void {
-  const ins = instruction();
+  const ins = instruction(now);
   $('msg').textContent = ins.msg;
-  $('msg').classList.toggle('alert', !!ins.alert);
+  $('msg').className = `msg${ins.tone ? ` ${ins.tone}` : ''}`;
   $('sub').textContent = ins.sub;
-  const biteOn = game.phase === 'bite' && game.fish;
-  show('biteBar', !!biteOn);
+
+  const biteOn = game.phase === 'bite' && !!game.fish;
+  show('biteRing', biteOn);
   if (biteOn) {
-    const total = params[`fish.${game.fish!.species}.biteWindowS` as const];
-    ($('biteBar').firstElementChild as HTMLElement).style.width = `${(100 * game.biteLeftS(now)) / total}%`;
+    const total = params[fishKey(game.fish!.species, 'biteWindowS')];
+    biteArc.style.strokeDasharray = `${(100 * game.biteLeftS(now)) / total} 100`;
   }
+
   if (game.phase === 'reeling' && game.fish) {
-    const need = game.fish.turnsNeeded;
-    ($('progBar').firstElementChild as HTMLElement).style.width = `${(100 * game.progress) / need}%`;
-    $('progText').textContent = `${game.progress} / ${need}`;
-    ($('tenBar').firstElementChild as HTMLElement).style.width = `${Math.min(100, game.tension * 100)}%`;
-    $('rateText').textContent = `${tracker.state(now).reelRate.toFixed(1)}회/초`;
-    show('pullWarn', game.pulling);
+    $('lineOut').textContent = game.lineOutM().toFixed(1);
+    ($('progFill') as HTMLElement).style.width = `${(100 * game.progress) / game.fish.turnsNeeded}%`;
+    $('rateText').textContent = game.reelRate.toFixed(1);
+    const lit = Math.round((game.reelRate / params['reel.maxRate']) * 8);
+    $('rateDots').querySelectorAll('i').forEach((d, i) => d.classList.toggle('on', i < lit));
+    $('rateDots').classList.toggle('blocked', game.running);
+    const t = game.tension;
+    gFill.style.strokeDasharray = `${t * 100} 100`;
+    gFill.classList.toggle('hot', t >= 0.75);
+    $('tensionText').textContent = t >= 0.75 ? '위험!' : t >= 0.3 ? '팽팽' : '여유';
+    const alert = $('runAlert');
+    alert.className = `runAlert${game.running ? ' run' : game.runSoon ? ' soon' : ''}`;
+    alert.textContent = game.running ? '차고 나가요 — 손 멈춰요!' : game.runSoon ? '첨벙! 곧 차고 나가요' : '';
   }
+
   const warn = postureWarning();
   $('pipWarn').textContent = warn;
   show('pipWarn', !!warn);
   $('gestLog').innerHTML = gestLog
-    .filter((g) => now - g.t < 4000)
-    .map((g) => `<div>${g.text}</div>`)
+    .filter((g) => now - g.t < 3000)
+    .map((g) => `<span>${g.text}</span>`)
     .join('');
   if (!$('tunePanel').classList.contains('hidden')) {
-    $('stat').textContent = source.running ? `${source.fps.toFixed(0)}fps · ${source.inferMs.toFixed(0)}ms · ${source.describe()}` : '카메라 꺼짐';
+    $('stat').textContent = source.running ? `${source.fps.toFixed(0)}fps · ${source.inferMs.toFixed(0)}ms` : '카메라 꺼짐';
   }
 }
 
@@ -258,7 +378,31 @@ function drawPip(): void {
   });
 }
 
-// ---------------------------------------------------------------- dev panel
+// ---------------------------------------------------------------- panels & buttons
+
+const pipBox = $('pip');
+function setPipSize(s: string): void {
+  pipBox.classList.remove('size-s', 'size-m', 'size-l');
+  pipBox.classList.add(`size-${s}`);
+  pipBox.querySelectorAll<HTMLButtonElement>('.pipSizes button').forEach((b) => b.classList.toggle('on', b.dataset.size === s));
+  store.set('pipSize', s);
+}
+setPipSize(store.get('pipSize') ?? 'm');
+pipBox.querySelectorAll<HTMLButtonElement>('.pipSizes button').forEach((b) => b.addEventListener('click', () => setPipSize(b.dataset.size!)));
+
+const openHelp = () => show('helpBox', true);
+$('helpBtn').addEventListener('click', openHelp);
+$('tensionHelp').addEventListener('click', openHelp);
+$('helpClose').addEventListener('click', () => show('helpBox', false));
+
+sfx.setMuted(store.get('muted') === '1');
+$('muteBtn').classList.toggle('off', sfx.muted);
+$('muteBtn').addEventListener('click', () => {
+  sfx.start();
+  sfx.setMuted(!sfx.muted);
+  store.set('muted', sfx.muted ? '1' : '0');
+  $('muteBtn').classList.toggle('off', sfx.muted);
+});
 
 $('tuneBtn').addEventListener('click', () => $('tunePanel').classList.toggle('hidden'));
 buildTuningPanel($('tuneBody'), params, () => {
@@ -302,11 +446,16 @@ $('saveRound').addEventListener('click', () => {
 
 // ---------------------------------------------------------------- loop
 
+let lastLoop = performance.now();
 function loop(): void {
   const now = performance.now();
+  const dt = Math.min(0.1, (now - lastLoop) / 1000);
+  lastLoop = now;
   if (started) {
-    game.update(now);
+    const rate = keyReel ? 3 : source.running ? tracker.state(now).reelRate : 0;
+    game.update(now, rate);
     for (const e of game.drain()) onGameEvent(e, now);
+    if (game.phase === 'reeling') sfx.reel(rate, dt);
   }
   scene.render(game, now);
   updateHud(now);
@@ -316,9 +465,8 @@ function loop(): void {
 
 window.addEventListener('resize', () => scene.resize());
 void fillCameras();
-show('baitBox', false);
 requestAnimationFrame(loop);
 
 if (import.meta.env.DEV) {
-  (window as unknown as { __game: unknown }).__game = { game, params, tracker, start, source };
+  (window as unknown as { __game: unknown }).__game = { game, params, tracker, start, source, scene };
 }

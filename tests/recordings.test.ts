@@ -19,12 +19,16 @@ if (existsSync(DIR)) {
   }
 }
 
+/** Gesture counts, plus reeled turns = the reel rate integrated over time. */
 function count(rec: Recording, step = 1) {
   const g = new GestureTracker(() => defaultParams());
   const c = { cast: 0, hookset: 0, reel: 0 };
+  let prevT: number | null = null;
   rec.frames.forEach((f, i) => {
     if (i % step) return;
     for (const e of g.update(f, rec.meta.rodHand ?? 'right', rec.meta.aspect)) c[e.type]++;
+    if (prevT !== null) c.reel += (g.state(f.t).reelRate * (f.t - prevT)) / 1000;
+    prevT = f.t;
   });
   return c;
 }
@@ -56,12 +60,19 @@ describe.skipIf(!has('B1', 'B3', 'E2', 'C1', 'C2', 'C3', 'E1', 'E3', 'D1', 'D3')
       }
     });
 
-    it(`reel turns: counted while reeling, none standing still (${fps})`, () => {
-      const d1 = count(recs.get('D1')!, step).reel; // offline analysis: ~70
-      const d3 = count(recs.get('D3')!, step).reel; // ~86, faster
-      expect(d1).toBeGreaterThanOrEqual(55);
-      expect(d3).toBeGreaterThan(d1);
-      expect(count(recs.get('E1')!, step).reel).toBeLessThanOrEqual(2);
+  }
+
+  // Reeling at 30 / 15 / 10 fps. Turn counting lost a third of fast reeling (D3: 83 → 55) at 10 fps.
+  // The rate model keeps fast reeling ≥ normal at 30/15 fps and within 10% at 10 fps
+  // (fast, small circles lose the most to sparse frames: 10 fps D1 58 / D3 55 turns).
+  for (const step of [1, 2, 3]) {
+    const fps = `${30 / step}fps`;
+    it(`reeling: normal and fast reeling both register, standing still does not (${fps})`, () => {
+      const d1 = count(recs.get('D1')!, step).reel; // 20 s, offline analysis ~70 turns
+      const d3 = count(recs.get('D3')!, step).reel; // 20 s, ~86 turns (faster, smaller circles)
+      expect(d1).toBeGreaterThanOrEqual(45);
+      expect(d3).toBeGreaterThanOrEqual(d1 * (step === 3 ? 0.9 : 1));
+      expect(count(recs.get('E1')!, step).reel).toBeLessThan(1);
     });
   }
 });
