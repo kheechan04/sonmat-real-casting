@@ -1129,3 +1129,140 @@ a {
     opacity: 0;
   }
 }
+
+/* ---- M2: places, collection, rarity */
+.modal.wide {
+  width: min(960px, calc(100vw - 32px));
+}
+
+.places {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.placeCard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 170px;
+  padding: 18px;
+  text-align: left;
+  border-radius: 16px;
+  border: 1px solid var(--hair);
+  box-shadow: inset 0 -60px 60px -30px rgba(0, 0, 0, 0.45);
+}
+
+.placeCard:hover {
+  border-color: var(--gold);
+  transform: translateY(-2px);
+}
+
+.placeCard b {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.placeCard > span {
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.placeMeta {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--gold-2);
+}
+
+.backBtn {
+  margin-top: 14px;
+}
+
+.resBtns {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.tierTag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+
+.tier-common.tierTag { background: rgba(255, 255, 255, 0.14); }
+.tier-uncommon.tierTag { background: rgba(143, 214, 148, 0.3); color: #d6f5d8; }
+.tier-rare.tierTag { background: rgba(127, 200, 248, 0.3); color: #d7efff; }
+.tier-legend.tierTag { background: linear-gradient(90deg, #f4d58d, #d9a63c); color: #1e1a10; font-weight: 800; }
+
+.dex {
+  text-align: left;
+  z-index: 20; /* above the result card */
+}
+
+.dex h2 {
+  text-align: center;
+}
+
+.dex h3 {
+  margin: 16px 0 8px;
+  font-size: 16px;
+  color: var(--gold-2);
+}
+
+.dex > button {
+  display: block;
+  margin: 16px auto 0;
+}
+
+.dexGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+.dexCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--hair);
+}
+
+.dexCard b {
+  font-size: 15px;
+}
+
+.dexCard em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.dexCard span {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.dexCard p {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  line-height: 1.45;
+}
+
+.dexCard.tier-rare { border-color: rgba(127, 200, 248, 0.45); }
+.dexCard.tier-legend { border-color: rgba(244, 213, 141, 0.7); box-shadow: 0 0 18px rgba(244, 213, 141, 0.15); }
+.dexCard.animal { border-style: dashed; }
+.dexCard.unknown { opacity: 0.5; }

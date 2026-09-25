@@ -4,7 +4,7 @@
 
 import { FishingGame, FLIGHT_S, MISS_TEXT, type Fish, type GameEvent } from '../core/game';
 import { GestureTracker, type GestureEvent } from '../core/gestures';
-import { BAIT_NAME, BAITS, baitKey, baitSpeciesKey, fishKey, SPECIES, SPECIES_NAME, type Bait, type Species } from '../core/params';
+import { EVENT_NAME, LOCATIONS, SPECIES, speciesAt, TIER_NAME, type EventKind, type LocationId } from '../core/species';
 import { ARM, LM, other, type PoseFrame, type Side } from '../core/pose';
 import { serializeRecording, type RecordedFrame, type Recording } from '../core/recording';
 import './game.css';
@@ -33,27 +33,41 @@ let lastFrame: PoseFrame | null = null;
 const trail: PoseFrame[] = [];
 scene.setRodHand(rodHand);
 
-// ---------------------------------------------------------------- records (this browser only)
+// ---------------------------------------------------------------- collection (도감) — this browser only
 
 interface Records {
-  best: Partial<Record<Species, number>>;
+  /** best length (cm) per species id */
+  best: Record<string, number>;
+  /** catches per species id */
+  count: Record<string, number>;
+  /** interference animals seen */
+  seen: Partial<Record<EventKind, number>>;
   today: { date: string; count: number };
 }
 function loadRecords(): Records {
   const today = new Date().toISOString().slice(0, 10);
+  const empty: Records = { best: {}, count: {}, seen: {}, today: { date: today, count: 0 } };
   try {
-    const r = JSON.parse(store.get('records.v1') ?? '') as Records;
+    const r = { ...empty, ...(JSON.parse(store.get('records.v1') ?? '') as Partial<Records>) };
     if (r.today.date !== today) r.today = { date: today, count: 0 };
     return r;
   } catch {
-    return { best: {}, today: { date: today, count: 0 } };
+    return empty;
   }
 }
 const records = loadRecords();
+const saveRecords = () => store.set('records.v1', JSON.stringify(records));
 function renderTally(): void {
-  const bests = SPECIES.filter((s) => records.best[s]).map((s) => `${SPECIES_NAME[s]} <b>${records.best[s]}cm</b>`);
-  $('tally').innerHTML = `오늘 <b>${records.today.count}</b>마리${bests.length ? ` · 최고 ${bests.join(' · ')}` : ''}`;
+  const kinds = SPECIES.filter((sp) => records.count[sp.id] || records.best[sp.id]).length;
+  $('tally').innerHTML = `오늘 <b>${records.today.count}</b>마리 · 도감 <b>${kinds}</b>/${SPECIES.length}`;
 }
+
+/** Korean subject particle: 수달이 / 하마가 */
+const iGa = (w: string) => {
+  const c = w.charCodeAt(w.length - 1) - 0xac00;
+  return w + (c >= 0 && c < 11172 && c % 28 !== 0 ? '이' : '가');
+};
+const EVENT_ICON: Record<EventKind, string> = { otter: '🦦', orca: '🐋', crocodile: '🐊', hippo: '🦛' };
 
 // ---------------------------------------------------------------- banner / setup
 
@@ -106,7 +120,7 @@ async function start(withCamera: boolean): Promise<void> {
   show('hud', true);
   show('tally', true);
   renderTally();
-  game.again(performance.now());
+  game.toPlaces(performance.now());
 }
 
 $('start').addEventListener('click', () => void start(true));
@@ -176,61 +190,141 @@ if (keysOn) {
 
 // ---------------------------------------------------------------- bait choice
 
-const BAIT_ICON: Record<Bait, string> = {
+const ICON = {
   worm: `<svg viewBox="0 0 40 40"><path d="M6 26c4-8 8 4 12-4s8 4 12-4 5 2 5 2" fill="none" stroke="#e58f8f" stroke-width="5" stroke-linecap="round"/></svg>`,
   paste: `<svg viewBox="0 0 40 40"><circle cx="20" cy="21" r="11" fill="#d8c08c"/><circle cx="16" cy="18" r="2" fill="#b89d62"/><circle cx="23" cy="24" r="1.6" fill="#b89d62"/><circle cx="24" cy="16" r="1.3" fill="#b89d62"/></svg>`,
   corn: `<svg viewBox="0 0 40 40"><path d="M20 7c7 0 10 7 9 14s-5 12-9 12-8-5-9-12 2-14 9-14z" fill="#f2c94c"/><path d="M20 10v20M14 14c3 2 9 2 12 0M13 20c4 2 10 2 14 0M14 26c3 2 9 2 12 0" stroke="#d9a927" stroke-width="1.4" fill="none"/></svg>`,
+  lure: `<svg viewBox="0 0 40 40"><path d="M6 20c6-8 18-8 26 0-8 8-20 8-26 0z" fill="#7fc8f8"/><circle cx="12" cy="19" r="2" fill="#123"/><path d="M32 20l5-4v8z" fill="#f4d58d"/></svg>`,
+  krill: `<svg viewBox="0 0 40 40"><path d="M8 24c4-10 20-12 26-4-6 2-10 8-22 6z" fill="#f28b82"/><path d="M8 24l-3 5M12 26l-2 5M16 27l-1 5" stroke="#f28b82" stroke-width="1.5"/></svg>`,
+  squid: `<svg viewBox="0 0 40 40"><path d="M20 5l7 12H13z" fill="#f5e6da"/><rect x="13" y="16" width="14" height="10" rx="3" fill="#f5e6da"/><path d="M14 26v9M18 26v10M22 26v10M26 26v9" stroke="#e8cbb8" stroke-width="2"/></svg>`,
+  jig: `<svg viewBox="0 0 40 40"><path d="M10 12l20 8-20 8 4-8z" fill="#c9d3dc"/><path d="M30 20l6 0" stroke="#999" stroke-width="2"/></svg>`,
+  chunk: `<svg viewBox="0 0 40 40"><path d="M8 14h24l-4 14H12z" fill="#e8a0a0"/><path d="M12 18h16M13 23h14" stroke="#fff" stroke-width="1.2" opacity=".6"/></svg>`,
+  live: `<svg viewBox="0 0 40 40"><path d="M8 20c6-6 16-6 22 0-6 6-16 6-22 0z" fill="#c8d6a0"/><path d="M30 20l6-5v10z" fill="#c8d6a0"/><circle cx="13" cy="19" r="1.6" fill="#223"/></svg>`,
+  dough: `<svg viewBox="0 0 40 40"><circle cx="20" cy="21" r="11" fill="#b58b5a"/><circle cx="16" cy="18" r="2" fill="#8d6a40"/></svg>`,
+};
+const BAIT_ICON: Record<string, string> = {
+  worm: ICON.worm, river_worm: ICON.worm, paste: ICON.paste, corn: ICON.corn, lure_fw: ICON.lure,
+  krill: ICON.krill, squid: ICON.squid, jig: ICON.jig, deep_squid: ICON.squid, fish_chunk: ICON.chunk,
+  live_bait: ICON.live, dough: ICON.dough,
 };
 
 function fillBaits(): void {
   const box = $('baits');
   box.textContent = '';
-  for (const b of BAITS) {
-    const wait = (params[baitKey(b, 'waitMin')] + params[baitKey(b, 'waitMax')]) / 2;
+  $('baitPlace').textContent = game.location.name;
+  const here = game.speciesHere();
+  for (const b of game.baitsHere()) {
+    const wait = ((b.waitMin + b.waitMax) / 2) * params['scale.wait'];
     const speed = Math.max(0.05, Math.min(1, 1 - (wait - 4) / 30));
-    const big = Math.max(0.05, Math.min(1, (params[baitKey(b, 'sizeBias')] + 0.9) / 2.2));
-    const likes = SPECIES.map((s) => [s, params[baitSpeciesKey(b, s)]] as const)
-      .filter(([, v]) => v >= 1.2)
-      .map(([s]) => SPECIES_NAME[s]);
+    const big = Math.max(0.05, Math.min(1, (b.sizeBias + 0.9) / 2.2));
+    const likes = here.filter((sp) => (b.speciesMul?.[sp.id] ?? 1) >= 2).map((sp) => sp.name);
+    const rareUp = (b.tierMul?.rare ?? 1) > 1 || (b.tierMul?.legend ?? 1) > 1;
     const btn = document.createElement('button');
     btn.className = 'baitCard';
     btn.innerHTML = `
-      <div class="baitTop">${BAIT_ICON[b]}<div><b>${BAIT_NAME[b]}</b><span>대기 ${params[baitKey(b, 'waitMin')]}~${params[baitKey(b, 'waitMax')]}초</span></div></div>
+      <div class="baitTop">${BAIT_ICON[b.id] ?? ICON.lure}<div><b>${b.name}</b><span>${b.feel}</span></div></div>
       <div class="statRow">입질 속도<div class="track"><div style="width:${speed * 100}%"></div></div></div>
       <div class="statRow">큰 물고기<div class="track"><div style="width:${big * 100}%"></div></div></div>
-      <div class="baitNote">${likes.length ? `${likes.join('·')}가 좋아해요` : '어느 물고기나 고루'}</div>`;
+      <div class="baitNote">${likes.length ? `${likes.slice(0, 3).join('·')} 잘 물어요` : rareUp ? '희귀한 물고기가 더 잘 물어요' : '어느 물고기나 고루'}</div>`;
     btn.addEventListener('click', () => {
       sfx.pick();
       round = { frames: [], events: [], note: '' };
-      game.chooseBait(b, performance.now());
+      game.chooseBait(b.id, performance.now());
     });
     box.append(btn);
   }
 }
 
+// ---------------------------------------------------------------- place choice
+
+const PLACE_ART: Record<LocationId, string> = {
+  reservoir: 'linear-gradient(160deg, #6f8f7a, #2f4a44)',
+  sea: 'linear-gradient(160deg, #4a8fc0, #123d63)',
+  deep: 'linear-gradient(160deg, #1b2a4a, #04060f)',
+  river: 'linear-gradient(160deg, #b58d4a, #4d5b2a)',
+};
+
+function fillPlaces(): void {
+  const box = $('places');
+  box.textContent = '';
+  for (const loc of LOCATIONS) {
+    const sp = speciesAt(loc.id);
+    const got = sp.filter((x) => records.count[x.id] || records.best[x.id]).length;
+    const legends = sp.filter((x) => x.tier === 'legend').map((x) => x.name);
+    const btn = document.createElement('button');
+    btn.className = 'placeCard';
+    btn.style.background = PLACE_ART[loc.id];
+    btn.innerHTML = `<b>${loc.name}</b><span>${loc.sub}</span>
+      <div class="placeMeta"><span>도감 ${got}/${sp.length}</span><span>전설: ${legends.join(', ')}</span></div>`;
+    btn.addEventListener('click', () => {
+      sfx.pick();
+      game.chooseLocation(loc.id, performance.now());
+    });
+    box.append(btn);
+  }
+}
+
+// ---------------------------------------------------------------- collection (도감)
+
+function fillDex(): void {
+  const box = $('dexBody');
+  box.textContent = '';
+  for (const loc of LOCATIONS) {
+    const sec = document.createElement('section');
+    sec.innerHTML = `<h3>${loc.name}</h3>`;
+    const grid = document.createElement('div');
+    grid.className = 'dexGrid';
+    for (const sp of speciesAt(loc.id)) {
+      const n = records.count[sp.id] ?? 0;
+      const best = records.best[sp.id];
+      const card = document.createElement('div');
+      card.className = `dexCard tier-${sp.tier}${n || best ? '' : ' unknown'}`;
+      card.innerHTML = n || best
+        ? `<b>${sp.name}</b><em>${TIER_NAME[sp.tier]}</em><span>최고 ${best ?? '-'}cm · ${n}마리</span><p>${sp.blurb}</p>`
+        : `<b>???</b><em>${TIER_NAME[sp.tier]}</em><span>아직 못 만났어요</span>`;
+      grid.append(card);
+    }
+    const ev = [loc.thief, loc.spooker].filter((k): k is EventKind => !!k);
+    for (const k of ev) {
+      const seen = records.seen[k] ?? 0;
+      const card = document.createElement('div');
+      card.className = `dexCard animal${seen ? '' : ' unknown'}`;
+      card.innerHTML = seen
+        ? `<b>${EVENT_ICON[k]} ${EVENT_NAME[k]}</b><em>목격</em><span>${seen}번 만났어요</span>`
+        : `<b>???</b><em>목격</em><span>아주 가끔 나타나요</span>`;
+      grid.append(card);
+    }
+    sec.append(grid);
+    box.append(sec);
+  }
+}
+
 // ---------------------------------------------------------------- results
 
-/** Shows the result card; returns whether it was a trophy (월척 / 대물) for the fanfare. */
+/** Shows the result card; returns whether it was a trophy for the fanfare. */
 function showCatch(f: Fish): boolean {
+  const id = f.def.id;
   records.today.count++;
-  const prevBest = records.best[f.species] ?? 0;
+  records.count[id] = (records.count[id] ?? 0) + 1;
+  const prevBest = records.best[id] ?? 0;
   const isRecord = f.lengthCm > prevBest;
-  if (isRecord) records.best[f.species] = f.lengthCm;
-  store.set('records.v1', JSON.stringify(records));
+  const isNew = !prevBest;
+  if (isRecord) records.best[id] = f.lengthCm;
+  saveRecords();
   renderTally();
 
-  // 월척: a crucian of one 척 (30.3 cm) or more — the Korean angler's milestone
-  const trophy = f.species === 'crucian' ? f.lengthCm >= 30.3 : f.lengthCm >= 60;
-  const badge = trophy ? (f.species === 'crucian' ? '월척!' : '대물!') : isRecord && prevBest > 0 ? '개인 기록!' : '';
+  const trophy = f.lengthCm >= f.def.trophyCm;
+  const badge = trophy ? f.def.trophyLabel : isNew ? '도감 등록!' : isRecord ? '개인 기록!' : '';
   $('resBadge').textContent = badge;
   show('resBadge', !!badge);
-  $('resKicker').textContent = '낚았어요';
+  $('resKicker').innerHTML = `<span class="tierTag tier-${f.def.tier}">${TIER_NAME[f.def.tier]}</span> 낚았어요`;
   $('resTitle').className = '';
-  $('resTitle').textContent = SPECIES_NAME[f.species];
-  const kg = f.weightG >= 1000 ? `${(f.weightG / 1000).toFixed(2)}<small>kg</small>` : `${f.weightG}<small>g</small>`;
-  $('resStats').innerHTML = `<div><b>${f.lengthCm}<small>cm</small></b><span>길이</span></div><div><b>${kg}</b><span>무게</span></div>`;
+  $('resTitle').textContent = f.def.name;
+  const w = f.weightG >= 1000 ? `${(f.weightG / 1000).toFixed(f.weightG >= 100000 ? 0 : 1)}<small>kg</small>` : `${f.weightG}<small>g</small>`;
+  const len = f.lengthCm >= 100 ? `${(f.lengthCm / 100).toFixed(2)}<small>m</small>` : `${f.lengthCm}<small>cm</small>`;
+  $('resStats').innerHTML = `<div><b>${len}</b><span>길이</span></div><div><b>${w}</b><span>무게</span></div>`;
   show('resStats', true);
-  $('resBody').textContent = `${BAIT_NAME[game.bait]}로 ${Math.round(game.distanceM)}m 던져서 잡았어요`;
+  $('resBody').textContent = f.def.blurb;
   return trophy;
 }
 
@@ -238,12 +332,20 @@ function showMiss(reason: keyof typeof MISS_TEXT): void {
   show('resBadge', false);
   $('resKicker').textContent = '놓쳤어요';
   $('resTitle').className = 'bad';
-  $('resTitle').textContent = { early: '너무 일찍 챘어요', late: '입질을 놓쳤어요', snap: '줄이 끊어졌어요', escape: '빠져나갔어요' }[reason];
+  const thief = game.stolenBy ? EVENT_NAME[game.stolenBy] : '';
+  $('resTitle').textContent = { early: '너무 일찍 챘어요', late: '입질을 놓쳤어요', snap: '줄이 끊어졌어요', escape: '빠져나갔어요', stolen: `${iGa(thief)} 채 갔어요` }[reason];
   show('resStats', false);
   $('resBody').textContent = `${MISS_TEXT[reason].split(' — ')[1] ?? ''} · 미끼만 사라졌어요`;
 }
 
 $('again').addEventListener('click', () => game.again(performance.now()));
+$('toPlaces').addEventListener('click', () => game.toPlaces(performance.now()));
+$('baitBack').addEventListener('click', () => game.toPlaces(performance.now()));
+$('dexBtn').addEventListener('click', () => {
+  fillDex();
+  show('dexBox', true);
+});
+$('dexClose').addEventListener('click', () => show('dexBox', false));
 
 // ---------------------------------------------------------------- big-moment effects (exaggerated on purpose)
 
@@ -285,7 +387,9 @@ function onGameEvent(e: GameEvent, now: number): void {
   round?.events.push({ t: now, e: e.type === 'phase' ? `phase:${e.phase}` : e.type });
   switch (e.type) {
     case 'phase':
+      show('placeBox', e.phase === 'place');
       show('baitBox', e.phase === 'bait');
+      if (e.phase === 'place') fillPlaces();
       // caught: shown after the leap (see 'caught' below)
       show('resultBox', e.phase === 'missed');
       show('reelBox', e.phase === 'reeling');
@@ -302,8 +406,8 @@ function onGameEvent(e: GameEvent, now: number): void {
         scene.fx('land');
       }
       if ((e.phase === 'caught' || e.phase === 'missed') && round) {
-        const fish = game.fish ? SPECIES_NAME[game.fish.species] : '';
-        round.note = `게임: ${BAIT_NAME[game.bait]}, ${fish} ${e.phase === 'caught' ? '잡음' : `놓침(${game.missReason})`}`.trim();
+        const fish = game.fish ? game.fish.def.name : '';
+        round.note = `게임: ${game.location.name}, ${game.bait.name}, ${fish} ${e.phase === 'caught' ? '잡음' : `놓침(${game.missReason})`}`.trim();
         lastRound = round;
         round = null;
       }
@@ -344,9 +448,9 @@ function onGameEvent(e: GameEvent, now: number): void {
       sfx.caught(trophy);
       scene.fx('catch');
       flash('gold');
-      popText(trophy ? (e.fish.species === 'crucian' ? '월척!!' : '대물!!') : '낚았다!', 'gold');
-      confetti(trophy ? 160 : 70);
-      show('rays', trophy);
+      popText(trophy ? e.fish.def.trophyLabel : e.fish.def.tier === 'legend' ? '전설!!' : '낚았다!', 'gold');
+      show('rays', trophy || e.fish.def.tier === 'legend');
+      confetti(trophy || e.fish.def.tier === 'legend' ? 160 : 70);
       // let the leap out of the water play before the card slides up
       show('resultBox', false);
       setTimeout(() => {
@@ -367,6 +471,28 @@ function onGameEvent(e: GameEvent, now: number): void {
       }
       showMiss(e.reason);
       break;
+    case 'thief':
+      sfx.splash();
+      sfx.setRoll(true);
+      scene.fx('runWarn');
+      flash('red');
+      popText(`${EVENT_NAME[e.kind]}다!`, 'red');
+      records.seen[e.kind] = (records.seen[e.kind] ?? 0) + 1;
+      saveRecords();
+      break;
+    case 'thiefEscaped':
+      sfx.setRoll(false);
+      sfx.milestone();
+      popText('따돌렸다!', 'gold', true);
+      break;
+    case 'spook':
+      sfx.splash();
+      scene.fx('runWarn');
+      popText(`${EVENT_NAME[e.kind]}다!!`, '', false);
+      logGesture('물고기가 흩어졌어요 — 다시 기다려요', now);
+      records.seen[e.kind] = (records.seen[e.kind] ?? 0) + 1;
+      saveRecords();
+      break;
     case 'ignored':
       logGesture(e.why, now);
       break;
@@ -375,6 +501,14 @@ function onGameEvent(e: GameEvent, now: number): void {
 
 // ---------------------------------------------------------------- HUD
 
+const BITE_MSG: Record<string, string> = {
+  rise: '찌가 올라와요! 지금!',
+  sink: '쭉 빨려 들어가요! 지금!',
+  drag: '찌가 끌려가요! 지금!',
+  slam: '쾅! 들어갔어요! 지금!',
+  tap: '초릿대가 휘었어요! 지금!',
+};
+
 function instruction(now: number): { msg: string; sub: string; tone?: 'alert' | 'danger' } {
   switch (game.phase) {
     case 'ready':
@@ -382,14 +516,18 @@ function instruction(now: number): { msg: string; sub: string; tone?: 'alert' | 
     case 'flight':
       return { msg: '', sub: '' };
     case 'waiting':
-      return { msg: '', sub: `${BAIT_NAME[game.bait]} · 찌를 지켜보세요` };
+      return { msg: '', sub: `${game.bait.name} · ${game.location.noFloat ? '대 끝(초릿대)을 지켜보세요' : '찌를 지켜보세요'}` };
     case 'nibble':
       return game.nibbling ? { msg: '톡톡…', sub: '아직이에요 — 간만 보는 중' } : { msg: '', sub: '뭔가 건드려요… 찌를 지켜보세요' };
     case 'bite':
-      return game.fish?.species === 'crucian'
-        ? { msg: '찌가 올라와요! 지금!', sub: '손을 빠르게 위로 "툭"', tone: 'alert' }
-        : { msg: '쭉 빨려 들어가요! 지금!', sub: '손을 빠르게 위로 "툭"', tone: 'alert' };
+      return { msg: BITE_MSG[game.fish?.def.bite ?? 'sink'], sub: '손을 빠르게 위로 "툭"', tone: 'alert' };
     case 'reeling':
+      if (game.thief)
+        return {
+          msg: `${EVENT_ICON[game.thief.kind]} ${iGa(EVENT_NAME[game.thief.kind])} 다가와요!`,
+          sub: `빨리 감아서 따돌려요 — ${game.thiefLeftS(now).toFixed(1)}초`,
+          tone: 'danger',
+        };
       if (game.running) return { msg: '손 멈춰요!', sub: '물고기가 줄을 차고 나가는 중 — 지금 감으면 끊어져요', tone: 'danger' };
       if (game.runSoon) return { msg: '첨벙!', sub: '곧 차고 나가요', tone: 'alert' };
       return { msg: '감아요', sub: now - game.phaseT < 4000 ? '릴 손으로 작은 원을 계속 돌려요' : '' };
@@ -424,7 +562,7 @@ function updateHud(now: number): void {
   const biteOn = game.phase === 'bite' && !!game.fish;
   show('biteRing', biteOn);
   if (biteOn) {
-    const total = params[fishKey(game.fish!.species, 'biteWindowS')];
+    const total = game.fish!.biteWindowS;
     biteArc.style.strokeDasharray = `${(100 * game.biteLeftS(now)) / total} 100`;
   }
 

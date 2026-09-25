@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { FishingGame, type GameEvent } from '../src/core/game';
+import { FishingGame, type GameEvent, type Tables } from '../src/core/game';
 import type { GestureEvent } from '../src/core/gestures';
 import { defaultParams, type Params } from '../src/core/params';
+import { BAITS, LOCATIONS, SPECIES, type SpeciesDef } from '../src/core/species';
 
 /** Deterministic RNG: cycles through the given values. */
 const seq = (...v: number[]) => {
@@ -12,38 +13,57 @@ const seq = (...v: number[]) => {
 const cast = (t: number, strength = 0.5): GestureEvent => ({ type: 'cast', t, strength, peakSpeed: 8 });
 const hook = (t: number): GestureEvent => ({ type: 'hookset', t, peakSpeed: 6, rise: 0.8 });
 
-function setup(over: Partial<Params> = {}, rng = seq(0.5)) {
-  const P = { ...defaultParams(), ...over };
-  const g = new FishingGame(() => P, rng);
+const fishDef = (over: Partial<SpeciesDef>): SpeciesDef => ({
+  id: 'small', name: '작은고기', loc: 'reservoir', tier: 'common', lenMin: 10, lenMax: 30, weightK: 0.02,
+  biteWindowS: 1, fakeMax: 0, bite: 'sink', reelTurns: 10, runEveryS: 100, runS: 1,
+  trophyCm: 25, trophyLabel: '대물!', blurb: '', ...over,
+});
+
+/** A test world: one place with a thief and a spooker, one bait that always bites after 1 s. */
+function tables(species: SpeciesDef[] = [fishDef({})]): Tables {
+  return {
+    species,
+    baits: [{ id: 'b', name: '미끼', loc: 'reservoir', feel: '', waitMin: 1, waitMax: 1, biteChance: 1, sizeBias: 0 }],
+    locations: [{ id: 'reservoir', name: '저수지', sub: '', thief: 'otter', spooker: 'hippo' }],
+  };
+}
+
+/** No interference unless a test asks for it. */
+const QUIET: Partial<Params> = { 'event.thief': 0, 'event.spooker': 0 };
+
+function setup(over: Partial<Params> = {}, rng = seq(0.5), t = tables()) {
+  const P = { ...defaultParams(), ...QUIET, ...over };
+  const g = new FishingGame(() => P, rng, t);
   let now = 0;
   const log: GameEvent[] = [];
   /** Advance ms, reeling at `rate` turns/s. */
   const step = (ms: number, rate = 0, every = 50) => {
-    for (let t = 0; t < ms; t += every) {
+    for (let x = 0; x < ms; x += every) {
       now += every;
       g.update(now, rate);
       log.push(...g.drain());
     }
   };
   const act = (e: GestureEvent | 'bait') => {
-    if (e === 'bait') g.chooseBait('worm', now);
-    else g.onGesture({ ...e, t: now }, now);
+    if (e === 'bait') {
+      g.chooseLocation('reservoir', now);
+      g.chooseBait('b', now);
+    } else g.onGesture({ ...e, t: now }, now);
     log.push(...g.drain());
   };
-  return { g, P, step, act, log, now: () => now };
+  /** bait → cast → first bite (flight 1.2 s + wait 1 s) */
+  const toBite = () => {
+    act('bait');
+    act(cast(0));
+    step(2300);
+  };
+  return { g, P, step, act, toBite, log, now: () => now };
 }
 
-/** Params that make the loop fast and certain: bite on the first check, no fake nibbles. */
-const FAST: Partial<Params> = {
-  'bait.worm.waitMin': 1, 'bait.worm.waitMax': 1, 'bait.worm.biteChance': 1,
-  'fish.crucian.spawn': 100, 'fish.carp.spawn': 0, 'fish.crucian.fakeMax': 0,
-  'fish.crucian.reelTurns': 10, 'fish.crucian.pullEveryS': 100,
-  'bait.worm.crucianMul': 1, 'bait.worm.carpMul': 1, 'bait.worm.sizeBias': 0,
-};
-
 describe('fishing loop', () => {
-  it('bait → cast → bite → hook-set → reel → caught', () => {
-    const s = setup(FAST);
+  it('place → bait → cast → bite → hook-set → reel → caught', () => {
+    const s = setup();
+    expect(s.g.phase).toBe('place');
     s.act('bait');
     expect(s.g.phase).toBe('ready');
     s.act(cast(0, 1));
@@ -62,14 +82,14 @@ describe('fishing loop', () => {
     s.step(600, 3);
     expect(s.g.phase).toBe('caught');
     const caught = s.log.find((e) => e.type === 'caught');
-    expect(caught && caught.type === 'caught' && caught.fish.species).toBe('crucian');
+    expect(caught && caught.type === 'caught' && caught.fish.def.id).toBe('small');
   });
 
   it('gestures outside their phase are ignored (wind-up ≠ hook-set, hook-set return ≠ cast)', () => {
-    const s = setup(FAST);
-    s.act(hook(0)); // in bait selection
-    s.act(cast(0)); // in bait selection
-    expect(s.g.phase).toBe('bait');
+    const s = setup();
+    s.act(hook(0));
+    s.act(cast(0));
+    expect(s.g.phase).toBe('place');
     s.act('bait');
     s.act(hook(0)); // cast wind-up looks like a hook-set
     expect(s.g.phase).toBe('ready');
@@ -81,7 +101,9 @@ describe('fishing loop', () => {
   });
 
   it('hook-set during waiting is harmless', () => {
-    const s = setup({ ...FAST, 'bait.worm.waitMin': 5, 'bait.worm.waitMax': 5 });
+    const t = tables();
+    t.baits = [{ ...t.baits[0], waitMin: 5, waitMax: 5 }];
+    const s = setup({}, seq(0.5), t);
     s.act('bait');
     s.act(cast(0));
     s.step(2000);
@@ -90,127 +112,169 @@ describe('fishing loop', () => {
     expect(s.log.some((e) => e.type === 'ignored')).toBe(true);
   });
 
-  it('bite window: too late → missed "late"; size of the window comes from the species', () => {
-    const s = setup({ ...FAST, 'fish.crucian.biteWindowS': 1.0 });
-    s.act('bait');
-    s.act(cast(0));
-    s.step(2300); // bite started at 2200 ms (flight 1.2 s + wait 1 s)
+  it('bite window: too late → missed "late"; the window comes from the species', () => {
+    const s = setup({}, seq(0.5), tables([fishDef({ biteWindowS: 1 })]));
+    s.toBite(); // bite started at 2200 ms
     expect(s.g.phase).toBe('bite');
-    s.step(800); // 0.9 s into a 1.0 s window
+    s.step(800);
     expect(s.g.phase).toBe('bite');
     s.step(150);
-    expect(s.g.phase).toBe('missed');
     expect(s.g.missReason).toBe('late');
   });
 
   it('fake nibble: hook-set during it → missed "early"; waiting it out → real bite', () => {
-    const over = { ...FAST, 'fish.crucian.fakeMax': 1 };
-    // rng 0.99: spawn roll, size, fakeNibbles = floor(0.99 * 2) = 1
-    const a = setup(over, seq(0.99));
-    a.act('bait');
-    a.act(cast(0));
-    a.step(2300);
+    const t = tables([fishDef({ fakeMax: 1 })]);
+    // rng 0.99: fakeNibbles = floor(0.99 × 2) = 1
+    const a = setup({}, seq(0.99), t);
+    a.toBite();
     expect(a.g.phase).toBe('nibble');
     a.act(hook(0));
     expect(a.g.missReason).toBe('early');
 
-    const b = setup(over, seq(0.99));
-    b.act('bait');
-    b.act(cast(0));
-    b.step(2300);
+    const b = setup({}, seq(0.99), t);
+    b.toBite();
     b.step(4000);
-    expect(b.g.phase === 'bite' || b.g.phase === 'missed').toBe(true);
     expect(b.log.filter((e) => e.type === 'nibble')).toHaveLength(1);
     expect(b.log.some((e) => e.type === 'bite')).toBe(true);
   });
 
   it('a run is announced first, takes line back, and reeling through it snaps the line', () => {
-    const over = { ...FAST, 'fish.crucian.pullEveryS': 2, 'fish.crucian.pullS': 5, 'fight.warnS': 0.8, 'fight.tensionPerTurn': 0.2 };
-    const s = setup(over);
-    s.act('bait');
-    s.act(cast(0));
-    s.step(2300);
+    const t = tables([fishDef({ runEveryS: 2, runS: 5 })]);
+    const s = setup({ 'fight.warnS': 0.8, 'fight.tensionPerTurn': 0.2 }, seq(0.5), t);
+    s.toBite();
     s.act(hook(0));
-    s.step(1000, 3); // run due at 2 s (rng 0.5 → ×1.0); warning from 1.2 s
+    s.step(1000, 3); // run due at 2 s; warning from 1.2 s
     expect(s.g.running).toBe(false);
     s.step(300, 3);
     expect(s.g.runSoon).toBe(true);
-    expect(s.log.some((e) => e.type === 'runWarn')).toBe(true);
     s.step(800, 3);
     expect(s.g.running).toBe(true);
     const before = s.g.progress;
-    s.step(500, 0); // waiting it out: line goes back out, no tension
+    s.step(500, 0);
     expect(s.g.progress).toBeLessThan(before);
     expect(s.g.tension).toBe(0);
-    s.step(2000, 3); // 3 turns/s × 0.2 per turn = 0.6/s → snaps within 2 s
+    s.step(2000, 3);
     expect(s.g.missReason).toBe('snap');
   });
 
   it('waiting out a run is safe and reeling resumes afterwards', () => {
-    const over = { ...FAST, 'fish.crucian.reelTurns': 30, 'fish.crucian.pullEveryS': 2, 'fish.crucian.pullS': 1 };
-    const s = setup(over);
-    s.act('bait');
-    s.act(cast(0));
-    s.step(2300);
+    const s = setup({}, seq(0.5), tables([fishDef({ reelTurns: 30, runEveryS: 2, runS: 1 })]));
+    s.toBite();
     s.act(hook(0));
-    // reel only while the fish is not running
     for (let i = 0; i < 400 && s.g.phase === 'reeling'; i++) s.step(50, s.g.running ? 0 : 3, 50);
     expect(s.g.phase).toBe('caught');
     expect(s.log.filter((e) => e.type === 'run' && e.on).length).toBeGreaterThan(0);
   });
 
   it('not reeling at all lets the fish escape after fight.slackS', () => {
-    const s = setup({ ...FAST, 'fight.slackS': 3 });
-    s.act('bait');
-    s.act(cast(0));
-    s.step(2300);
+    const s = setup({ 'fight.slackS': 3 });
+    s.toBite();
     s.act(hook(0));
     s.step(3100, 0);
     expect(s.g.missReason).toBe('escape');
   });
 
-  it('bigger fish need more reel turns (size factor), rarer species more by default', () => {
-    const turns = (size: number, species: 'crucian' | 'carp') => {
-      const over: Partial<Params> = {
-        ...FAST,
-        'fish.crucian.spawn': species === 'crucian' ? 100 : 0,
-        'fish.carp.spawn': species === 'carp' ? 100 : 0,
-        'fish.carp.fakeMax': 0,
-      };
-      const s = setup(over, seq(0, size));
-      s.act('bait');
-      s.act(cast(0));
-      s.step(2300);
+  it('bigger fish need more reel turns, and scale.reel stretches every fight', () => {
+    const turns = (size: number, over: Partial<Params> = {}) => {
+      // rng order: wait roll, hippo roll, bite roll, species roll, size roll, nibbles
+      const s = setup(over, seq(0, 0.9, 0, 0, size, 0));
+      s.toBite();
       return s.g.fish!.turnsNeeded;
     };
-    expect(turns(0.9, 'crucian')).toBeGreaterThan(turns(0.1, 'crucian'));
-    expect(turns(0.5, 'carp')).toBeGreaterThan(turns(0.5, 'crucian'));
-  });
-
-  it('baits change which fish bite and how big', () => {
-    const pick = (bait: 'worm' | 'corn', u: number[]) => {
-      const P = { ...defaultParams(), [`bait.${bait}.waitMin`]: 1, [`bait.${bait}.waitMax`]: 1, [`bait.${bait}.biteChance`]: 1 } as Params;
-      const g = new FishingGame(() => P, seq(...u));
-      g.chooseBait(bait, 0);
-      g.onGesture(cast(0), 0);
-      for (let t = 50; t < 2600; t += 50) g.update(t);
-      return g.fish!;
-    };
-    // same random numbers: [wait roll, bite roll, species roll, size roll, nibbles]
-    const u = [0, 0, 0.5, 0.5, 0];
-    expect(pick('worm', u).species).toBe('crucian'); // worm: crucian ×1.5 vs carp ×0.5
-    expect(pick('corn', u).species).toBe('carp'); // corn: carp ×3
-    expect(pick('corn', [0, 0, 0.5, 0.4, 0]).size).toBeGreaterThan(pick('worm', [0, 0, 0.5, 0.4, 0]).size);
+    expect(turns(0.9)).toBeGreaterThan(turns(0.1));
+    expect(turns(0.5, { 'scale.reel': 2 })).toBe(turns(0.5) * 2);
   });
 
   it('never waits longer than wait.maxS, even with a 0% bite chance', () => {
-    const s = setup({ ...FAST, 'bait.worm.biteChance': 0, 'bait.worm.waitMin': 30, 'bait.worm.waitMax': 30, 'wait.maxS': 40 });
+    const t = tables();
+    t.baits = [{ ...t.baits[0], waitMin: 30, waitMax: 30, biteChance: 0 }];
+    const s = setup({ 'wait.maxS': 40 }, seq(0.5), t);
     s.act('bait');
     s.act(cast(0));
     s.step(1300);
     s.step(39_000);
     expect(s.g.phase).toBe('waiting');
     s.step(1200);
+    expect(s.g.phase).toBe('bite');
+  });
+});
+
+describe('species, places and baits (M2)', () => {
+  it('rarity tiers and bait multipliers decide what bites', () => {
+    const species = [fishDef({ id: 'common', tier: 'common' }), fishDef({ id: 'legend', tier: 'legend' })];
+    const pick = (over: Partial<Params>, speciesMul?: Record<string, number>) => {
+      const t = tables(species);
+      t.baits = [{ ...t.baits[0], ...(speciesMul ? { speciesMul } : {}) }];
+      const s = setup(over, seq(0, 0.9, 0, 0.5, 0.5, 0), t);
+      s.toBite();
+      return s.g.fish!.def.id;
+    };
+    expect(pick({})).toBe('common'); // 60 vs 2.5
+    expect(pick({ 'tier.common': 0 })).toBe('legend');
+    expect(pick({}, { legend: 100 })).toBe('legend');
+  });
+
+  it('bait size bias skews the length', () => {
+    const size = (bias: number) => {
+      const t = tables();
+      t.baits = [{ ...t.baits[0], sizeBias: bias }];
+      const s = setup({}, seq(0, 0.9, 0, 0, 0.4, 0), t);
+      s.toBite();
+      return s.g.fish!.lengthCm;
+    };
+    expect(size(1)).toBeGreaterThan(size(0));
+    expect(size(-0.5)).toBeLessThan(size(0));
+  });
+
+  it('every place has baits and species, and every bait belongs to a place', () => {
+    for (const loc of LOCATIONS) {
+      expect(BAITS.some((b) => b.loc === loc.id)).toBe(true);
+      expect(SPECIES.some((s) => s.loc === loc.id)).toBe(true);
+    }
+    const ids = new Set(SPECIES.map((s) => s.id));
+    expect(ids.size).toBe(SPECIES.length);
+    for (const b of BAITS) for (const k of Object.keys(b.speciesMul ?? {})) expect(ids.has(k)).toBe(true);
+  });
+});
+
+describe('interference events (M2)', () => {
+  const thiefSetup = () => {
+    // event.thief 1: the thief always comes; rng 0.5 → at 30–75% of the fight (≈ 52%)
+    const s = setup({ 'event.thief': 1, 'event.warnS': 2, 'event.escapeTurns': 4 }, seq(0.5), tables([fishDef({ reelTurns: 20 })]));
+    s.toBite();
+    s.act(hook(0));
+    return s;
+  };
+
+  it('a thief comes mid-fight; reeling fast gets away', () => {
+    const s = thiefSetup();
+    for (let i = 0; i < 200 && !s.g.thief; i++) s.step(50, 3);
+    expect(s.g.thief?.kind).toBe('otter');
+    s.step(1500, 3); // 4.5 turns in 1.5 s ≥ 4 needed, within 2 s
+    expect(s.log.some((e) => e.type === 'thiefEscaped')).toBe(true);
+    expect(s.g.phase === 'reeling' || s.g.phase === 'caught').toBe(true);
+  });
+
+  it('a thief takes the fish if you do not reel', () => {
+    const s = thiefSetup();
+    for (let i = 0; i < 200 && !s.g.thief; i++) s.step(50, 3);
+    s.step(2100, 0);
+    expect(s.g.missReason).toBe('stolen');
+    expect(s.g.stolenBy).toBe('otter');
+  });
+
+  it('a hippo scatters the fish: the wait starts over, nothing is lost', () => {
+    const t = tables();
+    t.baits = [{ ...t.baits[0], waitMin: 10, waitMax: 10 }];
+    const s = setup({ 'event.spooker': 1 }, seq(0.5), t);
+    s.act('bait');
+    s.act(cast(0));
+    s.step(1300 + 6500); // spook at 30–90% of the 10 s wait (rng 0.5 → 6 s)
+    expect(s.log.some((e) => e.type === 'spook' && e.kind === 'hippo')).toBe(true);
+    expect(s.g.phase).toBe('waiting');
+    s.step(6000);
+    expect(s.g.phase).toBe('waiting'); // the old 10 s check was pushed back
+    s.step(4000); // new check at 7.2 + 10 = 17.2 s
     expect(s.g.phase).toBe('bite');
   });
 });

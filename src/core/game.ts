@@ -1,38 +1,55 @@
 // Fishing loop — a pure, time-driven state machine (no DOM, testable with a fake clock + RNG).
 //
-//   bait ─(UI click)→ ready ─(cast)→ flight → waiting ─(bite roll)→ nibble* → bite ─(hook-set)→ reeling → caught
-//                                                                     │           │                │
-//                                                           hook-set too early   timeout   line snap / escape → missed
+//   place ─(UI)→ bait ─(UI)→ ready ─(cast)→ flight → waiting ─(bite roll)→ nibble* → bite ─(hook-set)→ reeling → caught
+//                                                       │ hippo          │           │                │
+//                                                       └ wait restarts  too early   timeout   snap / escape / stolen → missed
 //
 // Hook-set differences between species are timing only (bite window + fake nibbles); strength
 // is never judged (user decision, docs/VERIFICATION.md). Reeling length grows with size / rarity.
 //
 // Reeling fight: progress fills at the player's reel rate. Every few seconds the fish RUNS —
-// announced by a splash `fight.warnS` earlier — and takes line back (progress drops). Reeling
-// during a run builds line tension; full tension snaps the line. So the rule the player learns is
-// "when it splashes and runs, stop reeling; reel again when it stops".
+// announced by a splash `fight.warnS` earlier — and takes line back. Reeling during a run builds
+// line tension; full tension snaps the line.
+//
+// Interference (M2, user: animals only rarely and realistically): a THIEF (otter / orca / crocodile)
+// may come for the hooked fish once per fight — reel `event.escapeTurns` turns within `event.warnS`
+// to get away, or lose the fish. A SPOOKER (hippo) may surface near the float while you wait —
+// the fish scatter and the wait starts over (no penalty).
 
 import type { GestureEvent } from './gestures';
-import { baitKey, baitSpeciesKey, fishKey, SPECIES, type Bait, type Params, type Species } from './params';
+import type { Params } from './params';
+import {
+  BAITS,
+  LOCATIONS,
+  SPECIES,
+  type BaitDef,
+  type EventKind,
+  type LocationDef,
+  type LocationId,
+  type SpeciesDef,
+  type Tier,
+} from './species';
 
-export type Phase = 'bait' | 'ready' | 'flight' | 'waiting' | 'nibble' | 'bite' | 'reeling' | 'caught' | 'missed';
+export type Phase = 'place' | 'bait' | 'ready' | 'flight' | 'waiting' | 'nibble' | 'bite' | 'reeling' | 'caught' | 'missed';
 
-export type MissReason = 'early' | 'late' | 'snap' | 'escape';
+export type MissReason = 'early' | 'late' | 'snap' | 'escape' | 'stolen';
 export const MISS_TEXT: Record<MissReason, string> = {
   early: '너무 일찍 챘어요 — 톡톡 건드리는 건 가짜 입질이에요',
-  late: '입질을 놓쳤어요 — 찌가 쑥 들어가면 바로 채요',
+  late: '입질을 놓쳤어요 — 찌가 움직이면 바로 채요',
   snap: '줄이 끊어졌어요 — 물고기가 차고 나갈 땐 감지 말고 기다려요',
   escape: '물고기가 빠져나갔어요 — 줄을 너무 오래 안 감았어요',
+  stolen: '물고기를 빼앗겼어요 — 다가오면 재빨리 감아서 따돌려요',
 };
 
 export interface Fish {
-  species: Species;
+  def: SpeciesDef;
   lengthCm: number;
   weightG: number;
   /** 0 = smallest of its species, 1 = largest */
   size: number;
   turnsNeeded: number;
   fakeNibbles: number;
+  biteWindowS: number;
 }
 
 export type GameEvent =
@@ -43,26 +60,43 @@ export type GameEvent =
   | { type: 'hooked' }
   | { type: 'runWarn' }
   | { type: 'run'; on: boolean }
+  | { type: 'thief'; kind: EventKind }
+  | { type: 'thiefEscaped'; kind: EventKind }
+  | { type: 'spook'; kind: EventKind }
   | { type: 'caught'; fish: Fish }
-  | { type: 'missed'; reason: MissReason }
+  | { type: 'missed'; reason: MissReason; thief?: EventKind }
   | { type: 'ignored'; gesture: GestureEvent['type']; why: string };
+
+export interface Tables {
+  species: readonly SpeciesDef[];
+  baits: readonly BaitDef[];
+  locations: readonly LocationDef[];
+}
+const DEFAULT_TABLES: Tables = { species: SPECIES, baits: BAITS, locations: LOCATIONS };
 
 /** Flight time of the cast, s. */
 export const FLIGHT_S = 1.2;
 const MIN_DISTANCE_M = 8;
 const MAX_DISTANCE_M = 28;
-/** Weight from length: w = k·L³ (g, cm). Rough freshwater-fish constants; flavour only. */
-const WEIGHT_K: Record<Species, number> = { crucian: 0.02, carp: 0.016 };
+const TIER_KEY: Record<Tier, 'tier.common' | 'tier.uncommon' | 'tier.rare' | 'tier.legend'> = {
+  common: 'tier.common',
+  uncommon: 'tier.uncommon',
+  rare: 'tier.rare',
+  legend: 'tier.legend',
+};
 
 export class FishingGame {
-  phase: Phase = 'bait';
+  phase: Phase = 'place';
   /** time the current phase started, ms */
   phaseT = 0;
-  bait: Bait = 'paste';
+  location: LocationDef;
+  bait: BaitDef;
   castStrength = 0;
   distanceM = 0;
   fish: Fish | null = null;
   missReason: MissReason | null = null;
+  /** the animal that stole the fish (missReason 'stolen') */
+  stolenBy: EventKind | null = null;
   /** reeling: turns reeled so far (fractional) */
   progress = 0;
   /** reeling: line tension 0–1 (1 = snap) */
@@ -71,6 +105,8 @@ export class FishingGame {
   running = false;
   /** reeling: a run is about to start (splash warning) */
   runSoon = false;
+  /** reeling: an animal is coming for the fish */
+  thief: { kind: EventKind; until: number; from: number } | null = null;
   /** the reel rate the game last saw, turns/s (for the HUD) */
   reelRate = 0;
   /** in the nibble phase: is a fake nibble showing right now */
@@ -79,6 +115,7 @@ export class FishingGame {
   private events: GameEvent[] = [];
   private waitStart = 0;
   private nextCheck = 0;
+  private spookAt = Infinity;
   private nibblesLeft = 0;
   private nibbleUntil = 0;
   private nextNibble = 0;
@@ -87,11 +124,17 @@ export class FishingGame {
   private runUntil = 0;
   private lastReelT = 0;
   private lastT = 0;
+  /** progress at which the thief shows up this fight (Infinity = not this time) */
+  private thiefAt = Infinity;
 
   constructor(
     private params: () => Params,
     private rng: () => number = Math.random,
-  ) {}
+    private tables: Tables = DEFAULT_TABLES,
+  ) {
+    this.location = tables.locations[0];
+    this.bait = tables.baits.find((b) => b.loc === this.location.id) ?? tables.baits[0];
+  }
 
   /** Events since the last call (for UI / sound). */
   drain(): GameEvent[] {
@@ -116,22 +159,50 @@ export class FishingGame {
 
   // ---------------------------------------------------------------- UI actions
 
-  chooseBait(b: Bait, now: number): void {
-    if (this.phase !== 'bait') return;
+  baitsHere(): BaitDef[] {
+    return this.tables.baits.filter((b) => b.loc === this.location.id);
+  }
+
+  speciesHere(): SpeciesDef[] {
+    return this.tables.species.filter((s) => s.loc === this.location.id);
+  }
+
+  chooseLocation(id: LocationId, now: number): void {
+    const loc = this.tables.locations.find((l) => l.id === id);
+    if (!loc || (this.phase !== 'place' && this.phase !== 'bait')) return;
+    this.location = loc;
+    this.setPhase('bait', now);
+  }
+
+  chooseBait(id: string, now: number): void {
+    const b = this.baitsHere().find((x) => x.id === id);
+    if (this.phase !== 'bait' || !b) return;
     this.bait = b;
     this.setPhase('ready', now);
   }
 
-  /** Back to bait selection (after a result, or to give up a cast). */
+  /** Back to bait selection at the same place (after a result, or to give up a cast). */
   again(now: number): void {
+    this.reset();
+    this.setPhase('bait', now);
+  }
+
+  /** Back to choosing a place. */
+  toPlaces(now: number): void {
+    this.reset();
+    this.setPhase('place', now);
+  }
+
+  private reset(): void {
     this.fish = null;
     this.missReason = null;
+    this.stolenBy = null;
     this.progress = 0;
     this.tension = 0;
     this.running = false;
     this.runSoon = false;
+    this.thief = null;
     this.nibbling = false;
-    this.setPhase('bait', now);
   }
 
   // ---------------------------------------------------------------- gestures
@@ -157,19 +228,24 @@ export class FishingGame {
   }
 
   private hook(now: number): void {
+    const P = this.params();
     this.progress = 0;
     this.tension = 0;
     this.running = false;
     this.runSoon = false;
+    this.thief = null;
     this.lastReelT = now;
     this.scheduleRun(now);
+    // a thief may come once this fight, somewhere in the middle of it
+    this.thiefAt =
+      this.location.thief && this.rng() < P['event.thief'] ? this.fish!.turnsNeeded * this.uniform(0.3, 0.75) : Infinity;
     this.emit({ type: 'hooked' });
     this.setPhase('reeling', now);
   }
 
   private scheduleRun(now: number): void {
-    const s = this.fish!.species;
-    this.nextRun = now + this.params()[fishKey(s, 'pullEveryS')] * 1000 * this.uniform(0.7, 1.3);
+    const P = this.params();
+    this.nextRun = now + this.fish!.def.runEveryS * P['scale.runEvery'] * 1000 * this.uniform(0.7, 1.3);
   }
 
   private miss(reason: MissReason, now: number): void {
@@ -177,7 +253,10 @@ export class FishingGame {
     this.running = false;
     this.runSoon = false;
     this.nibbling = false;
-    this.emit({ type: 'missed', reason });
+    const thief = reason === 'stolen' ? this.thief?.kind : undefined;
+    this.stolenBy = thief ?? null;
+    this.thief = null;
+    this.emit({ type: 'missed', reason, ...(thief ? { thief } : {}) });
     this.setPhase('missed', now);
   }
 
@@ -185,32 +264,34 @@ export class FishingGame {
 
   private pickFish(): Fish {
     const P = this.params();
-    const weight = (sp: Species) => Math.max(0, P[fishKey(sp, 'spawn')] * P[baitSpeciesKey(this.bait, sp)]);
-    const total = SPECIES.reduce((s, sp) => s + weight(sp), 0);
+    const here = this.speciesHere();
+    const b = this.bait;
+    const weight = (s: SpeciesDef) =>
+      Math.max(0, P[TIER_KEY[s.tier]] * (b.tierMul?.[s.tier] ?? 1) * (b.speciesMul?.[s.id] ?? 1));
+    const total = here.reduce((sum, s) => sum + weight(s), 0);
     let r = this.rng() * (total || 1);
-    let species: Species = SPECIES[0];
-    for (const sp of SPECIES) {
-      r -= weight(sp);
+    let def = here[0];
+    for (const s of here) {
+      r -= weight(s);
       if (r < 0) {
-        species = sp;
+        def = s;
         break;
       }
     }
-    const lo = P[fishKey(species, 'lenMin')];
-    const hi = Math.max(lo, P[fishKey(species, 'lenMax')]);
     // bait size bias: > 0 skews toward big fish, < 0 toward small ones
     const u = this.rng();
-    const bias = P[baitKey(this.bait, 'sizeBias')];
+    const bias = b.sizeBias;
     const size = bias >= 0 ? 1 - (1 - u) ** (1 + bias) : u ** (1 - bias);
-    const lengthCm = Math.round((lo + (hi - lo) * size) * 10) / 10;
+    const lengthCm = Math.round((def.lenMin + (def.lenMax - def.lenMin) * size) * 10) / 10;
     const factor = P['size.turnsMin'] + (P['size.turnsMax'] - P['size.turnsMin']) * size;
     return {
-      species,
+      def,
       lengthCm,
-      weightG: Math.round(WEIGHT_K[species] * lengthCm ** 3),
+      weightG: Math.round(def.weightK * lengthCm ** 3),
       size,
-      turnsNeeded: Math.max(1, Math.round(P[fishKey(species, 'reelTurns')] * factor)),
-      fakeNibbles: Math.floor(this.rng() * (P[fishKey(species, 'fakeMax')] + 1)),
+      turnsNeeded: Math.max(1, Math.round(def.reelTurns * factor * P['scale.reel'])),
+      fakeNibbles: Math.floor(this.rng() * (def.fakeMax + 1)),
+      biteWindowS: def.biteWindowS * P['scale.biteWindow'],
     };
   }
 
@@ -227,13 +308,23 @@ export class FishingGame {
         if (now - this.phaseT >= FLIGHT_S * 1000) {
           this.waitStart = now;
           this.nextCheck = now + this.waitRoll(1);
+          // a hippo may surface somewhere before the first bite check
+          this.spookAt =
+            this.location.spooker && this.rng() < P['event.spooker'] ? now + (this.nextCheck - now) * this.uniform(0.3, 0.9) : Infinity;
           this.setPhase('waiting', now);
         }
         break;
       case 'waiting':
+        if (now >= this.spookAt) {
+          this.spookAt = Infinity;
+          this.emit({ type: 'spook', kind: this.location.spooker! });
+          // the fish scatter: the wait starts over (still capped by wait.maxS)
+          this.nextCheck = Math.min(this.waitStart + P['wait.maxS'] * 1000, now + this.waitRoll(1));
+          break;
+        }
         if (now >= this.nextCheck) {
           const forced = now - this.waitStart >= P['wait.maxS'] * 1000;
-          if (forced || this.rng() < P[baitKey(this.bait, 'biteChance')]) {
+          if (forced || this.rng() < this.bait.biteChance) {
             this.fish = this.pickFish();
             this.nibblesLeft = this.fish.fakeNibbles;
             if (this.nibblesLeft > 0) {
@@ -275,45 +366,69 @@ export class FishingGame {
   private fight(now: number, dt: number, rate: number): void {
     const P = this.params();
     const fish = this.fish!;
-    // run schedule: warning → run → pause
-    if (!this.running && !this.runSoon && now >= this.nextRun - P['fight.warnS'] * 1000) {
-      this.runSoon = true;
-      this.emit({ type: 'runWarn' });
-    }
-    if (!this.running && now >= this.nextRun) {
-      this.running = true;
-      this.runSoon = false;
-      this.runUntil = now + P[fishKey(fish.species, 'pullS')] * 1000 * this.uniform(0.8, 1.2);
-      this.emit({ type: 'run', on: true });
-    } else if (this.running && now >= this.runUntil) {
-      this.running = false;
-      this.lastReelT = now; // the player was told to wait — don't count the run as slack
-      this.scheduleRun(now);
-      this.emit({ type: 'run', on: false });
-    }
 
-    if (this.running) {
-      this.progress = Math.max(0, this.progress - P['fight.takeRate'] * dt);
-      this.tension += P['fight.tensionPerTurn'] * rate * dt;
-      if (rate === 0) this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
-      if (this.tension >= 1) {
-        this.tension = 1;
-        this.miss('snap', now);
+    // ---- a thief comes for the fish: reel hard to get away, or lose it
+    if (!this.thief && this.progress >= this.thiefAt) {
+      this.thiefAt = Infinity;
+      this.thief = { kind: this.location.thief!, until: now + P['event.warnS'] * 1000, from: this.progress };
+      this.running = false;
+      this.runSoon = false;
+      this.emit({ type: 'thief', kind: this.thief.kind });
+    }
+    if (this.thief) {
+      this.progress += rate * dt;
+      this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
+      if (this.progress - this.thief.from >= P['event.escapeTurns']) {
+        this.emit({ type: 'thiefEscaped', kind: this.thief.kind });
+        this.thief = null;
+        this.lastReelT = now;
+        this.scheduleRun(now);
+      } else if (now >= this.thief.until) {
+        this.miss('stolen', now);
         return;
       }
     } else {
-      this.progress += rate * dt;
-      this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
-      if (rate > 0) this.lastReelT = now;
-      else if (now - this.lastReelT >= P['fight.slackS'] * 1000) {
-        this.miss('escape', now);
-        return;
+      // ---- runs: warning → run → pause
+      if (!this.running && !this.runSoon && now >= this.nextRun - P['fight.warnS'] * 1000) {
+        this.runSoon = true;
+        this.emit({ type: 'runWarn' });
+      }
+      if (!this.running && now >= this.nextRun) {
+        this.running = true;
+        this.runSoon = false;
+        this.runUntil = now + fish.def.runS * 1000 * this.uniform(0.8, 1.2);
+        this.emit({ type: 'run', on: true });
+      } else if (this.running && now >= this.runUntil) {
+        this.running = false;
+        this.lastReelT = now; // the player was told to wait — don't count the run as slack
+        this.scheduleRun(now);
+        this.emit({ type: 'run', on: false });
+      }
+
+      if (this.running) {
+        this.progress = Math.max(0, this.progress - P['fight.takeRate'] * dt);
+        this.tension += P['fight.tensionPerTurn'] * rate * dt;
+        if (rate === 0) this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
+        if (this.tension >= 1) {
+          this.tension = 1;
+          this.miss('snap', now);
+          return;
+        }
+      } else {
+        this.progress += rate * dt;
+        this.tension = Math.max(0, this.tension - P['fight.tensionDecay'] * dt);
+        if (rate > 0) this.lastReelT = now;
+        else if (now - this.lastReelT >= P['fight.slackS'] * 1000) {
+          this.miss('escape', now);
+          return;
+        }
       }
     }
     if (this.progress >= fish.turnsNeeded) {
       this.progress = fish.turnsNeeded;
       this.running = false;
       this.runSoon = false;
+      this.thief = null;
       this.emit({ type: 'caught', fish });
       this.setPhase('caught', now);
     }
@@ -321,14 +436,14 @@ export class FishingGame {
 
   private waitRoll(scale: number): number {
     const P = this.params();
-    const lo = P[baitKey(this.bait, 'waitMin')];
-    const hi = Math.max(lo, P[baitKey(this.bait, 'waitMax')]);
-    return Math.max(1, this.uniform(lo, hi) * scale) * 1000;
+    const lo = this.bait.waitMin;
+    const hi = Math.max(lo, this.bait.waitMax);
+    return Math.max(1, this.uniform(lo, hi) * scale * P['scale.wait']) * 1000;
   }
 
   private startBite(now: number): void {
     this.nibbling = false;
-    this.biteUntil = now + this.params()[fishKey(this.fish!.species, 'biteWindowS')] * 1000;
+    this.biteUntil = now + this.fish!.biteWindowS * 1000;
     this.emit({ type: 'bite' });
     this.setPhase('bite', now);
   }
@@ -336,6 +451,11 @@ export class FishingGame {
   /** Seconds left to hook-set in the bite phase (for the HUD). */
   biteLeftS(now: number): number {
     return this.phase === 'bite' ? Math.max(0, (this.biteUntil - now) / 1000) : 0;
+  }
+
+  /** Seconds left before the thief takes the fish (0 = none). */
+  thiefLeftS(now: number): number {
+    return this.thief ? Math.max(0, (this.thief.until - now) / 1000) : 0;
   }
 
   /** Line still out while reeling, m (for the HUD and the scene). */

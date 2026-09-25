@@ -16,7 +16,8 @@ import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { Water } from 'three/examples/jsm/objects/Water.js';
 import { FLIGHT_S, type FishingGame } from '../core/game';
 import type { Side } from '../core/pose';
-import type { Species } from '../core/params';
+/** Stand-in model palettes until the per-species models (M2 step 4). */
+type Species = 'crucian' | 'carp';
 
 const BASE = import.meta.env.BASE_URL;
 const BACKDROP_URL = `${BASE}env/bell_park_pier.jpg`;
@@ -712,7 +713,7 @@ export class FishingScene {
     } else if (g.phase === 'nibble') {
       rise = g.nibbling ? -1.2 * Math.abs(Math.sin(now / 70)) : Math.sin(now / 900) * 0.15;
     } else if (g.phase === 'bite' && g.fish) {
-      if (g.fish.species === 'crucian') {
+      if (g.fish.def.bite === 'rise') {
         // 찌올림: the classic crucian bite — the float rises slowly, band by band
         rise = Math.min(1.8, since / 500);
       } else {
@@ -775,7 +776,7 @@ export class FishingScene {
     }
 
     // ---- catch close-up: the fish held up in front of the camera
-    const showFish = g.phase === 'caught' && g.fish ? g.fish.species : null;
+    const showFish: Species | null = g.phase === 'caught' && g.fish ? (g.fish.def.id === 'carp' ? 'carp' : 'crucian') : null;
     if (showFish !== this.catchSpecies) {
       for (const [sp, f] of Object.entries(this.fishes)) f.visible = sp === showFish;
       this.catchSpecies = showFish;

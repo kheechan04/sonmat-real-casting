@@ -17,15 +17,7 @@ const m = (group: string, label: string, min: number, max: number, step: number,
   group, label, min, max, step, unit,
 });
 
-// Baits (user, 2026-09-25: the DESIGN.md trio was only an example). Freshwater reservoir baits that
-// differ in more than bite speed: which species they attract and how big. Controls stay the same.
-export const BAITS = ['worm', 'paste', 'corn'] as const;
-export type Bait = (typeof BAITS)[number];
-export const BAIT_NAME: Record<Bait, string> = { worm: '지렁이', paste: '떡밥', corn: '옥수수' };
-
-export const SPECIES = ['crucian', 'carp'] as const;
-export type Species = (typeof SPECIES)[number];
-export const SPECIES_NAME: Record<Species, string> = { crucian: '붕어', carp: '잉어' };
+// Species, places and baits (M2) live in species.ts as data tables; only global multipliers are here.
 
 /** [default, meta] per key. Keys are flat so the slider panel and storage stay trivial. */
 const DEFS = {
@@ -48,49 +40,31 @@ const DEFS = {
   'reel.maxRate': [4, m('릴링', '최대 감기 속도 (이보다 빨라도 같음)', 1, 8, 0.25, '회/초')],
   'reel.windowMs': [400, m('릴링', '속도 평균 창', 150, 1000, 50, 'ms')],
 
-  // ---- baits. A bite check happens after a random wait in [waitMin, waitMax]; it succeeds with
-  // biteChance, otherwise the next check comes after half as long. wait.maxS forces a bite.
-  // Species weight = spawn × the bait's multiplier. sizeBias > 0 skews toward bigger fish.
-  'bait.worm.waitMin': [5, m('미끼: 지렁이', '대기 최소', 1, 60, 1, '초')],
-  'bait.worm.waitMax': [10, m('미끼: 지렁이', '대기 최대', 1, 60, 1, '초')],
-  'bait.worm.biteChance': [0.6, m('미끼: 지렁이', '입질 확률', 0, 1, 0.05)],
-  'bait.worm.crucianMul': [1.5, m('미끼: 지렁이', '붕어 배율', 0, 5, 0.1)],
-  'bait.worm.carpMul': [0.5, m('미끼: 지렁이', '잉어 배율', 0, 5, 0.1)],
-  'bait.worm.sizeBias': [-0.3, m('미끼: 지렁이', '크기 치우침 (−작게 +크게)', -0.9, 3, 0.1)],
-  'bait.paste.waitMin': [10, m('미끼: 떡밥', '대기 최소', 1, 60, 1, '초')],
-  'bait.paste.waitMax': [18, m('미끼: 떡밥', '대기 최대', 1, 60, 1, '초')],
-  'bait.paste.biteChance': [0.4, m('미끼: 떡밥', '입질 확률', 0, 1, 0.05)],
-  'bait.paste.crucianMul': [1, m('미끼: 떡밥', '붕어 배율', 0, 5, 0.1)],
-  'bait.paste.carpMul': [1, m('미끼: 떡밥', '잉어 배율', 0, 5, 0.1)],
-  'bait.paste.sizeBias': [0, m('미끼: 떡밥', '크기 치우침 (−작게 +크게)', -0.9, 3, 0.1)],
-  'bait.corn.waitMin': [20, m('미끼: 옥수수', '대기 최소', 1, 60, 1, '초')],
-  'bait.corn.waitMax': [32, m('미끼: 옥수수', '대기 최대', 1, 60, 1, '초')],
-  'bait.corn.biteChance': [0.25, m('미끼: 옥수수', '입질 확률', 0, 1, 0.05)],
-  'bait.corn.crucianMul': [0.4, m('미끼: 옥수수', '붕어 배율', 0, 5, 0.1)],
-  'bait.corn.carpMul': [3, m('미끼: 옥수수', '잉어 배율', 0, 5, 0.1)],
-  'bait.corn.sizeBias': [1, m('미끼: 옥수수', '크기 치우침 (−작게 +크게)', -0.9, 3, 0.1)],
-  'wait.maxS': [40, m('미끼: 공통', '최대 대기 (넘으면 무조건 입질)', 5, 90, 1, '초')], // DESIGN §3: never over 40 s
+  // ---- how often each rarity shows up (weights; each bait multiplies them — species.ts)
+  'tier.common': [60, m('출현 비중', '흔함', 0, 100, 1)],
+  'tier.uncommon': [25, m('출현 비중', '보통', 0, 100, 1)],
+  'tier.rare': [9, m('출현 비중', '희귀', 0, 100, 0.5)],
+  'tier.legend': [2.5, m('출현 비중', '전설', 0, 30, 0.5)],
 
-  // ---- species. Hook-set differences are timing only (user decision): bite window + fake nibbles.
-  // Reeling length = reelTurns × size factor (bigger / rarer → longer, user suggestion).
-  'fish.crucian.spawn': [75, m('어종: 붕어', '출현 비중', 0, 100, 1)],
-  'fish.crucian.biteWindowS': [1.2, m('어종: 붕어', '챔질 제한 시간', 0.3, 5, 0.1, '초')],
-  'fish.crucian.fakeMax': [1, m('어종: 붕어', '가짜 입질 최대', 0, 4, 1, '회')],
-  'fish.crucian.reelTurns': [20, m('어종: 붕어', '기본 릴링 횟수', 3, 150, 1, '회')],
-  'fish.crucian.pullEveryS': [4, m('어종: 붕어', '당김 간격', 1, 15, 0.5, '초')],
-  'fish.crucian.pullS': [1.0, m('어종: 붕어', '당김 길이', 0.2, 5, 0.1, '초')],
-  'fish.crucian.lenMin': [12, m('어종: 붕어', '길이 최소', 3, 100, 1, 'cm')],
-  'fish.crucian.lenMax': [30, m('어종: 붕어', '길이 최대', 3, 100, 1, 'cm')],
-  'fish.carp.spawn': [25, m('어종: 잉어', '출현 비중', 0, 100, 1)],
-  'fish.carp.biteWindowS': [2.0, m('어종: 잉어', '챔질 제한 시간', 0.3, 5, 0.1, '초')],
-  'fish.carp.fakeMax': [2, m('어종: 잉어', '가짜 입질 최대', 0, 4, 1, '회')],
-  'fish.carp.reelTurns': [45, m('어종: 잉어', '기본 릴링 횟수', 3, 150, 1, '회')],
-  'fish.carp.pullEveryS': [3, m('어종: 잉어', '당김 간격', 1, 15, 0.5, '초')],
-  'fish.carp.pullS': [1.8, m('어종: 잉어', '당김 길이', 0.2, 5, 0.1, '초')],
-  'fish.carp.lenMin': [30, m('어종: 잉어', '길이 최소', 3, 120, 1, 'cm')],
-  'fish.carp.lenMax': [70, m('어종: 잉어', '길이 최대', 3, 120, 1, 'cm')],
-  'size.turnsMin': [0.7, m('어종: 공통', '가장 작을 때 릴링 배율', 0.2, 1.5, 0.05)],
-  'size.turnsMax': [1.3, m('어종: 공통', '가장 클 때 릴링 배율', 0.5, 3, 0.05)],
+  // ---- global multipliers over the per-species / per-bait tables in species.ts
+  // A bite check happens after a random wait in [bait waitMin, waitMax] × scale.wait; it succeeds with the
+  // bait's biteChance, otherwise the next check comes after half as long. wait.maxS forces a bite.
+  'scale.wait': [1, m('전체 배율', '대기 시간', 0.2, 3, 0.05)],
+  'wait.maxS': [40, m('전체 배율', '최대 대기 (넘으면 무조건 입질)', 5, 90, 1, '초')], // DESIGN §3: never over 40 s
+  'scale.biteWindow': [1, m('전체 배율', '챔질 제한 시간', 0.3, 3, 0.05)],
+  'scale.reel': [1, m('전체 배율', '릴링 길이', 0.2, 3, 0.05)],
+  'scale.runEvery': [1, m('전체 배율', '차고 나가는 간격', 0.3, 3, 0.05)],
+  // Reeling length = species reelTurns × size factor (bigger / rarer → longer, user suggestion).
+  'size.turnsMin': [0.7, m('전체 배율', '가장 작을 때 릴링 배율', 0.2, 1.5, 0.05)],
+  'size.turnsMax': [1.3, m('전체 배율', '가장 클 때 릴링 배율', 0.5, 3, 0.05)],
+
+  // ---- interference events (user: otters / crocodiles / hippos only rarely and realistically)
+  // thief (수달·범고래·악어): once per fight at most, comes for the hooked fish — reel fast to get away.
+  // spooker (하마): surfaces near the float while you wait; the fish scatter and the wait starts over.
+  'event.thief': [0.07, m('훼방 이벤트', '도둑이 나타날 확률 (한 판당)', 0, 1, 0.01)],
+  'event.warnS': [2.8, m('훼방 이벤트', '도둑이 오기까지 시간', 0.5, 6, 0.1, '초')],
+  'event.escapeTurns': [6, m('훼방 이벤트', '그 안에 감아야 하는 횟수', 1, 20, 0.5, '회')],
+  'event.spooker': [0.08, m('훼방 이벤트', '하마가 나타날 확률 (한 번 던질 때)', 0, 1, 0.01)],
 
   // ---- reeling fight ("밀당")
   // A fish run ("차고 나감"): announced by a splash warnS before it starts, the fish takes line back
@@ -115,11 +89,3 @@ export const PARAM_META: Record<ParamKey, ParamMeta> = Object.fromEntries(
 export function defaultParams(): Params {
   return Object.fromEntries(PARAM_KEYS.map((k) => [k, DEFS[k][0]])) as Params;
 }
-
-export const baitKey = (b: Bait, f: 'waitMin' | 'waitMax' | 'biteChance' | 'crucianMul' | 'carpMul' | 'sizeBias') =>
-  `bait.${b}.${f}` as ParamKey;
-export const baitSpeciesKey = (b: Bait, s: Species) => `bait.${b}.${s}Mul` as ParamKey;
-export const fishKey = (
-  s: Species,
-  f: 'spawn' | 'biteWindowS' | 'fakeMax' | 'reelTurns' | 'pullEveryS' | 'pullS' | 'lenMin' | 'lenMax',
-) => `fish.${s}.${f}` as ParamKey;
