@@ -4,127 +4,85 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="data:," />
-    <title>손맛 M0 관찰 도구</title>
+    <title>손맛: 리얼 캐스팅</title>
   </head>
   <body>
-    <header>
-      <h1>손맛: 리얼 캐스팅 <small>M0 · 관절 좌표 관찰 도구</small></h1>
-      <span class="privacy">카메라 영상은 이 브라우저 안에서만 처리되고 어디에도 전송되지 않아요. 녹화 파일에는 관절 좌표만 들어가요.</span>
-    </header>
+    <canvas id="world"></canvas>
 
-    <main class="layout">
-      <section class="stage">
-        <div class="viewWrap">
-          <canvas id="view" width="640" height="480"></canvas>
-          <div id="banner" class="banner hidden"></div>
-        </div>
+    <!-- instruction line -->
+    <div id="hud" class="hud">
+      <div id="msg" class="msg"></div>
+      <div id="sub" class="sub"></div>
+      <div id="biteBar" class="bar bite hidden"><div></div></div>
+    </div>
 
-        <div id="replayBar" class="replayBar" hidden>
-          <button id="rpPlay" title="재생/일시정지 (K)">⏯</button>
-          <button id="rpPrev" title="한 프레임 뒤로 (,)">◀︎</button>
-          <button id="rpNext" title="한 프레임 앞으로 (.)">▶︎</button>
-          <input id="rpSeek" type="range" min="0" max="0" value="0" />
-          <span id="rpTime" class="mono">0.00 / 0.00 s</span>
-          <select id="rpSpeed" title="재생 속도">
-            <option value="0.25">0.25×</option>
-            <option value="0.5">0.5×</option>
-            <option value="1" selected>1×</option>
+    <!-- reeling -->
+    <div id="reelBox" class="reelBox hidden">
+      <div class="reelRow"><span>감은 줄</span><div id="progBar" class="bar prog"><div></div></div><span id="progText" class="mono"></span></div>
+      <div class="reelRow"><span>긴장도</span><div id="tenBar" class="bar tension"><div></div></div><span id="rateText" class="mono"></span></div>
+      <div id="pullWarn" class="pullWarn hidden">물고기가 당겨요! 잠깐 멈춰요</div>
+    </div>
+
+    <!-- bait choice (plain UI click, DESIGN.md §2) -->
+    <div id="baitBox" class="panelBox hidden">
+      <h2>미끼를 고르세요</h2>
+      <div id="baits" class="baits"></div>
+    </div>
+
+    <!-- result -->
+    <div id="resultBox" class="panelBox hidden">
+      <h2 id="resTitle"></h2>
+      <p id="resBody"></p>
+      <button id="again" class="primary">다시 하기</button>
+    </div>
+
+    <!-- start -->
+    <div id="startBox" class="panelBox">
+      <h1>손맛: 리얼 캐스팅</h1>
+      <p class="lead">몸으로 던지고, 채고, 감는 낚시</p>
+      <ul class="howto">
+        <li><b>던지기</b> — 대 든 손을 머리 뒤로 젖혔다가 앞으로 휘두르기</li>
+        <li><b>챔질</b> — 찌가 쑥 들어가면 손을 빠르게 위로 "툭"</li>
+        <li><b>감기</b> — 반대 손으로 릴을 돌리듯 작은 원을 계속</li>
+      </ul>
+      <p class="tip">카메라에서 2m쯤 떨어져, <b>머리 위로 뻗은 손부터 허리까지</b> 화면에 들어오게 서 주세요. 빈손으로 해요.</p>
+      <div class="row">
+        <label>대 드는 손
+          <select id="rodHand">
+            <option value="right">오른손 (릴: 왼손)</option>
+            <option value="left">왼손 (릴: 오른손)</option>
           </select>
-          <button id="rpClose" title="재생 끝내기">✕</button>
-        </div>
-        <div id="rpNote" class="rpNote" hidden></div>
+        </label>
+        <label>카메라 <select id="camera"><option value="">기본 카메라</option></select></label>
+      </div>
+      <button id="start" class="primary big">카메라 켜고 시작</button>
+      <p class="privacy">카메라 영상은 이 브라우저 안에서만 처리되고 어디에도 전송되지 않아요.</p>
+      <p id="keysHelp" class="keys hidden">키보드 테스트: <b>C</b> 던지기 · <b>H</b> 챔질 · <b>R</b> 감기 · <button id="noCam">카메라 없이 시작</button></p>
+      <p class="links"><a href="./observe.html">관절 좌표 관찰 도구 (M0)</a></p>
+    </div>
 
-        <div class="plots">
-          <div class="tsBox">
-            <div class="plotControls">
-              <label>관절 <select id="tsLandmark"></select></label>
-              <label>좌표 <select id="tsSpace"></select></label>
-            </div>
-            <canvas id="ts" width="640" height="300"></canvas>
-          </div>
-          <div class="views">
-            <canvas id="vFront" width="250" height="250"></canvas>
-            <canvas id="vSide" width="250" height="250"></canvas>
-            <canvas id="vTop" width="250" height="250"></canvas>
-          </div>
-        </div>
-      </section>
+    <!-- webcam PIP -->
+    <div id="pip" class="pip hidden">
+      <canvas id="pipCanvas" width="320" height="240"></canvas>
+      <div id="pipWarn" class="pipWarn hidden"></div>
+      <div id="gestLog" class="gestLog"></div>
+    </div>
 
-      <aside class="panel">
-        <fieldset>
-          <legend>카메라</legend>
-          <label>장치 <select id="camera"><option value="">기본 카메라</option></select></label>
-          <label>해상도
-            <select id="resolution">
-              <option value="640x480" selected>640×480</option>
-              <option value="1280x720">1280×720</option>
-            </select>
-          </label>
-          <label>포즈 모델
-            <select id="model">
-              <option value="lite" selected>lite (빠름)</option>
-              <option value="full">full</option>
-              <option value="heavy">heavy (정확, 느림)</option>
-            </select>
-          </label>
-          <label class="check"><input id="useGpu" type="checkbox" /> GPU로 인식 (실패하면 CPU)</label>
-          <label class="check"><input id="mirror" type="checkbox" checked /> 거울처럼 보기 (화면만, 데이터는 그대로)</label>
-          <div class="row">
-            <button id="start" class="primary">카메라 시작</button>
-            <button id="stop">정지</button>
-          </div>
-        </fieldset>
+    <!-- dev -->
+    <button id="tuneBtn" class="tuneBtn" title="설정값 조정 (플레이테스트용)">⚙</button>
+    <aside id="tunePanel" class="tunePanel hidden">
+      <div class="tuneHead">
+        <b>설정값 (전부 임시값)</b>
+        <span id="stat" class="mono"></span>
+      </div>
+      <div class="tuneTools">
+        <button id="saveRound">마지막 판 녹화 저장</button>
+        <label class="check"><input id="mirror" type="checkbox" checked /> 카메라 화면 거울처럼</label>
+      </div>
+      <div id="tuneBody"></div>
+    </aside>
 
-        <fieldset>
-          <legend>낚싯대 드는 손</legend>
-          <div class="row">
-            <label class="check"><input type="radio" name="rodHand" value="right" checked /> 오른손 (릴: 왼손)</label>
-            <label class="check"><input type="radio" name="rodHand" value="left" /> 왼손 (릴: 오른손)</label>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>상태</legend>
-          <table class="status mono">
-            <tr><th>모드</th><td id="sMode">대기</td></tr>
-            <tr><th>카메라</th><td id="sCam">-</td></tr>
-            <tr><th>인식 fps</th><td id="sFps">-</td></tr>
-            <tr><th>추론 시간</th><td id="sInfer">-</td></tr>
-            <tr><th>실행 방식</th><td id="sDelegate">-</td></tr>
-          </table>
-        </fieldset>
-
-        <fieldset>
-          <legend>녹화 (체크리스트)</legend>
-          <label>항목 <select id="preset"></select></label>
-          <p id="presetHow" class="how"></p>
-          <label>메모 <input id="note" type="text" /></label>
-          <div class="row">
-            <label>자동 정지 <input id="seconds" type="number" min="0" max="300" step="1" value="0" class="num" /> 초</label>
-            <label class="check"><input id="countdown" type="checkbox" checked /> 3초 카운트다운</label>
-          </div>
-          <div class="row">
-            <button id="rec" class="rec">● 녹화 시작</button>
-            <button id="replayLast" disabled>마지막 녹화 재생</button>
-          </div>
-          <label class="file">녹화 파일 열기 <input id="openFile" type="file" accept=".json,application/json" /></label>
-          <p class="how">녹화를 멈추면 JSON 파일이 내려받아져요. 프로젝트의 <code>recordings/</code> 폴더로 옮겨 주세요.</p>
-        </fieldset>
-
-        <fieldset>
-          <legend>릴 손 원형도 (최근 3초)</legend>
-          <table class="status mono" id="reelTable"></table>
-          <p class="how">둥글기 1 = 원, 0 = 직선 왕복. 회전 = 누적 바퀴 수(부호 = 방향).</p>
-        </fieldset>
-
-        <fieldset>
-          <legend>좌표 (원본)</legend>
-          <table class="coords mono" id="coordTable"></table>
-        </fieldset>
-      </aside>
-    </main>
-
-    <video id="video" playsinline muted hidden></video>
-    <script type="module" src="./src/app/observer.ts"></script>
+    <div id="banner" class="banner hidden"></div>
+    <script type="module" src="./src/app/main.ts"></script>
   </body>
 </html>

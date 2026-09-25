@@ -1,0 +1,406 @@
+:root {
+  --ink: #f8fafc;
+  --muted: #cbd5e1;
+  --panel: rgba(15, 23, 32, 0.82);
+  --line: rgba(148, 163, 184, 0.35);
+  --accent: #38bdf8;
+  --good: #4ade80;
+  --warn: #f87171;
+  --gold: #fde047;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #aec6d4;
+  color: var(--ink);
+  font: 15px/1.5 system-ui, 'Malgun Gothic', sans-serif;
+}
+
+#world {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.mono {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+}
+
+button,
+select,
+input {
+  font: inherit;
+  color: var(--ink);
+  background: rgba(2, 6, 23, 0.6);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+
+button {
+  cursor: pointer;
+}
+
+button.primary {
+  background: #0369a1;
+  border-color: var(--accent);
+}
+
+button.big {
+  font-size: 18px;
+  padding: 10px 22px;
+  margin-top: 12px;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* ---- instruction line */
+.hud {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, calc(100vw - 32px));
+  text-align: center;
+  pointer-events: none;
+}
+
+.msg {
+  font-size: clamp(22px, 3.6vw, 38px);
+  font-weight: 800;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+
+.msg.alert {
+  color: var(--gold);
+}
+
+.sub {
+  color: #e2e8f0;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.bar {
+  height: 12px;
+  border-radius: 6px;
+  background: rgba(2, 6, 23, 0.55);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.bar > div {
+  height: 100%;
+  width: 0;
+  transition: width 0.08s linear;
+}
+
+.bar.bite {
+  width: 280px;
+  margin: 8px auto 0;
+}
+
+.bar.bite > div {
+  background: var(--gold);
+}
+
+.bar.prog > div {
+  background: var(--good);
+}
+
+.bar.tension > div {
+  background: linear-gradient(90deg, #facc15, var(--warn));
+}
+
+/* ---- reeling */
+.reelBox {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.reelRow {
+  display: grid;
+  grid-template-columns: 56px 1fr 92px;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+}
+
+.pullWarn {
+  margin-top: 6px;
+  text-align: center;
+  font-weight: 800;
+  color: var(--warn);
+  animation: blink 0.4s alternate infinite;
+}
+
+@keyframes blink {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+
+/* ---- centered panels */
+.panelBox {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(600px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 20px 22px;
+  border-radius: 14px;
+  background: var(--panel);
+  text-align: center;
+  backdrop-filter: blur(4px);
+}
+
+.panelBox h1 {
+  margin: 0;
+  font-size: 30px;
+}
+
+.panelBox h2 {
+  margin: 0 0 10px;
+}
+
+.lead {
+  margin: 2px 0 12px;
+  color: var(--muted);
+}
+
+.howto {
+  text-align: left;
+  margin: 8px auto;
+  padding-left: 20px;
+  max-width: 460px;
+}
+
+.tip,
+.privacy,
+.keys,
+.links {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.row label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.baits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.baitCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  text-align: left;
+  border-radius: 10px;
+}
+
+.baitCard b {
+  font-size: 17px;
+}
+
+.baitCard span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.baitCard:hover {
+  border-color: var(--accent);
+}
+
+/* result sits low so the catch close-up above it stays visible */
+#resultBox {
+  top: auto;
+  bottom: 6%;
+  transform: translateX(-50%);
+}
+
+#resTitle.good {
+  color: var(--good);
+}
+
+#resTitle.bad {
+  color: var(--warn);
+}
+
+/* ---- webcam PIP */
+.pip {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  width: min(300px, 38vw);
+}
+
+.pip canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+
+.pipWarn {
+  margin-top: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(127, 29, 29, 0.85);
+  font-size: 13px;
+}
+
+.gestLog {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  text-shadow: 0 1px 3px #000;
+  min-height: 1.5em;
+}
+
+/* ---- dev */
+.tuneBtn {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  font-size: 18px;
+  line-height: 1;
+  padding: 6px 9px;
+}
+
+.tunePanel {
+  position: fixed;
+  top: 52px;
+  right: 12px;
+  width: min(360px, calc(100vw - 24px));
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 32, 0.94);
+  font-size: 13px;
+}
+
+.tuneHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.tuneTools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+
+.tuneTools .check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tuneMsg {
+  color: var(--good);
+  word-break: break-all;
+}
+
+.tunePanel summary {
+  cursor: pointer;
+  color: var(--accent);
+  margin: 6px 0 2px;
+}
+
+.tuneRow {
+  display: grid;
+  grid-template-columns: 1fr 110px 70px;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+}
+
+.tuneRow input {
+  width: 100%;
+  padding: 0;
+}
+
+.tuneRow output {
+  text-align: right;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+
+.tuneRow.changed span {
+  color: var(--gold);
+}
+
+.banner {
+  position: fixed;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(127, 29, 29, 0.94);
+}
+
+.banner.ok {
+  background: rgba(15, 23, 42, 0.9);
+}
+
+@media (max-width: 640px) {
+  .pip {
+    width: 42vw;
+  }
+
+  .reelBox {
+    bottom: calc(42vw * 0.75 + 30px);
+  }
+}

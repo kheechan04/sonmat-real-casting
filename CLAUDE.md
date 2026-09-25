@@ -4,7 +4,8 @@
 전작 Shadow Mitts(`../shadow-mitts`, 웹캠 복싱)의 포즈 파이프라인을 복사해서 시작했다.
 
 ## 현재 상태 (2026-09-25 기준)
-- **M0 완료(사용자 확인, 2026-09-25). M1(기본 낚시 루프) 진행 중.** 판정 기준·결정 사항은 `docs/VERIFICATION.md` 끝부분.
+- **M0 완료(사용자 확인). M1(기본 낚시 루프) 구현 완료, 사용자 플레이테스트 대기(2026-09-25).** 안내는 `docs/PLAYTEST.md`.
+  판정 기준·결정 사항은 `docs/VERIFICATION.md` 끝부분. 플레이테스트 피드백으로 `params.ts` 기본값을 조정한 뒤 확인받고 M2.
 - 설계서는 `DESIGN.md`(사용자가 별도 Claude 대화에서 만듦, 내용을 고치지 않는다). 확인 결과는 `docs/VERIFICATION.md`.
 
 ## 사용자
@@ -14,7 +15,7 @@
 ## 처음부터 정한 규칙 (사용자 지시)
 1. DESIGN.md §0의 미검증 API·축은 추측으로 코딩하지 않는다. 설치된 `.d.ts`나 실제 실행·녹화로 확인하고 `docs/VERIFICATION.md`에 적는다.
 2. 마일스톤은 순서대로(M0→M5). 각 마일스톤이 끝나면 **실행 방법과 "무엇을 확인해야 하는지"를 알려 주고, 사용자 확인 없이 다음으로 넘어가지 않는다.**
-3. 미끼 확률·대기시간, 어종 난이도, 동작 인식 임계값은 전부 placeholder — M1부터 한 파일(`src/core/params.ts` 예정)에 모으고
+3. 미끼 확률·대기시간, 어종 난이도, 동작 인식 임계값은 전부 placeholder — 한 파일(`src/core/params.ts`)에 모으고
    개발자 슬라이더로 조정 가능하게. 플레이테스트로 사용자와 같이 조정한다.
 4. 3D 에셋은 사용자가 사진(라이선스 확인된 것)을 준비할 때까지 **플레이스홀더 지오메트리**(구/캡슐 등)로 로직부터.
 5. **M4(내 얼굴 배경 물고기) 시작 전에 DESIGN.md §6 개인정보 체크리스트를 사용자와 다시 확인한다.** 확인 없이 M4 코드를 쓰지 않는다.
@@ -28,7 +29,7 @@
 ## 명령
 | 명령 | 용도 |
 |---|---|
-| `npm run dev` | 개발 서버 (http://localhost:5173 — M0 관찰 도구) |
+| `npm run dev` | 개발 서버 (http://localhost:5173 게임, `/observe.html` M0 관찰 도구) |
 | `npm test` | 단위 테스트 (카메라 불필요) |
 | `npm run analyze [-- 파일…] [--mirror] [--rod=left]` | 녹화 분석 보고서 (축·라벨·fps·빠른 동작·원 그리기) |
 | `npm run build` | 타입 검사 + 빌드 |
@@ -36,7 +37,8 @@
 ## 헤드리스 확인 (Windows, 전작과 동일)
 - 크롬 `C:/Program Files/Google/Chrome/Application/chrome.exe`, `npm i --no-save puppeteer-core`.
 - `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`. 먼저 `getUserMedia`를 한 번 열었다 닫고, 버튼은 `element.click()`.
-- 개발 모드에서만 `window.__obs`(loadRecording, seekTo, state)가 열려 있다.
+- 개발 모드에서만 `window.__obs`(관찰 도구)·`window.__game`(game, params, tracker, start, source)이 열려 있다.
+- 게임은 개발 모드나 `?keys`에서 키보드 대체 입력: C 던지기 · H 챔질 · R 감기. "카메라 없이 시작" 버튼도 이때만 보인다.
 - 헤드리스의 GPU는 소프트웨어 GL이라 실제 GPU 성능 확인이 아니다.
 
 ## 이 환경의 함정 (전작에서 옮김)
@@ -45,7 +47,9 @@
 - PowerShell 5.1: `&&` 없음.
 
 ## 코드 구조
-- `src/core/` — DOM 없는 순수 로직(Node 테스트 가능): `pose.ts`(관절 번호), `recording.ts`(녹화 형식), `mirror.ts`(좌우 반전),
-  `analysis.ts`(M0 분석), `protocol.ts`(녹화 체크리스트), `oneEuro.ts`(M1에서 쓸 필터)
-- `src/app/` — 브라우저: `landmarker.ts`·`poseWorker.ts`(전작 그대로), `observer.ts`(M0 화면), `overlay.ts`, `plots.ts`
+- `src/core/` — DOM 없는 순수 로직(Node 테스트 가능): `params.ts`(임시값 전부), `gestures.ts`(실시간 캐스팅·챔질·릴링 인식),
+  `game.ts`(낚시 상태 기계), `pose.ts`, `recording.ts`, `mirror.ts`, `analysis.ts`(M0 분석), `protocol.ts`(녹화 체크리스트)
+- `src/app/` — 브라우저: `main.ts`(게임 페이지), `scene.ts`(three.js, 임시 도형), `tuning.ts`(⚙ 슬라이더), `poseSource.ts`(카메라+추론, 공용),
+  `observer.ts`(M0 관찰 도구), `overlay.ts`, `plots.ts`, `landmarker.ts`·`poseWorker.ts`(전작 그대로)
+- 테스트: `tests/game.test.ts`(게임 흐름), `tests/recordings.test.ts`(사용자 녹화로 30/15fps 인식 개수 고정 — 파일 없으면 건너뜀)
 - 문체: 사용자용 문서는 "\~해요", 개발 문서는 "\~한다".

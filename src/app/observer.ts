@@ -1,12 +1,13 @@
 // M0 observer: live webcam landmarks, recording to JSON, and frame-by-frame replay.
-// Camera / inference loop copied from Shadow Mitts src/app/main.ts (worker, CPU default, GPU
-// fallback, strictly increasing detectForVideo timestamps).
+// Camera + inference: src/app/poseSource.ts (shared with the game).
 
 import { reelCircles } from '../core/analysis';
 import { LM, LM_NAMES, other, type PoseFrame, type Side } from '../core/pose';
 import { noteFor, PROTOCOL } from '../core/protocol';
 import { parseRecording, serializeRecording, type RecordedFrame, type Recording } from '../core/recording';
-import { loadLandmarker, type Delegate, type ModelVariant, type PoseDetector } from './landmarker';
+import type { ModelVariant } from './landmarker';
+import { listCameras, PoseSource } from './poseSource';
+import { store } from './store';
 import { drawOverlay } from './overlay';
 import { drawTimeSeries, drawView, SPACE_LABEL, type Space } from './plots';
 import './style.css';
@@ -24,25 +25,6 @@ const BUFFER_MS = 10_000;
 type Mode = 'idle' | 'loading' | 'camera' | 'replay';
 let mode: Mode = 'idle';
 let aspect = 4 / 3;
-
-// ---------------------------------------------------------------- small persistence
-
-const store = {
-  get(key: string): string | null {
-    try {
-      return localStorage.getItem(`sonmat.${key}`);
-    } catch {
-      return null;
-    }
-  },
-  set(key: string, v: string): void {
-    try {
-      localStorage.setItem(`sonmat.${key}`, v);
-    } catch {
-      // storage unavailable — settings just won't be remembered
-    }
-  },
-};
 
 let rodHand: Side = store.get('rodHand') === 'left' ? 'left' : 'right';
 for (const r of document.querySelectorAll<HTMLInputElement>('input[name=rodHand]')) {
@@ -68,94 +50,33 @@ function setMode(m: Mode): void {
   $('sMode').textContent = { idle: '대기', loading: '로딩 중…', camera: '카메라', replay: '녹화 재생' }[m];
 }
 
-// ---------------------------------------------------------------- camera (from Shadow Mitts)
+// ---------------------------------------------------------------- camera (src/app/poseSource.ts)
 
-let stream: MediaStream | null = null;
-let landmarker: PoseDetector | null = null;
-let delegate: Delegate | null = null;
-let model: ModelVariant = 'lite';
-let requestedGpu = false;
-let gpuRetried = false;
-let lastTs = 0;
-let inferMs = NaN;
-let lastInferMs = NaN;
-let fps = NaN;
-let fpsCount = 0;
-let fpsWindowStart = performance.now();
-let cameraFps: number | undefined;
+const source = new PoseSource(video);
 let liveFrames: RecordedFrame[] = [];
-
-async function ensureLandmarker(): Promise<void> {
-  const wantModel = $<HTMLSelectElement>('model').value as ModelVariant;
-  const useGpu = $<HTMLInputElement>('useGpu').checked;
-  if (landmarker && model === wantModel && useGpu === requestedGpu) return;
-  requestedGpu = useGpu;
-  landmarker?.close();
-  landmarker = null;
-  showBanner(`포즈 모델(${wantModel}) 로딩 중…`, true);
-  const loaded = await loadLandmarker(wantModel, useGpu, !new URLSearchParams(location.search).has('mainthread'));
-  landmarker = loaded.landmarker;
-  delegate = loaded.delegate;
-  model = loaded.model;
-  gpuRetried = false;
-  const where = loaded.landmarker.where === 'worker' ? '별도 스레드' : '메인 스레드';
-  $('sDelegate').textContent = loaded.gpuError ? `${delegate} · ${where} (GPU 실패: ${loaded.gpuError})` : `${delegate} · ${where}`;
-}
+source.onStatus = (text, ok) => showBanner(text, ok);
+source.onFrame = (frame) => {
+  if (mode !== 'camera') return;
+  liveFrames.push(frame);
+  while (liveFrames.length && liveFrames[0].t < frame.t - BUFFER_MS) liveFrames.shift();
+  if (recording) recording.frames.push(frame);
+  render();
+};
 
 async function refreshCameraList(): Promise<void> {
   const sel = $<HTMLSelectElement>('camera');
   const current = sel.value || store.get('camera') || '';
-  let devices: MediaDeviceInfo[] = [];
-  try {
-    devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
-  } catch {
-    return;
-  }
+  const devices = await listCameras();
   sel.textContent = '';
   sel.append(new Option('기본 카메라', ''));
   devices.forEach((d, i) => sel.append(new Option(d.label || `카메라 ${i + 1}`, d.deviceId)));
   if ([...sel.options].some((o) => o.value === current)) sel.value = current;
 }
 
-function cameraErrorHint(e: unknown): string {
-  const name = e instanceof Error ? e.name : '';
-  switch (name) {
-    case 'NotAllowedError':
-      return '카메라 권한이 거부됨 — 주소창 왼쪽 아이콘에서 카메라를 "허용"으로 바꾸고 새로고침하세요';
-    case 'NotReadableError':
-    case 'AbortError':
-      return '카메라를 열지 못함 — 다른 프로그램(줌, 팀즈, 카메라 앱 등)을 끄거나, "장치" 목록에서 다른 카메라를 골라보세요';
-    case 'NotFoundError':
-    case 'OverconstrainedError':
-      return '카메라를 찾지 못함 — 연결 상태와 "장치" 목록을 확인하세요';
-    default:
-      return window.isSecureContext ? '' : 'HTTPS 또는 localhost 주소로 접속해야 합니다';
-  }
-}
-
-async function openCamera(): Promise<MediaStream> {
-  const deviceId = $<HTMLSelectElement>('camera').value;
-  const [w, h] = $<HTMLSelectElement>('resolution').value.split('x').map(Number);
-  const device = deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user' };
-  try {
-    return await navigator.mediaDevices.getUserMedia({
-      video: { ...device, width: { ideal: w }, height: { ideal: h }, frameRate: { ideal: 60 } },
-      audio: false,
-    });
-  } catch (e) {
-    // Some Windows drivers time out on resolution/frame-rate hints. Retry with nothing but the device.
-    if (e instanceof Error && e.name === 'NotAllowedError') throw e;
-    console.warn('getUserMedia with constraints failed, retrying plain:', e);
-    return navigator.mediaDevices.getUserMedia({ video: deviceId ? device : true, audio: false });
-  }
-}
-
 function stopCamera(): void {
   if (recording) stopRecording();
   cancelCountdown();
-  stream?.getTracks().forEach((t) => t.stop());
-  stream = null;
-  video.srcObject = null;
+  source.stop();
   if (mode === 'camera') setMode('idle');
 }
 
@@ -163,132 +84,30 @@ async function startCamera(): Promise<void> {
   stopReplay();
   stopCamera();
   setMode('loading');
+  const [w, h] = $<HTMLSelectElement>('resolution').value.split('x').map(Number);
   try {
-    await ensureLandmarker();
-    showBanner('카메라 여는 중…', true);
-    stream = await openCamera();
-    video.srcObject = stream;
-    await video.play();
+    await source.start({
+      deviceId: $<HTMLSelectElement>('camera').value,
+      width: w,
+      height: h,
+      model: $<HTMLSelectElement>('model').value as ModelVariant,
+      useGpu: $<HTMLInputElement>('useGpu').checked,
+    });
   } catch (e) {
     setMode('idle');
-    stream?.getTracks().forEach((t) => t.stop());
-    stream = null;
-    const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-    const hint = cameraErrorHint(e);
-    showBanner(`시작 실패 — ${msg}${hint ? `  → ${hint}` : ''}`);
+    showBanner(e instanceof Error ? e.message : String(e));
     void refreshCameraList();
     return;
   }
   void refreshCameraList();
   store.set('camera', $<HTMLSelectElement>('camera').value);
-  cameraFps = stream.getVideoTracks()[0].getSettings().frameRate;
-  $('sCam').textContent = `${video.videoWidth}×${video.videoHeight} · ${cameraFps ?? '?'}fps 요청됨`;
+  $('sCam').textContent = `${video.videoWidth}×${video.videoHeight} · ${source.cameraFps ?? '?'}fps 요청됨`;
+  $('sDelegate').textContent = source.describe();
   view.width = video.videoWidth;
   view.height = video.videoHeight;
-  aspect = video.videoWidth / video.videoHeight;
+  aspect = source.aspect;
   liveFrames = [];
-  showBanner('');
   setMode('camera');
-  startFrameLoop();
-}
-
-// Inference runs on the newest camera frame as soon as the previous one returns (Shadow Mitts M3).
-let frameReady = false;
-let wakeLoop: (() => void) | null = null;
-let loopGen = 0;
-
-function onNewVideoFrame(): void {
-  frameReady = true;
-  wakeLoop?.();
-  wakeLoop = null;
-}
-
-function startFrameLoop(): void {
-  const gen = ++loopGen;
-  const alive = () => gen === loopGen && stream !== null;
-  if (typeof (video as { requestVideoFrameCallback?: unknown }).requestVideoFrameCallback === 'function') {
-    const watch = () => {
-      if (!alive()) return;
-      video.requestVideoFrameCallback(() => {
-        onNewVideoFrame();
-        watch();
-      });
-    };
-    watch();
-  } else {
-    let lastTime = -1;
-    const poll = () => {
-      if (!alive()) return;
-      if (video.currentTime !== lastTime) {
-        lastTime = video.currentTime;
-        onNewVideoFrame();
-      }
-      requestAnimationFrame(poll);
-    };
-    requestAnimationFrame(poll);
-  }
-  void (async () => {
-    while (alive()) {
-      if (!frameReady) {
-        await new Promise<void>((r) => (wakeLoop = r));
-        continue;
-      }
-      frameReady = false;
-      if (mode === 'camera') await onVideoFrame();
-    }
-  })();
-}
-
-async function onVideoFrame(): Promise<void> {
-  if (mode !== 'camera' || !landmarker) return;
-  // detectForVideo(videoFrame, timestamp) — timestamp in ms, must strictly increase (vision.d.ts 1.0.1).
-  const ts = Math.max(lastTs + 1, performance.now());
-  lastTs = ts;
-  let frame: RecordedFrame;
-  try {
-    const res = await landmarker.detect(video, ts);
-    if (mode !== 'camera') return;
-    lastInferMs = res.inferMs;
-    inferMs = Number.isNaN(inferMs) ? res.inferMs : inferMs * 0.9 + res.inferMs * 0.1;
-    frame = { t: ts, lm: res.lm, wl: res.wl, ms: res.inferMs };
-  } catch (e) {
-    // the detector was replaced (model/GPU switch) while this frame was in flight
-    if (e instanceof Error && e.message === 'closed') return;
-    console.error('detectForVideo failed', e);
-    if (delegate === 'GPU' && !gpuRetried) {
-      gpuRetried = true;
-      showBanner('GPU 추론 실패 → CPU로 재시도합니다');
-      $<HTMLInputElement>('useGpu').checked = false;
-      mode = 'loading';
-      try {
-        await ensureLandmarker();
-      } catch (e2) {
-        setMode('idle');
-        showBanner(`CPU 로딩도 실패: ${e2 instanceof Error ? e2.message : String(e2)}`);
-        return;
-      }
-      setMode('camera');
-      showBanner('');
-    } else {
-      showBanner(`추론 오류: ${e instanceof Error ? e.message : String(e)}`);
-    }
-    return;
-  }
-  countFps();
-  liveFrames.push(frame);
-  while (liveFrames.length && liveFrames[0].t < ts - BUFFER_MS) liveFrames.shift();
-  if (recording) recording.frames.push(frame);
-  render();
-}
-
-function countFps(): void {
-  fpsCount++;
-  const now = performance.now();
-  if (now - fpsWindowStart >= 1000) {
-    fps = (fpsCount * 1000) / (now - fpsWindowStart);
-    fpsCount = 0;
-    fpsWindowStart = now;
-  }
 }
 
 // ---------------------------------------------------------------- recording
@@ -366,11 +185,11 @@ function beginRecording(): void {
       aspect,
       videoWidth: video.videoWidth,
       videoHeight: video.videoHeight,
-      model,
-      delegate: delegate ?? '',
+      model: source.model,
+      delegate: source.delegate ?? '',
       rodHand,
       mirrorView: $<HTMLInputElement>('mirror').checked,
-      ...(cameraFps !== undefined ? { cameraFps } : {}),
+      ...(source.cameraFps !== undefined ? { cameraFps: source.cameraFps } : {}),
     },
     frames: [],
   };
@@ -571,8 +390,8 @@ const fmt = (v: number, d = 1) => (Number.isFinite(v) ? v.toFixed(d) : '-');
 
 function updateStatus(): void {
   if (mode === 'camera') {
-    $('sFps').textContent = fmt(fps);
-    $('sInfer').textContent = `${fmt(inferMs)} ms (마지막 ${fmt(lastInferMs)})`;
+    $('sFps').textContent = fmt(source.fps);
+    $('sInfer').textContent = `${fmt(source.inferMs)} ms (마지막 ${fmt(source.lastInferMs)})`;
   } else if (mode === 'replay' && replay) {
     const f = replay.frames;
     const dts = f.slice(1).map((x, i) => x.t - f[i].t).sort((a, b) => a - b);
@@ -692,6 +511,6 @@ if (import.meta.env.DEV) {
   (window as unknown as { __obs: unknown }).__obs = {
     loadRecording: (text: string) => startReplay(parseRecording(text)),
     seekTo,
-    state: () => ({ mode, rpIndex, rodHand, delegate, fps, inferMs, frames: liveFrames.length }),
+    state: () => ({ mode, rpIndex, rodHand, delegate: source.delegate, fps: source.fps, inferMs: source.inferMs, frames: liveFrames.length }),
   };
 }
