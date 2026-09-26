@@ -281,16 +281,6 @@ describe('species behaviours (M2)', () => {
     expect(tensionAfter('jump')).toBeCloseTo(tensionAfter(undefined) * 2.5, 5);
   });
 
-  it('dig: keep reeling — it moves at 35% and builds no tension', () => {
-    const s = fight('dig');
-    expect(s.g.runKind).toBe('dig');
-    expect(s.g.mustStop).toBe(false);
-    const before = s.g.lineM;
-    s.step(1000, 2);
-    expect(before - s.g.lineM).toBeCloseTo(2 * 0.35 * s.g.fish!.mPerTurn, 1);
-    expect(s.g.tension).toBe(0);
-  });
-
   it('shock: reeling does nothing for a moment, and there is no warning', () => {
     const s = fight('shock');
     expect(s.g.runKind).toBe('shock');

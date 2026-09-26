@@ -21,11 +21,12 @@ export type BiteStyle =
  * What the fish does when it fights (user, M2: "어종별 특정 행동"). Replaces about half of its runs.
  *  jump   — leaps clear of the water (바늘털이): reeling now builds tension 2.5× → stop
  *  dive   — sounds deep: takes a lot of line, lasts longer → wait
- *  thrash — splashes wildly at the surface → stop
- *  dig    — hugs the bottom: the opposite — keep reeling hard, it only half works
+ *  thrash — splashes wildly at the surface, sideways → stop (and hold the rod arm out the other way)
  *  shock  — an electric jolt: reeling does nothing for a moment
  */
-export type Behavior = 'jump' | 'dive' | 'thrash' | 'dig' | 'shock';
+// ('dig' — hugging the bottom, reel hard — was removed: it looked just like a dive but needed the
+// opposite, user: "바닥에 붙으려하는 거랑 파고드는 거랑 무슨 차이야?")
+export type Behavior = 'jump' | 'dive' | 'thrash' | 'shock';
 
 export interface SpeciesDef {
   id: string;
@@ -63,17 +64,17 @@ const W = { slim: 0.008, fish: 0.013, deep: 0.02, shark: 0.009, flat: 0.018, rib
 export const SPECIES: readonly SpeciesDef[] = [
   // ---------------------------------------------------------------- 저수지 (reservoir)
   { id: 'crucian', name: '붕어', loc: 'reservoir', tier: 'common', lenMin: 12, lenMax: 36, weightK: 0.02, biteWindowS: 1.2, fakeMax: 1, bite: 'rise', power: 18, runEveryS: 5, runS: 1, trophyCm: 30.3, trophyLabel: '월척!', blurb: '저수지 낚시의 기본. 찌가 스르륵 올라오는 찌올림이 매력' },
-  { id: 'carp', behavior: 'dig', name: '잉어', loc: 'reservoir', tier: 'uncommon', lenMin: 30, lenMax: 90, weightK: 0.016, biteWindowS: 2, fakeMax: 2, bite: 'sink', power: 40, runEveryS: 3.5, runS: 1.8, trophyCm: 70, trophyLabel: '대물!', blurb: '힘이 좋아 몇 번이고 차고 나간다' },
+  { id: 'carp', behavior: 'thrash', name: '잉어', loc: 'reservoir', tier: 'uncommon', lenMin: 30, lenMax: 90, weightK: 0.016, biteWindowS: 2, fakeMax: 2, bite: 'sink', power: 40, runEveryS: 3.5, runS: 1.8, trophyCm: 70, trophyLabel: '대물!', blurb: '힘이 좋아 몇 번이고 차고 나간다' },
   { id: 'bass', behavior: 'jump', name: '배스', loc: 'reservoir', tier: 'common', lenMin: 20, lenMax: 60, weightK: 0.014, biteWindowS: 1, fakeMax: 0, bite: 'drag', power: 24, runEveryS: 3, runS: 1, trophyCm: 50, trophyLabel: '런커!', blurb: '미끼를 물고 옆으로 내달리는 포식자' },
-  { id: 'catfish', behavior: 'dig', name: '메기', loc: 'reservoir', tier: 'uncommon', lenMin: 30, lenMax: 100, weightK: W.slim, biteWindowS: 2.5, fakeMax: 1, bite: 'sink', power: 42, runEveryS: 4, runS: 2, trophyCm: 80, trophyLabel: '대물!', blurb: '수염으로 더듬어 바닥에서 천천히 삼킨다' },
+  { id: 'catfish', behavior: 'dive', name: '메기', loc: 'reservoir', tier: 'uncommon', lenMin: 30, lenMax: 100, weightK: W.slim, biteWindowS: 2.5, fakeMax: 1, bite: 'sink', power: 42, runEveryS: 4, runS: 2, trophyCm: 80, trophyLabel: '대물!', blurb: '수염으로 더듬어 바닥에서 천천히 삼킨다' },
   { id: 'snakehead', behavior: 'thrash', name: '가물치', loc: 'reservoir', tier: 'rare', lenMin: 40, lenMax: 100, weightK: 0.009, biteWindowS: 0.8, fakeMax: 0, bite: 'slam', power: 45, runEveryS: 3, runS: 1.6, trophyCm: 80, trophyLabel: '괴물 가물치!', blurb: '물을 가르며 한 번에 덮치는 민물의 폭군' },
   { id: 'mandarin', behavior: 'thrash', name: '쏘가리', loc: 'reservoir', tier: 'rare', lenMin: 20, lenMax: 55, weightK: 0.016, biteWindowS: 1, fakeMax: 1, bite: 'drag', power: 30, runEveryS: 3, runS: 1.2, trophyCm: 45, trophyLabel: '대물!', blurb: '표범 무늬의 민물 황제' },
   { id: 'golden_mandarin', name: '황쏘가리', loc: 'reservoir', tier: 'legend', lenMin: 25, lenMax: 55, weightK: 0.016, biteWindowS: 1, fakeMax: 1, bite: 'drag', power: 45, runEveryS: 3, runS: 1.4, trophyCm: 0, trophyLabel: '천연기념물!', blurb: '온몸이 금빛인 쏘가리. 천연기념물이라 사진만 찍고 놓아준다' },
 
   // ---------------------------------------------------------------- 바다 (sea, rocky shore / boat)
-  { id: 'rockfish', behavior: 'dig', name: '우럭', loc: 'sea', tier: 'common', lenMin: 20, lenMax: 50, weightK: 0.018, biteWindowS: 1.4, fakeMax: 2, bite: 'sink', power: 22, runEveryS: 5, runS: 1, trophyCm: 45, trophyLabel: '대물!', blurb: '바위틈에 사는 뚱한 표정의 단골손님' },
+  { id: 'rockfish', behavior: 'dive', name: '우럭', loc: 'sea', tier: 'common', lenMin: 20, lenMax: 50, weightK: 0.018, biteWindowS: 1.4, fakeMax: 2, bite: 'sink', power: 22, runEveryS: 5, runS: 1, trophyCm: 45, trophyLabel: '대물!', blurb: '바위틈에 사는 뚱한 표정의 단골손님' },
   { id: 'red_seabream', behavior: 'dive', name: '참돔', loc: 'sea', tier: 'common', lenMin: 25, lenMax: 90, weightK: 0.02, biteWindowS: 1.2, fakeMax: 1, bite: 'sink', power: 26, runEveryS: 3.5, runS: 1.4, trophyCm: 70, trophyLabel: '대물!', blurb: '분홍빛 바다의 여왕' },
-  { id: 'flounder', behavior: 'dig', name: '광어', loc: 'sea', tier: 'common', lenMin: 30, lenMax: 90, weightK: W.flat, biteWindowS: 2, fakeMax: 2, bite: 'sink', power: 28, runEveryS: 4.5, runS: 1.2, trophyCm: 70, trophyLabel: '대광어!', blurb: '바닥에 납작 붙어 있다가 덮친다. 눈이 한쪽에 몰려 있다' },
+  { id: 'flounder', behavior: 'thrash', name: '광어', loc: 'sea', tier: 'common', lenMin: 30, lenMax: 90, weightK: W.flat, biteWindowS: 2, fakeMax: 2, bite: 'sink', power: 28, runEveryS: 4.5, runS: 1.2, trophyCm: 70, trophyLabel: '대광어!', blurb: '바닥에 납작 붙어 있다가 덮친다. 눈이 한쪽에 몰려 있다' },
   { id: 'seabass', behavior: 'jump', name: '농어', loc: 'sea', tier: 'uncommon', lenMin: 40, lenMax: 110, weightK: 0.01, biteWindowS: 1, fakeMax: 0, bite: 'drag', power: 40, runEveryS: 3, runS: 1.6, trophyCm: 90, trophyLabel: '대물!', blurb: '물 위로 머리를 흔들며 바늘을 털어낸다' },
   { id: 'yellowtail', behavior: 'dive', name: '방어', loc: 'sea', tier: 'uncommon', lenMin: 50, lenMax: 120, weightK: 0.011, biteWindowS: 1, fakeMax: 0, bite: 'slam', power: 32, runEveryS: 3, runS: 2, trophyCm: 100, trophyLabel: '대방어!', blurb: '겨울 바다의 폭주 기관차' },
   { id: 'tuna', behavior: 'dive', name: '참다랑어', loc: 'sea', tier: 'rare', lenMin: 100, lenMax: 280, weightK: 0.017, biteWindowS: 0.9, fakeMax: 0, bite: 'slam', power: 45, runEveryS: 3, runS: 2.2, trophyCm: 230, trophyLabel: '초대형 참치!', blurb: '시속 70km로 헤엄치는 바다의 로켓' },
@@ -94,7 +95,7 @@ export const SPECIES: readonly SpeciesDef[] = [
   // ---------------------------------------------------------------- 아프리카 강 (African river)
   { id: 'tilapia', name: '틸라피아', loc: 'river', tier: 'common', lenMin: 15, lenMax: 45, weightK: 0.022, biteWindowS: 1.2, fakeMax: 2, bite: 'sink', power: 20, runEveryS: 5, runS: 1, trophyCm: 40, trophyLabel: '대물!', blurb: '나일 강의 흔한 손님' },
   { id: 'elephantfish', name: '코끼리주둥이고기', loc: 'river', tier: 'uncommon', lenMin: 15, lenMax: 40, weightK: 0.01, biteWindowS: 1.5, fakeMax: 2, bite: 'rise', power: 22, runEveryS: 6, runS: 0.8, trophyCm: 35, trophyLabel: '대물!', blurb: '코끼리 코 같은 주둥이로 약한 전기를 쏜다' },
-  { id: 'vundu', behavior: 'dig', name: '분두 메기', loc: 'river', tier: 'uncommon', lenMin: 50, lenMax: 150, weightK: W.slim, biteWindowS: 2.5, fakeMax: 1, bite: 'sink', power: 40, runEveryS: 3.5, runS: 2.2, trophyCm: 120, trophyLabel: '대물!', blurb: '아프리카 최대의 메기 중 하나' },
+  { id: 'vundu', behavior: 'thrash', name: '분두 메기', loc: 'river', tier: 'uncommon', lenMin: 50, lenMax: 150, weightK: W.slim, biteWindowS: 2.5, fakeMax: 1, bite: 'sink', power: 40, runEveryS: 3.5, runS: 2.2, trophyCm: 120, trophyLabel: '대물!', blurb: '아프리카 최대의 메기 중 하나' },
   { id: 'electric_catfish', behavior: 'shock', name: '전기메기', loc: 'river', tier: 'rare', lenMin: 30, lenMax: 100, weightK: 0.015, biteWindowS: 2, fakeMax: 1, bite: 'sink', power: 45, runEveryS: 4, runS: 1.5, trophyCm: 80, trophyLabel: '찌릿!', blurb: '350볼트 전기를 내뿜는 통통한 메기' },
   { id: 'tigerfish', behavior: 'jump', name: '골리앗 타이거피시', loc: 'river', tier: 'rare', lenMin: 50, lenMax: 150, weightK: 0.012, biteWindowS: 0.8, fakeMax: 0, bite: 'slam', power: 50, runEveryS: 3, runS: 2.2, trophyCm: 120, trophyLabel: '괴물 이빨!', blurb: '상어 같은 이빨 32개. 아프리카 최강의 민물 포식자' },
   { id: 'nile_perch', behavior: 'jump', name: '나일퍼치', loc: 'river', tier: 'legend', lenMin: 100, lenMax: 200, weightK: 0.013, biteWindowS: 1.2, fakeMax: 1, bite: 'drag', power: 62, runEveryS: 3, runS: 2.2, trophyCm: 180, trophyLabel: '전설의 대물!', blurb: '사람보다 큰 나일 강의 왕' },

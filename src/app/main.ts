@@ -469,10 +469,10 @@ function onGameEvent(e: GameEvent, now: number): void {
     case 'runWarn':
       sfx.splash();
       scene.fx('runWarn');
-      popText(e.kind === 'dig' ? '끙…' : '첨벙!', '', true);
+      popText('첨벙!', '', true);
       break;
     case 'run': {
-      const stop = e.kind !== 'dig' && e.kind !== 'shock';
+      const stop = e.kind !== 'shock';
       sfx.setDrag(e.on && stop, e.kind === 'dive' ? 0.6 : 1);
       $('runFlash').classList.toggle('on', e.on && stop);
       if (!e.on) break;
@@ -482,10 +482,7 @@ function onGameEvent(e: GameEvent, now: number): void {
         popText('점프!!', 'gold');
       } else if (e.kind === 'dive') popText('파고든다!', 'red', true);
       else if (e.kind === 'thrash') popText('몸부림!', 'red', true);
-      else if (e.kind === 'dig') {
-        sfx.strain();
-        popText('힘껏 감아요!', 'gold', true);
-      } else if (e.kind === 'shock') {
+      else if (e.kind === 'shock') {
         sfx.zap();
         flash('blue');
         popText('찌릿!!', 'gold');
@@ -562,15 +559,14 @@ function onGameEvent(e: GameEvent, now: number): void {
 /** What each kind of run says: [warning, while it lasts, sub line] */
 /**
  * What each kind of run says. Whenever reeling is wrong the top line is the same red "✋ 감지 마요!"
- * and `what` (the small line) says what the fish is doing; "파고들" is only ever the dive — the bottom
- * hug says "바닥에 붙" (user: "같은 파고들어요인데 언제는 감지 말고 언제는 감아도 되고").
+ * and `what` (the small line) says what the fish is doing (user: "감지 말아야할 땐 … 빨간색으로 문구 같이").
+ * There is no "reel hard" exception any more — the bottom hug was removed.
  */
 const RUN_TEXT: Record<RunKind, { soon: string; what: string }> = {
   run: { soon: '첨벙! 곧 차고 나가요', what: '옆으로 차고 나가요 — 막대의 "여기로!"로 팔 옮기기' },
   jump: { soon: '수면이 부풀어요 — 점프 온다!', what: '점프 중 — 잠깐 기다려요' },
   dive: { soon: '줄이 무거워져요 — 깊이 파고들 거예요', what: '깊이 파고드는 중 — 잠깐 기다려요' },
   thrash: { soon: '첨벙첨벙! 몸부림 온다', what: '몸부림 — 막대의 "여기로!"로 팔 옮기기' },
-  dig: { soon: '바닥에 붙으려 해요!', what: '바닥에 붙었어요 — 감아야 떨어져요' },
   shock: { soon: '', what: '손이 저려서 잠깐 안 감겨요' },
 };
 const STOP_MSG = '✋ 감지 마요!';
@@ -622,7 +618,6 @@ function instructionFull(now: number): { msg: string; sub: string; tone?: 'alert
         if (game.openingRun) return { msg: STOP_MSG, sub: '걸리자마자 줄을 끌고 가요 — 잠깐 기다려요', tone: 'danger' };
         if (game.countering) return { msg: STOP_MSG, sub: '버티는 중 — 그대로! 물고기가 지쳐 가요', tone: 'danger' };
         if (game.mustStop) return { msg: STOP_MSG, sub: what, tone: 'danger' };
-        if (game.runKind === 'dig') return { msg: '💪 세게 감아요!', sub: what, tone: 'alert' };
         return { msg: '⚡ 찌릿! 잠깐 멈춤', sub: what, tone: 'alert' };
       }
       if (game.runSoon) return { msg: RUN_TEXT[game.runKind].soon, sub: '', tone: 'alert' };

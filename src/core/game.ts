@@ -51,7 +51,7 @@ export type RunKind = 'run' | Behavior;
 
 /**
  * How each kind of run plays. stop: the player should stop reeling (reeling builds tension ×tension);
- * dig is the opposite (keep reeling, at ×progress); shock just freezes reeling.
+ * progress: reeling during the run still counts at this share (0 for all kinds now); shock just freezes reeling.
  */
 // side: the fish tears off sideways, so holding the rod arm out the other way helps (rod work). Only
 // the plain run and thrashing — a jump goes up and a dive goes down: just stop and wait (user: every
@@ -61,7 +61,6 @@ const RUN_RULES: Record<RunKind, { dur: number; take: number; tension: number; p
   jump: { dur: 0.6, take: 0.5, tension: 2.5, progress: 0, stop: true, warn: true, side: false },
   dive: { dur: 1, take: 1.2, tension: 1, progress: 0, stop: true, warn: true, side: false },
   thrash: { dur: 0.8, take: 0.8, tension: 1.5, progress: 0, stop: true, warn: true, side: true },
-  dig: { dur: 1.5, take: 0, tension: 0, progress: 0.35, stop: false, warn: true, side: false },
   shock: { dur: 0.5, take: 0, tension: 0, progress: 0, stop: false, warn: false, side: false },
 };
 /** Share of runs that are the species' behaviour rather than a plain run. */
@@ -343,7 +342,7 @@ export class FishingGame {
     this.runDir = this.rng() < 0.5 ? 1 : -1;
   }
 
-  /** The player should stop reeling right now (run, jump, dive, thrash — not dig or shock). */
+  /** The player should stop reeling right now (run, jump, dive, thrash — not shock). */
   get mustStop(): boolean {
     return this.running && RUN_RULES[this.runKind].stop;
   }

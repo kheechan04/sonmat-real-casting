@@ -1078,8 +1078,7 @@ export class FishingScene {
         elev = 0.6 - g.tension * 0.12;
         bend = g.running ? 1.9 + Math.sin(now / 70) * 0.12 : 0.7 + g.tension * 0.8;
         if (g.running && g.runKind === 'dive') bend = 2.5 + Math.sin(now / 90) * 0.1; // hauled down
-        if (g.running && g.runKind === 'dig') bend = 1.7 + Math.sin(now / 400) * 0.03; // heavy and still
-        if (g.running && g.runKind !== 'dig') yaw = Math.sin(now / 160) * 0.05;
+        if (g.running) yaw = Math.sin(now / 160) * 0.05;
         break;
       case 'caught':
         // rod swung aside so it doesn't cross the fish held up in front
@@ -1147,7 +1146,6 @@ export class FishingScene {
       fp.x = (0.9 * side - land.x) * k + (g.running ? Math.sin(now / 130) * 0.4 - (g.sideways ? g.runDir * Math.min(3, (now - this.runSeenT) / 400) : 0) : Math.sin(now / 700) * 0.25);
       rise = g.running && g.runKind === 'dive' ? -4 : -2;
       tilt = g.running ? 0.9 : 0.5;
-      if (g.running && g.runKind === 'dig') fp.x = (0.9 * side - land.x) * k; // stuck
     }
     if (g.phase !== 'flight') fp.y = deepRig ? 0 : -BAND_H * FLOAT_SCALE * (1 - rise);
     this.float.position.copy(fp);
@@ -1167,7 +1165,7 @@ export class FishingScene {
       if (g.running && g.runKind === 'thrash' && r < 0.5) {
         this.ripple(fp, now, 2, 1);
         if (r < 0.2) this.splashAt(fp, 25, 3.5);
-      } else if ((g.running || g.runSoon) && g.runKind !== 'dig' && r < 0.2) this.ripple(fp, now, g.running ? 1.6 : 1.2, 1.1);
+      } else if ((g.running || g.runSoon) && r < 0.2) this.ripple(fp, now, g.running ? 1.6 : 1.2, 1.1);
       else if (r < 0.05) this.ripple(fp, now, 0.8, 1.4);
     }
 
