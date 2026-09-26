@@ -51,7 +51,7 @@ npm run build      # dist/ 에 배포용 파일
 - 포즈 인식: [MediaPipe Pose Landmarker](https://developers.google.com/mediapipe) (Apache 2.0) · 3D: [three.js](https://threejs.org) (MIT)
 - 배경 360° 사진·HDR, 나무판·바위 텍스처, 의자·양동이·풀 모델: [Poly Haven](https://polyhaven.com) (**CC0**) — 파일별 작가는 `docs/ASSETS.md`
 - 물결 텍스처: three.js 예제 (MIT) · 글꼴: [Pretendard](https://github.com/orioncactus/pretendard) (OFL)
-- 물고기: 실물 스캔(ffish.asia 등 CC0/CC-BY)과 코드로 만든 모델 — `docs/ASSETS.md`
+- 물고기: 실물 스캔·CC 모델(ffish.asia 등 CC0/CC-BY, Sketchfab), 라이선스 확인된 사진을 [TRELLIS.2](https://github.com/microsoft/TRELLIS.2)(MIT)로 3D로 만든 모델, 코드로 만든 모델 — 어종별 출처는 `docs/ASSETS.md`
 - 동물 모델, 효과음, 앱 아이콘은 코드로 만들었어요
 
 설계서 `DESIGN.md`, 결정 기록 `docs/DECISIONS.md`, 인식 검증 `docs/VERIFICATION.md`.
