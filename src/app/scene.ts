@@ -1144,7 +1144,7 @@ export class FishingScene {
       const out = g.lineOutM();
       const k = out / Math.max(1, g.distanceM); // along the line from the rod to where it landed
       fp.z = -Math.max(1.5, land.z * k);
-      fp.x = (0.9 * side - land.x) * k + (g.running ? Math.sin(now / 130) * 0.4 - g.runDir * Math.min(3, (now - this.runSeenT) / 400) : Math.sin(now / 700) * 0.25);
+      fp.x = (0.9 * side - land.x) * k + (g.running ? Math.sin(now / 130) * 0.4 - (g.sideways ? g.runDir * Math.min(3, (now - this.runSeenT) / 400) : 0) : Math.sin(now / 700) * 0.25);
       rise = g.running && g.runKind === 'dive' ? -4 : -2;
       tilt = g.running ? 0.9 : 0.5;
       if (g.running && g.runKind === 'dig') fp.x = (0.9 * side - land.x) * k; // stuck

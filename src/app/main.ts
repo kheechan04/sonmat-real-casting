@@ -613,7 +613,8 @@ function instructionFull(now: number): { msg: string; sub: string; tone?: 'alert
       if (game.running) {
         const t = RUN_TEXT[game.runKind];
         if (game.countering) return { msg: '버텨요!', sub: '그대로 — 물고기가 지쳐 가요', tone: 'alert' };
-        if (game.mustStop) return { msg: t.now, sub: `감지 말고, 대 든 팔을 ${dirWord(-game.runDir)} 옆으로 — 아래 막대의 "여기로!"`, tone: 'danger' };
+        if (game.mustStop && game.sideways) return { msg: t.now, sub: `감지 말고, 대 든 팔을 ${dirWord(-game.runDir)} 옆으로 — 아래 막대의 "여기로!"`, tone: 'danger' };
+        if (game.mustStop) return { msg: t.now, sub: t.sub, tone: 'danger' };
         return { msg: t.now, sub: t.sub, tone: 'alert' };
       }
       if (game.runSoon) return { msg: RUN_TEXT[game.runKind].soon, sub: '', tone: 'alert' };
@@ -648,8 +649,7 @@ function updateSpotTags(): void {
  * Screen left = the player's left (first-person view), ±1 torso length = the bar's ends.
  */
 function updateTug(): void {
-  const stopKind = game.runKind !== 'dig' && game.runKind !== 'shock';
-  const on = game.phase === 'reeling' && !game.thief && stopKind && (game.mustStop || game.runSoon);
+  const on = game.phase === 'reeling' && !game.thief && game.sideways && !game.openingRun && (game.mustStop || game.runSoon);
   const tug = $('tug');
   tug.classList.toggle('hidden', !on);
   if (!on) return;

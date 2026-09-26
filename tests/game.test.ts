@@ -333,8 +333,9 @@ describe('M3: spots', () => {
 
 describe('M3: rod work (G6)', () => {
   /** reel to the first run, then hold the rod arm at `side` through it; line taken + how long it ran */
-  const through = (side: (dir: number) => number | null) => {
-    const s = setup({ 'fight.openM': 0 }, seq(0.5), tables([fishDef({ power: 40, runEveryS: 2, runS: 2 })]));
+  const through = (side: (dir: number) => number | null, behavior?: SpeciesDef['behavior']) => {
+    // rng 0.5 < BEHAVIOR_SHARE: with a behaviour, the first run is that behaviour
+    const s = setup({ 'fight.openM': 0 }, seq(0.5), tables([fishDef({ power: 40, runEveryS: 2, runS: 2, behavior })]));
     s.toBite();
     s.act(hook(0));
     for (let i = 0; i < 200 && !s.g.running; i++) s.step(50, 3);
@@ -344,7 +345,7 @@ describe('M3: rod work (G6)', () => {
       ms += 50;
       s.g.update(s.now() + ms, 0, side(s.g.runDir));
     }
-    return { taken: s.g.lineM - line0, ms, log: s.g.drain() };
+    return { taken: s.g.lineM - line0, ms, log: s.g.drain(), kind: s.g.runKind };
   };
 
   it('holding the rod out against the run takes less line and ends it sooner', () => {
@@ -355,6 +356,15 @@ describe('M3: rod work (G6)', () => {
     expect(against.ms).toBeLessThan(still.ms);
     expect(along.taken).toBeCloseTo(still.taken, 5); // same side as the fish: no help
     expect(against.log.some((e) => e.type === 'counter' && e.on)).toBe(true);
+  });
+
+  it('a jump or a dive is not sideways: holding the arm out does nothing — just stop and wait', () => {
+    for (const b of ['jump', 'dive'] as const) {
+      const still = through(() => 0, b);
+      const against = through((dir) => -dir * 0.7, b);
+      expect(against.taken, b).toBeCloseTo(still.taken, 5);
+      expect(against.log.some((e) => e.type === 'counter'), b).toBe(false);
+    }
   });
 });
 

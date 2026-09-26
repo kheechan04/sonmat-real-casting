@@ -53,13 +53,16 @@ export type RunKind = 'run' | Behavior;
  * How each kind of run plays. stop: the player should stop reeling (reeling builds tension ×tension);
  * dig is the opposite (keep reeling, at ×progress); shock just freezes reeling.
  */
-const RUN_RULES: Record<RunKind, { dur: number; take: number; tension: number; progress: number; stop: boolean; warn: boolean }> = {
-  run: { dur: 1, take: 1, tension: 1, progress: 0, stop: true, warn: true },
-  jump: { dur: 0.6, take: 0.5, tension: 2.5, progress: 0, stop: true, warn: true },
-  dive: { dur: 1, take: 1.2, tension: 1, progress: 0, stop: true, warn: true },
-  thrash: { dur: 0.8, take: 0.8, tension: 1.5, progress: 0, stop: true, warn: true },
-  dig: { dur: 1.5, take: 0, tension: 0, progress: 0.35, stop: false, warn: true },
-  shock: { dur: 0.5, take: 0, tension: 0, progress: 0, stop: false, warn: false },
+// side: the fish tears off sideways, so holding the rod arm out the other way helps (rod work). Only
+// the plain run and thrashing — a jump goes up and a dive goes down: just stop and wait (user: every
+// splash came with the tug bar — "첨벙이랑 버티기가 거의 세트 느낌").
+const RUN_RULES: Record<RunKind, { dur: number; take: number; tension: number; progress: number; stop: boolean; warn: boolean; side: boolean }> = {
+  run: { dur: 1, take: 1, tension: 1, progress: 0, stop: true, warn: true, side: true },
+  jump: { dur: 0.6, take: 0.5, tension: 2.5, progress: 0, stop: true, warn: true, side: false },
+  dive: { dur: 1, take: 1.2, tension: 1, progress: 0, stop: true, warn: true, side: false },
+  thrash: { dur: 0.8, take: 0.8, tension: 1.5, progress: 0, stop: true, warn: true, side: true },
+  dig: { dur: 1.5, take: 0, tension: 0, progress: 0.35, stop: false, warn: true, side: false },
+  shock: { dur: 0.5, take: 0, tension: 0, progress: 0, stop: false, warn: false, side: false },
 };
 /** Share of runs that are the species' behaviour rather than a plain run. */
 const BEHAVIOR_SHARE = 0.55;
@@ -345,6 +348,16 @@ export class FishingGame {
     return this.running && RUN_RULES[this.runKind].stop;
   }
 
+  /** The current / next run tears off sideways (rod work applies — the tug bar shows). */
+  get sideways(): boolean {
+    return RUN_RULES[this.runKind].side;
+  }
+
+  /** The run right after the hook-set (a heavy fish taking line) — no rod work, just wait. */
+  get openingRun(): boolean {
+    return this.openRun;
+  }
+
   private miss(reason: MissReason, now: number): void {
     this.missReason = reason;
     this.running = false;
@@ -523,7 +536,7 @@ export class FishingGame {
       }
 
       // rod work: the rod arm held out against the run's direction (only for runs you must stop for)
-      const counter = this.running && rule.stop && !this.openRun && this.rodSide !== null && this.rodSide * -this.runDir >= P['sweep.min'];
+      const counter = this.running && rule.side && !this.openRun && this.rodSide !== null && this.rodSide * -this.runDir >= P['sweep.min'];
       if (counter !== this.countering) {
         this.countering = counter;
         this.emit({ type: 'counter', on: counter });
