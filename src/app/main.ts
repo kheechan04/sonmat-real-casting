@@ -47,7 +47,9 @@ interface Records {
   today: { date: string; count: number };
 }
 function loadRecords(): Records {
-  const today = new Date().toISOString().slice(0, 10);
+  // the player's own calendar day (toISOString is UTC — in Korea "today" rolled over at 9 am)
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const empty: Records = { best: {}, count: {}, seen: {}, today: { date: today, count: 0 } };
   try {
     const r = { ...empty, ...(JSON.parse(store.get('records.v1') ?? '') as Partial<Records>) };
