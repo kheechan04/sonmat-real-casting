@@ -20,6 +20,9 @@ interface ModelDef {
   rot?: [number, number, number];
   /** multiply the texture with this colour, after turning it grey (황쏘가리 = 쏘가리 in gold) */
   tint?: number;
+  /** mirror top ↔ bottom after turning (a flatfish shown eyed-side-on with its head right has its
+   *  dorsal edge down — anatomically right, but reads as upside down; user: "대광어 … 뒤집혀서") */
+  flipY?: boolean;
   /** add a glowing lure on the forehead (the goosefish scan stands in for a deep-sea anglerfish) */
   lure?: boolean;
 }
@@ -36,7 +39,7 @@ export const MODELS: Record<string, ModelDef> = {
   golden_mandarin: { file: 'mandarin.glb', rot: [0, 180, 0], tint: 0xffc23a }, // 황쏘가리 = 금빛 쏘가리
   rockfish: { rot: [0, 180, 0] },
   red_seabream: { rot: [0, 180, 0] },
-  flounder: { rot: [90, 180, 0] }, // scanned lying flat: stood up, eyed side to the camera
+  flounder: { rot: [90, 180, 0], flipY: true }, // scanned lying flat: stood up, eyed side to the camera
   seabass: { rot: [0, 180, 0] },
   yellowtail: { rot: [0, 180, 0] },
   tuna: { rot: [0, 180, 0] },
@@ -44,7 +47,7 @@ export const MODELS: Record<string, ModelDef> = {
   isopod: { rot: [0, 180, 0] },
   anglerfish: { rot: [0, 180, 0], lure: true },
   // others
-  great_white: { rot: [-90, 0, -90] }, // modelled head-up along +y
+  great_white: { rot: [90, 0, -90] }, // modelled head-up along +y ([-90, 0, -90] showed it belly-up)
   nile_perch: {}, // barramundi (same genus) — already head +x
   tilapia: { rot: [0, -90, 0] }, // TRELLIS.2: head −z
 };
@@ -102,6 +105,7 @@ async function loadModel(file: string, def: ModelDef): Promise<THREE.Group> {
   const g = new THREE.Group();
   for (const m of meshes) {
     m.geometry.applyMatrix4(norm);
+    if (def.flipY) mirrorY(m.geometry);
     m.geometry.computeBoundingSphere();
     m.position.set(0, 0, 0);
     m.rotation.set(0, 0, 0);
@@ -138,6 +142,21 @@ function dequantize(src: THREE.BufferGeometry): THREE.BufferGeometry {
     g.setAttribute(name, new THREE.BufferAttribute(out, attr.itemSize));
   }
   return g;
+}
+
+/** Mirror a geometry top ↔ bottom, keeping its faces facing out (a mirror flips the triangle winding). */
+function mirrorY(g: THREE.BufferGeometry): void {
+  g.applyMatrix4(new THREE.Matrix4().makeScale(1, -1, 1));
+  const idx = g.index;
+  if (idx) {
+    for (let i = 0; i < idx.count; i += 3) {
+      const b = idx.getX(i + 1);
+      idx.setX(i + 1, idx.getX(i + 2));
+      idx.setX(i + 2, b);
+    }
+    idx.needsUpdate = true;
+  }
+  g.computeBoundingSphere();
 }
 
 function cloneModel(src: THREE.Group): THREE.Group {
