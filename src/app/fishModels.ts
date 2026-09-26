@@ -47,6 +47,9 @@ export interface FishSpec {
 const SPECS: Record<string, FishSpec> = {
   // 저수지
   crucian: { nose: 2.1, depth: 0.4, width: 0.15, peak: 0.55, sharp: 0.99, back: 0x2f3320, side: 0xa88d45, belly: 0xe8dcb2, pattern: 'none', fin: 0x5b4d2a, tail: 'fork', dorsal: 'long' },
+  // M4 인면어: a golden koi-like carp with a broad, blunt front for the face (user: "몸통은 그냥 코드로 … 퀄리티
+  // 그렇게 높은 필요 없을 거 같아") — the face goes on the front, looking forward (addFace)
+  face_fish: { nose: 3.2, depth: 0.36, width: 0.3, peak: 0.62, sharp: 0.95, back: 0xa0521f, side: 0xe9a13b, belly: 0xf8e6c2, pattern: 'none', fin: 0xd98b3a, tail: 'fork', dorsal: 'long', metal: 0.3, eye: 0 }, // eye 0: the face has the eyes
   carp: { nose: 2.1, depth: 0.3, width: 0.15, peak: 0.6, sharp: 0.99, back: 0x2b2216, side: 0x8e6c3a, belly: 0xe0cfa0, pattern: 'none', fin: 0x5a3f22, tail: 'fork', dorsal: 'long', extras: ['barbels4'] },
   bass: { nose: 1.8, depth: 0.3, width: 0.14, peak: 0.55, sharp: 1.08, back: 0x2e3d22, side: 0x7c8a4e, belly: 0xe6e2c4, pattern: 'stripe', patternColor: 0x1e2615, fin: 0x4e5a30, tail: 'truncate', dorsal: 'spiny', extras: ['bigMouth'] },
   catfish: { nose: 2.6, stalk: 0.3, depth: 0.18, width: 0.16, peak: 0.75, sharp: 0.81, back: 0x2a2a22, side: 0x4d4a3a, belly: 0xd8d2b8, pattern: 'mottled', patternColor: 0x1a1a14, fin: 0x333026, tail: 'round', dorsal: 'none', extras: ['barbels2', 'bigMouth'], eye: 0.5, smooth: true },
@@ -180,7 +183,7 @@ function profile(u: number, spec: FishSpec): number {
 export function buildSpecies(id: string): THREE.Group {
   if (id === 'isopod') return buildIsopod();
   if (id === 'blobfish') return buildBlobfish();
-  const spec = SPECS[id === 'face_fish' ? 'carp' : id] ?? SPECS.crucian;
+  const spec = SPECS[id] ?? SPECS.crucian;
   const g = new THREE.Group();
 
   // ---- body: a sphere reshaped by the profile, coloured per vertex
@@ -482,6 +485,7 @@ export function buildSpecies(id: string): THREE.Group {
         break;
     }
   }
+  if (id === 'face_fish') addFace(g, spec);
   return g;
 }
 
@@ -560,4 +564,55 @@ function buildBlobfish(): THREE.Group {
   g.add(tail);
   g.userData.tail = tail;
   return g;
+}
+
+// ---------------------------------------------------------------- M4 인면어: the player's face
+
+/**
+ * The player's face (null = none saved). Only ever in this page's memory and the GPU — see
+ * src/app/face.ts and docs/PRIVACY.md. Every 인면어 face uses the same texture, swapped here.
+ */
+let faceTex: THREE.Texture | null = null;
+const faceMats = new Set<THREE.MeshStandardMaterial>();
+
+export function setFaceImage(img: ImageBitmap | HTMLCanvasElement | null): void {
+  faceTex?.dispose();
+  faceTex = null;
+  if (img) {
+    const c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    c.getContext('2d')!.drawImage(img, 0, 0);
+    faceTex = new THREE.CanvasTexture(c);
+    faceTex.colorSpace = THREE.SRGBColorSpace;
+  }
+  for (const m of faceMats) {
+    m.map = faceTex;
+    m.visible = !!faceTex;
+    m.needsUpdate = true;
+  }
+}
+
+/**
+ * The face on the front of the head, looking forward (+x): a slightly domed disc, like a mask on the
+ * fish's blunt nose. A photo taken face-on reads naturally this way (user: "사진을 정면으로 찍다보니까
+ * 이상한데 … 정면을 보게"); the catch close-up turns the 인면어 to face the camera.
+ */
+function addFace(g: THREE.Group, spec: FishSpec): void {
+  const r = spec.depth * 0.56;
+  // a shallow spherical cap facing +z, turned to face +x
+  const geo = new THREE.SphereGeometry(r * 1.6, 40, 20, 0, Math.PI * 2, 0, 0.62);
+  geo.rotateX(Math.PI / 2);
+  // flat UVs: the photo seen straight on
+  const pos = geo.attributes.position;
+  const uv = geo.attributes.uv;
+  const span = r * 1.6 * Math.sin(0.62);
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, 0.5 + pos.getX(i) / (2 * span), 0.5 + pos.getY(i) / (2 * span));
+  geo.translate(0, 0, -r * 1.6 * Math.cos(0.62));
+  geo.rotateY(Math.PI / 2);
+  const mat = new THREE.MeshStandardMaterial({ map: faceTex, transparent: true, alphaTest: 0.04, roughness: 0.55, visible: !!faceTex });
+  faceMats.add(mat);
+  const face = new THREE.Mesh(geo, mat);
+  face.position.set(0.47, spec.depth * 0.03, 0);
+  g.add(face);
 }

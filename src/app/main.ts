@@ -6,7 +6,7 @@ import { FishingGame, FLIGHT_S, MISS_TEXT, type Fish, type GameEvent, type RunKi
 import { GestureTracker, type GestureEvent } from '../core/gestures';
 import { EVENT_NAME, FACE_FISH, LOCATIONS, SPECIES, speciesAt, TIER_NAME, type EventKind, type LocationId } from '../core/species';
 import { cropFace, deleteFace, loadFace, saveFace } from './face';
-import { setFaceImage } from './fishAssets';
+import { setFaceImage } from './fishModels';
 import { ARM, LM, other, type PoseFrame, type Side } from '../core/pose';
 import { serializeRecording, type RecordedFrame, type Recording } from '../core/recording';
 import './game.css';
@@ -132,11 +132,12 @@ async function start(withCamera: boolean): Promise<void> {
   show('tally', true);
   renderTally();
   game.toPlaces(performance.now());
-  // the how-to opens by itself once, the first time (after that: the ? button)
+  // the how-to opens by itself once, the first time (after that: the ? button); then, once, the 인면어 offer
   if (store.get('howto.v1') !== '1') {
     show('helpBox', true);
     store.set('howto.v1', '1');
-  }
+    askFaceAfterHelp = true;
+  } else maybeAskFace();
 }
 
 $('start').addEventListener('click', () => void start(true));
@@ -378,6 +379,24 @@ function faceDexSection(): HTMLElement {
   sec.append(grid);
   return sec;
 }
+
+/** the first-run how-to is open: offer the 인면어 once it's closed */
+let askFaceAfterHelp = false;
+
+/** Once per browser, with the camera on and no face saved: "내 얼굴로 인면어를 만들까요?" */
+function maybeAskFace(): void {
+  if (!source.running || faceImage || store.get('faceAsk.v1') === '1') return;
+  show('faceAsk', true);
+}
+$('askLater').addEventListener('click', () => {
+  store.set('faceAsk.v1', '1');
+  show('faceAsk', false);
+});
+$('askYes').addEventListener('click', () => {
+  store.set('faceAsk.v1', '1');
+  show('faceAsk', false);
+  openFaceBox();
+});
 
 /** capture flow state: live preview until "찍기", then the shot until "저장" / "다시 찍기" */
 let faceLive = false;
@@ -898,7 +917,13 @@ pipBox.querySelectorAll<HTMLButtonElement>('.pipSizes button').forEach((b) => b.
 const openHelp = () => show('helpBox', true);
 $('helpBtn').addEventListener('click', openHelp);
 $('tensionHelp').addEventListener('click', openHelp);
-$('helpClose').addEventListener('click', () => show('helpBox', false));
+$('helpClose').addEventListener('click', () => {
+  show('helpBox', false);
+  if (askFaceAfterHelp) {
+    askFaceAfterHelp = false;
+    maybeAskFace();
+  }
+});
 
 sfx.setMuted(store.get('muted') === '1');
 $('muteBtn').classList.toggle('off', sfx.muted);

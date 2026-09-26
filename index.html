@@ -92,6 +92,14 @@
       <button id="baitBack" class="ghost backBtn">← 장소 바꾸기</button>
     </section>
 
+    <!-- M4: asked once at the start (user: "시작할 때 등록할지 말지 한 번 묻는 게 나을 거 같아") -->
+    <section id="faceAsk" class="modal ask hidden">
+      <h2>내 얼굴로 인면어를 만들까요?</h2>
+      <p class="modalSub">얼굴을 찍어 두면 가끔(입질 5%) <b>내 얼굴을 한 인면어</b>가 낚여요.<br />사진은 이 기기(브라우저)에만 저장되고 어디로도 전송되지 않아요.</p>
+      <div class="faceBtns"><button id="askLater" class="ghost">나중에</button><button id="askYes" class="primary">만들기</button></div>
+      <p class="askHint">도감(📖) → 이벤트에서 언제든 만들거나 지울 수 있어요.</p>
+    </section>
+
     <!-- M4: make a 인면어 with my face (consent first; stored only in this browser) -->
     <section id="faceBox" class="modal face hidden">
       <h2>내 얼굴 인면어 만들기</h2>

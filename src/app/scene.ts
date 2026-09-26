@@ -1247,9 +1247,11 @@ export class FishingScene {
       // small fish are held up close (≈1.25× life size); big ones (sharks, oarfish) hang in the air
       // farther out, at a distance where they fill most of the view
       const big = lenM > 1.2;
-      const shown = big ? Math.min(lenM, 3.2 + Math.log(lenM)) : lenM * 1.25;
+      // M4 인면어: turned to look at the camera (its face is on the front of its head), and a bit bigger
+      const faceOn = g.fish.def.event ? -Math.PI / 2 + 0.3 : 0; // nearly face-on, a little of the body showing
+      const shown = big ? Math.min(lenM, 3.2 + Math.log(lenM)) : lenM * (g.fish.def.event ? 1.1 : 1.25);
       f.scale.setScalar(shown);
-      const dist = big ? 1.2 + shown * 0.85 : 0.75 + lenM * 0.7;
+      const dist = big ? 1.2 + shown * 0.85 : g.fish.def.event ? 1 + lenM * 1.2 : 0.75 + lenM * 0.7;
       const held = new THREE.Vector3(0.05, EYE_M + 0.02 + (big ? shown * 0.12 : 0) + Math.sin(now / 500) * 0.01, -dist);
       const LEAP_MS = 750;
       if (since < LEAP_MS) {
@@ -1258,11 +1260,11 @@ export class FishingScene {
         const e = 1 - (1 - u) ** 2;
         f.position.lerpVectors(this.leapFrom, held, e);
         f.position.y += Math.sin(u * Math.PI) * 1.6;
-        f.rotation.set(0.2, 0.25 + (1 - u) * 1.5, Math.sin(now / 45) * 0.5 * (1 - u) + (1 - u) * 1.2);
+        f.rotation.set(0.2, 0.25 + faceOn + (1 - u) * 1.5, Math.sin(now / 45) * 0.5 * (1 - u) + (1 - u) * 1.2);
       } else {
         // held up above the result card
         f.position.copy(held);
-        f.rotation.set(0.05, 0.25 + Math.sin(now / 1400) * 0.25, Math.sin(now / 180) * 0.06);
+        f.rotation.set(0.05, 0.25 + faceOn + Math.sin(now / 1400) * (faceOn ? 0.12 : 0.25), Math.sin(now / 180) * 0.06);
       }
       swim(f, now, since < LEAP_MS ? 3 : 1.2);
       const glow = f.userData.glow as THREE.Mesh | undefined;
