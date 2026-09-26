@@ -102,5 +102,51 @@
   "title": "File:Tilapia oreochromis niloticus fish.jpg",
   "lic": "Public domain",
   "page": "https://commons.wikimedia.org/wiki/File:Tilapia_oreochromis_niloticus_fish.jpg"
+ },
+ "bichir": {
+  "title": "File:Polypterus senegalus - Senegal-Flösselhecht - Albino.jpg",
+  "lic": "CC0",
+  "artist": "5snake5",
+  "page": "https://commons.wikimedia.org/wiki/File:Polypterus_senegalus_-_Senegal-Fl%C3%B6sselhecht_-_Albino.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ca/Polypterus_senegalus_-_Senegal-Fl%C3%B6sselhecht_-_Albino.jpg/1280px-Polypterus_senegalus_-_Senegal-Fl%C3%B6sselhecht_-_Albino.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "w": 3096,
+  "h": 1672,
+  "note": "albino specimen (the only full-body photo under a free licence) — the game tints the model olive (fishAssets MODELS tint)"
+ },
+ "gulper": {
+  "title": "File:Eurypharynx.jpg",
+  "lic": "CC BY 3.0",
+  "artist": "Alexei Orlov",
+  "page": "https://commons.wikimedia.org/wiki/File:Eurypharynx.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1c/Eurypharynx.jpg/1280px-Eurypharynx.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "w": 1945,
+  "h": 945
+ },
+ "dumbo": {
+  "title": "File:Dumbo-hires (cropped).jpg",
+  "lic": "Public domain",
+  "artist": "NOAA Okeanos Explorer",
+  "page": "https://commons.wikimedia.org/wiki/File:Dumbo-hires_(cropped).jpg",
+  "thumb": "https://upload.wikimedia.org/wikipedia/commons/b/b0/Dumbo-hires_%28cropped%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+  "w": 1114,
+  "h": 943
+ },
+ "vampire_squid": {
+  "title": "File:Vampyroteuthis infernalis.jpg",
+  "lic": "Public domain",
+  "artist": "Carl Chun",
+  "page": "https://commons.wikimedia.org/wiki/File:Vampyroteuthis_infernalis.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/64/Vampyroteuthis_infernalis.jpg/1280px-Vampyroteuthis_infernalis.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "w": 1701,
+  "h": 1149
+ },
+ "giant_squid": {
+  "title": "File:Architeuthis dux specimen F 88555.jpg",
+  "lic": "CC BY 4.0",
+  "artist": "Rodney Start, Museums Victoria",
+  "page": "https://commons.wikimedia.org/wiki/File:Architeuthis_dux_specimen_F_88555.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/Architeuthis_dux_specimen_F_88555.jpg/1280px-Architeuthis_dux_specimen_F_88555.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "w": 3000,
+  "h": 888
  }
 }

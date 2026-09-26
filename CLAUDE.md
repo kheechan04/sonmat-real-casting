@@ -42,7 +42,11 @@
 | `node scripts/make-backdrops.mjs` | 배경 원본(`assets-src/env/*.jpg`) → 물가선 위만 WebP(`public/env/*_top.webp`) |
 
 ## 실사 물고기 남은 작업 (하루 몇 마리씩)
-- 사진→3D 대기 11종: sunfish, marlin, alfonsino, blobfish, oarfish, goblin_shark, barreleye, elephantfish, vundu, electric_catfish, tigerfish.
+- 사진→3D 대기 16종 (사용자와 정한 순서, 2026-09-27 — 자주 보이는데 어색한 것부터, 만들기 어려운 모양은 뒤로):
+  1일 bichir, alfonsino, elephantfish, vundu, blobfish · 2일 gulper, electric_catfish, tigerfish, sunfish, dumbo ·
+  3일 vampire_squid, marlin, goblin_shark, barreleye · 4일 oarfish, giant_squid (결과가 지금 모델보다 못하면 지금 것 유지).
+  gulper·dumbo·vampire_squid·giant_squid는 지금 CC-BY 모델이 있음 → 생성 모델로 바꾸면 fishAssets MODELS·ASSETS.md·도움말 크레딧도 교체.
+  bichir 사진은 알비노(무료 라이선스 중 몸 전체가 나온 유일한 사진) → MODELS에 tint(올리브색)로.
   원본 사진 `assets-src/models/ai-src/<id>.jpg` (출처 `assets-src/models/ai-sources.json`).
 - 한 마리: `python scripts/trellis.py assets-src/models/ai-src/<id>.jpg assets-src/models/raw/<id>.glb` → `node scripts/build-fish.mjs <id>`
   → `src/app/fishAssets.ts` MODELS에 방향(rot) 추가 → 모델 갤러리에서 확인 → docs/ASSETS.md 표에 출처 추가(CC-BY 사진이면 도움말 크레딧에도).
