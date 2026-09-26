@@ -85,6 +85,21 @@ describe('fishing loop', () => {
     expect(s.g.phase).toBe('caught');
     const caught = s.log.find((e) => e.type === 'caught');
     expect(caught && caught.type === 'caught' && caught.fish.def.id).toBe('small');
+    // "다시 던지기": same place and bait, straight to casting; "미끼 바꾸기": the bait choice
+    const bait = s.g.bait;
+    s.g.recast(s.now());
+    expect(s.g.phase).toBe('ready');
+    expect(s.g.bait).toBe(bait);
+    expect(s.g.fish).toBeNull();
+    s.g.recast(s.now()); // only from a result
+    expect(s.g.phase).toBe('ready');
+    s.act(cast(0));
+    s.step(2300);
+    s.act(hook(0));
+    s.step(20000, 3);
+    expect(s.g.phase).toBe('caught');
+    s.g.again(s.now());
+    expect(s.g.phase).toBe('bait');
   });
 
   it('gestures outside their phase are ignored (wind-up ≠ hook-set, hook-set return ≠ cast)', () => {

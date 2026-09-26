@@ -19,6 +19,18 @@
       content="connect-src 'self' blob: data: https://cdn.jsdelivr.net https://storage.googleapis.com; img-src 'self' data: blob:; form-action 'none'; base-uri 'self'"
     />
     <title>손맛: 리얼 캐스팅</title>
+    <meta name="description" content="웹캠 앞에서 빈손으로 던지고, 채고, 감는 힐링 낚시 게임. 저수지·바다·심해·아프리카 강에서 30종, 새 떼 노리기와 버티기, 낮·노을·밤. 설치 없이 링크로, 영상은 브라우저 밖으로 나가지 않아요." />
+    <!-- link previews (KakaoTalk, Discord, Slack, X, Vercel …) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="손맛: 리얼 캐스팅" />
+    <meta property="og:title" content="손맛: 리얼 캐스팅 — 웹캠으로 하는 힐링 낚시" />
+    <meta property="og:description" content="웹캠 앞에서 빈손으로 던지고, 채고, 감는 힐링 낚시 게임. 저수지·바다·심해·아프리카 강에서 30종, 새 떼 노리기와 버티기, 낮·노을·밤. 설치 없이 링크로, 영상은 브라우저 밖으로 나가지 않아요." />
+    <meta property="og:url" content="https://sonmat-real-casting.vercel.app/" />
+    <meta property="og:image" content="https://sonmat-real-casting.vercel.app/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
     <canvas id="world"></canvas>
@@ -35,6 +47,7 @@
       <div class="brand"><span class="mark">손맛</span><span class="brandSub">리얼 캐스팅</span></div>
       <div id="tally" class="tally hidden"></div>
       <div class="topBtns">
+        <button id="keepBtn" class="iconBtn keepBtn hidden" title="살림통 — 이 장소에서 잡은 물고기">🪣<b id="keepN">0</b></button>
         <button id="dexBtn" class="iconBtn" title="도감">📖</button>
         <button id="helpBtn" class="iconBtn" title="조작 방법">?</button>
         <button id="muteBtn" class="iconBtn" title="소리 켜기/끄기">♪</button>
@@ -129,6 +142,14 @@
       <p class="askHint">얼굴이 없으면 시작할 때마다 이 창이 떠요. 도감(📖) → 이벤트에서도 언제든 만들거나 지울 수 있어요.</p>
     </section>
 
+    <!-- 살림통: the catch kept while fishing at this place (released when leaving) -->
+    <section id="keepBox" class="modal keep hidden">
+      <h2 id="keepTitle">🪣 살림통</h2>
+      <p id="keepSub" class="modalSub"></p>
+      <ul id="keepList" class="keepList"></ul>
+      <div class="faceBtns"><button id="keepClose" class="ghost">닫기</button><button id="keepGo" class="primary hidden">놓아주고 장소 바꾸기</button></div>
+    </section>
+
     <!-- collection -->
     <section id="dexBox" class="modal wide dex hidden">
       <h2>도감</h2>
@@ -144,7 +165,7 @@
       <div id="resStats" class="stats"></div>
       <p id="resNote" class="resNote hidden"></p>
       <p id="resBody" class="resBody"></p>
-      <div class="resBtns"><button id="keepsake" class="ghost hidden" title="지금 화면을 이 기기에 사진으로 저장해요">📸 기념사진</button><button id="toPlaces" class="ghost">장소 바꾸기</button><button id="again" class="primary">다시 던지기</button></div>
+      <div class="resBtns"><button id="keepsake" class="ghost hidden" title="지금 화면을 이 기기에 사진으로 저장해요">📸 기념사진</button><button id="toPlaces" class="ghost">장소 바꾸기</button><button id="rebait" class="ghost">미끼 바꾸기</button><button id="again" class="primary">다시 던지기</button></div>
     </section>
 
     <!-- start -->

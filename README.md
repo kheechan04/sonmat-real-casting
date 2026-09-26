@@ -42,6 +42,10 @@ npm run build      # dist/ 에 배포용 파일
 
 `/observe.html` 관절 좌표 관찰 도구, `/models.html` 어종 모델 갤러리, 주소 뒤 `?dev` 설정값 패널(⚙).
 
+## 라이선스
+
+코드는 [MIT](LICENSE). 사진·3D 모델·텍스처는 각자의 라이선스(CC0 / CC-BY 4.0 등)를 따르며, 파일별 출처와 작가는 `docs/ASSETS.md`에 있어요 — MIT는 이 파일들에 적용되지 않아요.
+
 ## 만든 것들 · 출처
 
 - 포즈 인식: [MediaPipe Pose Landmarker](https://developers.google.com/mediapipe) (Apache 2.0) · 3D: [three.js](https://threejs.org) (MIT)

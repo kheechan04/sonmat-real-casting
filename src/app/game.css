@@ -1616,3 +1616,39 @@ button:disabled {
 .resNote b {
   color: #f4d58d;
 }
+
+/* 살림통 */
+.keepBtn {
+  width: auto;
+  padding: 0 12px;
+  gap: 4px;
+  display: inline-flex;
+  align-items: center;
+}
+.keepBtn b {
+  font-size: 13px;
+}
+.keep {
+  width: min(420px, calc(100vw - 32px));
+}
+.keepList {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.keepList li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--hair);
+  font-size: 14px;
+}
+.keepList li span {
+  color: var(--ink-2);
+}
+.resBtns {
+  flex-wrap: wrap;
+}

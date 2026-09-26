@@ -16,6 +16,7 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 | `public/models/wooden_bucket_01/` | 나무 양동이 (glTF 1k) | [Poly Haven — Wooden Bucket 01](https://polyhaven.com/a/wooden_bucket_01) | James Ray Cock | CC0 | 2026-09-25 |
 | `public/models/grass_medium_02/` | 물가 풀 (glTF 1k) | [Poly Haven — Grass Medium 02](https://polyhaven.com/a/grass_medium_02) | Rico Cilliers | CC0 | 2026-09-25 |
 
+| `public/og.jpg` | 링크 미리보기 이미지 (게임 화면 노을 저수지 + 제목) | 게임 렌더 캡처 — 배경은 위 Bell Park Pier(CC0) | 이 프로젝트 | 직접 제작 | 2026-09-26 |
 | `public/icons/*.png` | 앱 아이콘(찌·물결·달) | 코드로 직접 그림(헤드리스 크롬 캔버스, 2026-09-26) | 이 프로젝트 | 직접 제작 | 2026-09-26 |
 
 배경 원본 JPG는 `assets-src/env/`(배포 안 함). `node scripts/make-backdrops.mjs`가 물가선 위만 잘라 WebP로 만든다(22MB → 2.4MB).

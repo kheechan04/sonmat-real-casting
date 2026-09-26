@@ -520,6 +520,7 @@ function showCatch(f: Fish): boolean {
   const isNew = !prevBest;
   if (isRecord) records.best[id] = f.lengthCm;
   lastCatch = f;
+  toKeep = { name: f.def.name, lengthCm: f.lengthCm, weightG: f.weightG, trophy: f.lengthCm >= f.def.trophyCm };
   saveRecords();
   renderTally();
 
@@ -615,9 +616,80 @@ function showMiss(reason: keyof typeof MISS_TEXT): void {
   $('resBody').textContent = `${MISS_TEXT[reason].split(' — ')[1] ?? ''} · 미끼만 사라졌어요`;
 }
 
-$('again').addEventListener('click', () => game.again(performance.now()));
-$('toPlaces').addEventListener('click', () => game.toPlaces(performance.now()));
-$('baitBack').addEventListener('click', () => game.toPlaces(performance.now()));
+// "다시 던지기" = the same bait, straight to casting; "미끼 바꾸기" = choose the bait again (user: "미끼만 바꾸는 것도")
+$('again').addEventListener('click', () => {
+  toBucket();
+  game.recast(performance.now());
+});
+$('rebait').addEventListener('click', () => {
+  toBucket();
+  game.again(performance.now());
+});
+$('toPlaces').addEventListener('click', () => {
+  toBucket();
+  if (keep.length) openKeep(true);
+  else game.toPlaces(performance.now());
+});
+
+// ---------------------------------------------------------------- 살림통 (user: "잡은 물고기는 장소를 바꾸지 않는 한
+// 옆에 통에 보관") — catches pile up in the bucket by the player; leaving the place shows the haul and lets them go
+
+interface Kept {
+  name: string;
+  lengthCm: number;
+  weightG: number;
+  trophy: boolean;
+}
+let keep: Kept[] = [];
+/** a catch on the result card that hasn't gone into the bucket yet (it does when the card closes) */
+let toKeep: Kept | null = null;
+const fmtLen = (cm: number) => (cm >= 100 ? `${(cm / 100).toFixed(2)}m` : `${cm}cm`);
+const fmtW = (g: number) => (g >= 1000 ? `${(g / 1000).toFixed(g >= 100000 ? 0 : 1)}kg` : `${g}g`);
+
+function toBucket(): void {
+  if (!toKeep) return;
+  keep.push(toKeep);
+  toKeep = null;
+  $('keepN').textContent = String(keep.length);
+  show('keepBtn', true);
+  scene.setKeep(keep.length, true);
+  sfx.nearSplash();
+}
+
+function openKeep(leaving: boolean): void {
+  const big = keep.reduce<Kept | null>((m, k) => (!m || k.lengthCm > m.lengthCm ? k : m), null);
+  $('keepTitle').textContent = leaving ? `🪣 ${game.location.name} 조과` : '🪣 살림통';
+  $('keepSub').textContent = keep.length
+    ? `${keep.length}마리 · 가장 큰 건 ${big!.name} ${fmtLen(big!.lengthCm)}${leaving ? ' — 모두 놓아주고 떠나요' : ' — 장소를 바꾸면 놓아줘요'}`
+    : '아직 비어 있어요';
+  const list = $('keepList');
+  list.textContent = '';
+  for (const k of [...keep].sort((a, b) => b.lengthCm - a.lengthCm)) {
+    const li = document.createElement('li');
+    li.innerHTML = `<b>${k.name}${k.trophy ? ' 🏆' : ''}</b><span>${fmtLen(k.lengthCm)} · ${fmtW(k.weightG)}</span>`;
+    list.append(li);
+  }
+  show('keepGo', leaving);
+  $('keepClose').textContent = leaving ? '더 낚을래요' : '닫기';
+  show('keepBox', true);
+}
+$('keepBtn').addEventListener('click', () => {
+  sfx.click();
+  openKeep(false);
+});
+$('keepClose').addEventListener('click', () => show('keepBox', false));
+$('keepGo').addEventListener('click', () => {
+  keep = [];
+  show('keepBtn', false);
+  scene.setKeep(0);
+  sfx.splash();
+  show('keepBox', false);
+  game.toPlaces(performance.now());
+});
+$('baitBack').addEventListener('click', () => {
+  if (keep.length) openKeep(true);
+  else game.toPlaces(performance.now());
+});
 $('dexBtn').addEventListener('click', () => {
   fillDex();
   show('dexBox', true);

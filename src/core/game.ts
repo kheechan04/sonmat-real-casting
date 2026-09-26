@@ -265,6 +265,14 @@ export class FishingGame {
     this.setPhase('bait', now);
   }
 
+  /** Cast again with the same bait at the same place (after a result) — new spots on the water. */
+  recast(now: number): void {
+    if (this.phase !== 'caught' && this.phase !== 'missed') return;
+    this.reset();
+    this.spawnSpots();
+    this.setPhase('ready', now);
+  }
+
   /** Back to choosing a place. */
   toPlaces(now: number): void {
     this.reset();
