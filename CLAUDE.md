@@ -3,10 +3,17 @@
 웹캠 포즈 인식으로 하는 힐링 낚시 게임 (브라우저, three.js + MediaPipe Pose Landmarker).
 전작 Shadow Mitts(`../shadow-mitts`, 웹캠 복싱)의 포즈 파이프라인을 복사해서 시작했다.
 
-## 현재 상태 (2026-09-25 기준)
+## ★ 세션을 시작하면 (2026-09-27부터 — 사용자는 물고기 3D 추가할 때만 Claude Code를 켠다)
+**M0~M5 모두 사용자 OK. 남은 일은 사진→3D 물고기 추가뿐.** 사용자가 켜면 먼저 이렇게 알려 준다(한국어):
+1. 3D 변환 주소: **https://huggingface.co/spaces/microsoft/TRELLIS.2** (로그인한 브라우저에서. Generate → 미리보기 확인 → Extract GLB → 다운로드)
+2. 오늘 할 차례 — 아래 "사진→3D 남은 목록"의 맨 앞부터 4~5마리. 영어 파일 이름으로: 올릴 사진 `assets-src/models/ai-src/<id>.jpg`, 받은 파일 저장 `assets-src/models/raw/<id>.glb`
+3. 무료 한도는 GPU가 실제로 일한 시간(하루 몇 분) — 미리보기가 크게 이상하지 않으면 다시 Generate하지 말 것, 설정은 기본값
+GLB가 들어오면 "한 마리 처리" 순서대로 끝까지 하고 배포한다(이 작업은 매번 배포까지 해 왔다 — 새 모델이 사이트에 안 보이면 사용자가 헷갈림).
+
+## 현재 상태 (2026-09-27 기준)
 - **M0 완료. M1 기본 루프 → 첫 피드백 반영해 M1.5(디자인·UI 고급화, 3D 물·데크+먼 풍경 사진, 릴링 속도 방식, 차고 나가기 밀당, 새 미끼, 효과음) 구현, 가까이 선 자세 확인 완료(F1~F4), 효과 과장 반영 → 사용자 OK.
   M2(장소 4곳·어종 30종(2026-09-26 46종으로)·훼방 이벤트·도감·코드 생성 3D 모델) → 사용자 OK. 이어서 대기 단축·전설 상향·어종별 행동·동물 품질·배포 준비 → 피드백으로 릴링 길이 재조정(전설 약 50초)·심해 캐스팅 거리 수정 → 릴링을 줄 길이(m)로·버벅임 수정·**실사 물고기 18종**(ffish.asia 스캔 등, 나머지 11종은 사진→3D 생성 대기).
-  **M3는 사용자 결정으로 "몸으로 하는 낚시"(포인트 공략 + 로드워크·버티기; 펌핑은 해 보고 사용자 결정으로 제거)로 변경(2026-09-26, DECISIONS.md) → 펌핑·바닥에 붙기 제거, 규칙은 "빨간 ✋ 감지 마요!면 멈춤, 옆으로 가면 버티기" → **M3 사용자 OK(2026-09-26).** M4는 사용자 결정으로 "낚을 수 있는 인면어"(얼굴 등록 시 입질 5%)로 변경, 체크리스트 확인 후 구현, 얼굴 촬영·붙이기 다듬기 → **M4 사용자 OK(2026-09-26).** M5(시간대·전자찌·소리·결과 카드·기념사진·PWA) 구현 → 사용자 확인 대기. Vercel 배포 중(main push = 자동 배포).** 모델 갤러리: `/models.html`.**
+  **M3는 사용자 결정으로 "몸으로 하는 낚시"(포인트 공략 + 로드워크·버티기; 펌핑은 해 보고 사용자 결정으로 제거)로 변경(2026-09-26, DECISIONS.md) → 펌핑·바닥에 붙기 제거, 규칙은 "빨간 ✋ 감지 마요!면 멈춤, 옆으로 가면 버티기" → **M3 사용자 OK(2026-09-26).** M4는 사용자 결정으로 "낚을 수 있는 인면어"(얼굴 등록 시 입질 5%)로 변경, 체크리스트 확인 후 구현, 얼굴 촬영·붙이기 다듬기 → **M4 사용자 OK(2026-09-26).** M5(시간대·전자찌·소리·결과 카드·기념사진·PWA) → **M5 사용자 OK(2026-09-27). 설계서 마일스톤 전부 완료.** 이후 어종 46종·첫 화면 정지 사진·빌드 경고 정리. Vercel 배포 중(main push = 자동 배포).** 모델 갤러리: `/models.html`.**
   안내 `docs/PLAYTEST.md`, 바뀐 결정 `docs/DECISIONS.md`, 외부 에셋 출처 `docs/ASSETS.md`(새 사진·파일을 쓰면 반드시 기록).
 - 설계서는 `DESIGN.md`(사용자가 별도 Claude 대화에서 만듦, 내용을 고치지 않는다). 확인 결과는 `docs/VERIFICATION.md`.
 
@@ -41,16 +48,35 @@
 | `python scripts/trellis.py 사진 출력.glb` | 사진 → 3D (TRELLIS.2 무료 데모, 하루 사용량 제한) |
 | `node scripts/make-backdrops.mjs` | 배경 원본(`assets-src/env/*.jpg`) → 물가선 위만 WebP(`public/env/*_top.webp`) |
 
-## 실사 물고기 남은 작업 (하루 몇 마리씩)
-- 사진→3D 대기 14종 (bichir·alfonsino 완료 2026-09-27; 사용자와 정한 순서 — 자주 보이는데 어색한 것부터, 만들기 어려운 모양은 뒤로):
-  1일 ~~bichir, alfonsino~~ elephantfish, vundu, blobfish · 2일 gulper, electric_catfish, tigerfish, sunfish, dumbo ·
-  3일 vampire_squid, marlin, goblin_shark, barreleye · 4일 oarfish, giant_squid (결과가 지금 모델보다 못하면 지금 것 유지).
-  gulper·dumbo·vampire_squid·giant_squid는 지금 CC-BY 모델이 있음 → 생성 모델로 바꾸면 fishAssets MODELS·ASSETS.md·도움말 크레딧도 교체.
-  bichir 사진은 알비노(무료 라이선스 중 몸 전체가 나온 유일한 사진) → MODELS에 tint(올리브색)로.
-  원본 사진 `assets-src/models/ai-src/<id>.jpg` (출처 `assets-src/models/ai-sources.json`).
-- 한 마리: `python scripts/trellis.py assets-src/models/ai-src/<id>.jpg assets-src/models/raw/<id>.glb` → `node scripts/build-fish.mjs <id>`
-  → `src/app/fishAssets.ts` MODELS에 방향(rot) 추가 → 모델 갤러리에서 확인 → docs/ASSETS.md 표에 출처 추가(CC-BY 사진이면 도움말 크레딧에도).
-- 무료 GPU 사용량: HF 토큰(`%USERPROFILE%\.hf-token`)이 있으면 하루 5분(4\~5마리), 없으면 2분. 쓴 뒤 24시간 후 다시 채워짐.
+## 사진→3D 남은 목록 (사용자와 정한 순서 — 자주 보이는데 어색한 것부터, 만들기 어려운 모양은 뒤로)
+완료: tilapia(2026-09-25), bichir·alfonsino(2026-09-27). 남은 14종, 이 순서대로:
+| 순서 | id (파일 이름) | 어종 | 지금 모델 | 원본 사진 라이선스 |
+|---|---|---|---|---|
+| 1 | elephantfish | 코끼리주둥이고기 | 코드 | 퍼블릭 도메인 |
+| 2 | vundu | 분두 메기 | 코드 | 퍼블릭 도메인 |
+| 3 | blobfish | 블롭피시 | 코드 | 퍼블릭 도메인 |
+| 4 | gulper | 풍선장어 | CC-BY 모델(SpaceGolby) | CC BY 3.0 Alexei Orlov → 도움말 크레딧 필요 |
+| 5 | electric_catfish | 전기메기 | 코드 | 퍼블릭 도메인 |
+| 6 | tigerfish | 골리앗 타이거피시 | 코드 | 퍼블릭 도메인 |
+| 7 | sunfish | 개복치 | 코드 | CC0 |
+| 8 | dumbo | 덤보문어 | CC-BY 모델(andrearosini) | 퍼블릭 도메인(NOAA) |
+| 9 | vampire_squid | 흡혈오징어 | CC-BY 모델(gabrielfontenelle) | 퍼블릭 도메인(Carl Chun) |
+| 10 | marlin | 청새치 | 코드 | 퍼블릭 도메인 |
+| 11 | goblin_shark | 귀신고기 | 코드 | CC BY 3.0 AU Dianne Bray / Museum Victoria → 크레딧 필요 |
+| 12 | barreleye | 투명머리 물고기 | 코드 | CC BY 4.0 Hlidberg·Hjørne → 크레딧 필요 (투명한 머리 — 결과 확인) |
+| 13 | oarfish | 산갈치 | 코드 | CC BY 3.0 Sandstein → 크레딧 필요 (긴 리본 — 어려움) |
+| 14 | giant_squid | 대왕오징어 | CC-BY 모델(mvick13497) | CC BY 4.0 Museums Victoria → 크레딧 필요 (촉수 — 어려움) |
+결과가 지금 모델보다 못하면 지금 모델을 유지하고 사용자에게 말한다(특히 CC-BY 모델이 있는 4종).
+
+### 한 마리 처리 (GLB가 raw 폴더에 들어오면)
+1. `node scripts/build-fish.mjs <id>` (게임용으로 줄이기)
+2. 방향: `getBounds`로 긴 축 확인 → `src/app/fishAssets.ts` MODELS에 rot 추가. TRELLIS.2 출력은 보통 머리 ±z(tilapia·alfonsino)나 ±x(bichir) — 머리가 +x(오른쪽)이어야 한다.
+   갤러리 `/models.html?only=<id>,tilapia` 헤드리스 캡처로 확인(개발 서버, gal.mjs 방식). 비슷한 색이 필요하면 tint.
+3. `docs/ASSETS.md` 해당 어종 행을 "TRELLIS.2 ← 사진(ai-sources.json의 title·page·artist·lic)"으로 교체.
+   CC-BY 사진이면 index.html 도움말 크레딧에 추가, 교체된 CC-BY Sketchfab 모델의 크레딧은 뺀다(index.html·README·포트폴리오 자료 출처).
+4. 이 표에서 완료로 옮기고, `npx vitest run` → 커밋 → push(= 배포) → 실제 주소에서 `models.html?only=<id>` 확인.
+5. 여러 마리 끝나면 포트폴리오(../kheechan04.github.io/sonmat-real-casting)의 "사진 기반 3D N종" 숫자·남은 일 갱신 후 push.
+- 한도가 차면 남은 건 다음 세션으로. `scripts/trellis.py`(스크립트 호출)는 계정 한도가 적용되지 않아 쓰지 않는다 — 브라우저에서 사용자가 생성.
 
 ## 배포
 - 배포: https://sonmat-real-casting.vercel.app — 사용자가 Vercel에 GitHub 저장소(https://github.com/kheechan04/sonmat-real-casting)를 연결해 둠(2026-09-26), `main` push → 자동 배포. push는 사용자가 요청할 때만.
