@@ -25,6 +25,8 @@ interface ModelDef {
   flipY?: boolean;
   /** add a glowing lure on the forehead (the goosefish scan stands in for a deep-sea anglerfish) */
   lure?: boolean;
+  /** M4 인면어: the player's face on both sides of the head (setFaceImage) */
+  face?: boolean;
 }
 
 /** Species that have a real model, and how to orient it. */
@@ -46,6 +48,7 @@ export const MODELS: Record<string, ModelDef> = {
   hammerhead: { rot: [0, 180, 0] },
   isopod: { rot: [0, 180, 0] },
   anglerfish: { rot: [0, 180, 0], lure: true },
+  face_fish: { file: 'carp.glb', rot: [0, 180, 0], face: true }, // M4 인면어: the carp scan + the player's face
   // others
   great_white: { rot: [90, 0, -90] }, // modelled head-up along +y ([-90, 0, -90] showed it belly-up)
   nile_perch: {}, // barramundi (same genus) — already head +x
@@ -57,6 +60,23 @@ const cache = new Map<string, Promise<THREE.Group | null>>();
 
 /** Shared clock for every swimming fish (seconds). */
 const swimTime = { value: 0 };
+
+/** M4: the player's face for the 인면어 (null = none saved). Only ever lives in this page's memory + GPU. */
+const faceMap: { value: THREE.Texture | null } = { value: null };
+export function setFaceImage(img: ImageBitmap | HTMLCanvasElement | null): void {
+  faceMap.value?.dispose();
+  if (!img) {
+    faceMap.value = null;
+    return;
+  }
+  const c = document.createElement('canvas');
+  c.width = img.width;
+  c.height = img.height;
+  c.getContext('2d')!.drawImage(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  faceMap.value = t;
+}
 export function setSwimTime(s: number): void {
   swimTime.value = s;
 }
@@ -110,7 +130,7 @@ async function loadModel(file: string, def: ModelDef): Promise<THREE.Group> {
     m.position.set(0, 0, 0);
     m.rotation.set(0, 0, 0);
     m.scale.set(1, 1, 1);
-    m.material = swimMaterial(m.material as THREE.MeshStandardMaterial, def.tint);
+    m.material = swimMaterial(m.material as THREE.MeshStandardMaterial, def.tint, def.face);
     g.add(m);
   }
   if (def.lure) addLure(g, size.y / size.x / 2);
@@ -169,7 +189,7 @@ function cloneModel(src: THREE.Group): THREE.Group {
  * The glTF material, plus the swim: a sideways (z) wave travelling head → tail, zero at the head and
  * strongest at the tail. Amplitude per model via userData.swim (0 = still), set on the material.
  */
-function swimMaterial(src: THREE.MeshStandardMaterial, tint?: number): THREE.MeshStandardMaterial {
+function swimMaterial(src: THREE.MeshStandardMaterial, tint?: number, face = false): THREE.MeshStandardMaterial {
   const mat = src.clone();
   mat.roughness = Math.min(mat.roughness, 0.55); // wet skin: the scans come in fully matte
   const amp = { value: 0.035 };
@@ -185,6 +205,25 @@ function swimMaterial(src: THREE.MeshStandardMaterial, tint?: number): THREE.Mes
         float swimW = smoothstep(0.15, -0.5, transformed.x); // 0 at the head … 1 at the tail
         transformed.z += sin(uSwimT * 9.0 + transformed.x * 7.0) * uSwimAmp * swimW * swimW;`,
       );
+    if (face) {
+      // the face, projected flat from the side onto the head (x 0.21…0.45 of the 1-long body, head at +x),
+      // so both sides show it; soft edges come from the saved face's oval alpha
+      shader.uniforms.uFaceMap = faceMap;
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vFaceUv;')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vFaceUv = (transformed.xy - vec2(0.33, 0.015)) / 0.24 + 0.5;`);
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform sampler2D uFaceMap;\nvarying vec2 vFaceUv;')
+        .replace(
+          '#include <map_fragment>',
+          `#include <map_fragment>
+          if (vFaceUv.x > 0.0 && vFaceUv.x < 1.0 && vFaceUv.y > 0.0 && vFaceUv.y < 1.0) {
+            vec4 faceC = texture2D(uFaceMap, vFaceUv);
+            diffuseColor.rgb = mix(diffuseColor.rgb, faceC.rgb, faceC.a * 0.95);
+          }`,
+        );
+    }
     if (tint !== undefined) {
       shader.uniforms.uTint = { value: new THREE.Color(tint) };
       shader.fragmentShader = shader.fragmentShader
@@ -197,7 +236,7 @@ function swimMaterial(src: THREE.MeshStandardMaterial, tint?: number): THREE.Mes
         );
     }
   };
-  mat.customProgramCacheKey = () => (tint !== undefined ? `swim-tint` : 'swim');
+  mat.customProgramCacheKey = () => (face ? 'swim-face' : tint !== undefined ? 'swim-tint' : 'swim');
   return mat;
 }
 

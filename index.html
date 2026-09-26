@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="data:," />
+    <!-- Privacy (M4 인면어, docs/PRIVACY.md): this page may only connect to itself and the two hosts the
+         pose model comes from (blob:/data: = in-page memory), and load images only from itself / in-page data. Even a bug could not send
+         the camera or the saved face anywhere else — the browser blocks it. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="connect-src 'self' blob: data: https://cdn.jsdelivr.net https://storage.googleapis.com; img-src 'self' data: blob:; form-action 'none'; base-uri 'self'"
+    />
     <title>손맛: 리얼 캐스팅</title>
   </head>
   <body>
@@ -85,6 +92,26 @@
       <button id="baitBack" class="ghost backBtn">← 장소 바꾸기</button>
     </section>
 
+    <!-- M4: make a 인면어 with my face (consent first; stored only in this browser) -->
+    <section id="faceBox" class="modal face hidden">
+      <h2>내 얼굴 인면어 만들기</h2>
+      <p class="modalSub">얼굴을 찍어 두면, 가끔(입질 5%) <b>내 얼굴을 한 인면어</b>가 낚여요.</p>
+      <ul class="faceRules">
+        <li>🔒 이 사진은 <b>이 기기(브라우저)에만 저장</b>되고 어디로도 전송되지 않아요.</li>
+        <li>👤 카메라에 <b>나만</b> 보이게 해 주세요 — 다른 사람 얼굴이 찍히지 않게.</li>
+        <li>🗑 도감에서 언제든 <b>지울 수 있어요</b>. 지우면 인면어도 더는 안 나와요.</li>
+        <li>📺 방송·녹화 중이라면: 인면어를 낚으면 내 얼굴이 화면에 크게 나와요.</li>
+      </ul>
+      <label class="consent"><input type="checkbox" id="faceAgree" /> 위 내용을 확인했어요</label>
+      <div class="facePreview"><canvas id="faceLive" width="256" height="256"></canvas><div id="faceMsg" class="faceMsg"></div></div>
+      <div class="faceBtns">
+        <button id="faceCancel" class="ghost">취소</button>
+        <button id="faceRetake" class="ghost hidden">다시 찍기</button>
+        <button id="faceShoot" class="primary" disabled>찍기</button>
+        <button id="faceSave" class="primary hidden">저장</button>
+      </div>
+    </section>
+
     <!-- collection -->
     <section id="dexBox" class="modal wide dex hidden">
       <h2>도감</h2>
@@ -146,6 +173,8 @@
       <div class="how">
         <div class="howRow"><svg viewBox="0 0 48 48"><rect x="4" y="21" width="40" height="6" rx="3" /><path d="M6 14 L14 10 L14 18 Z" /><path d="M42 36 L34 32 L34 40 Z" /><circle cx="36" cy="24" r="3" /></svg><div><b>버티기 — 줄다리기 막대</b><p>물고기가 <b>옆으로</b> 차고 나가면 화면 아래에 막대가 떠요. 🐟가 당기는 반대쪽의 <b>"여기로!"</b> 칸에 흰 점(내 팔)이 들어가게 대 든 팔을 옆으로 옮겨요. 초록이 되면 성공 — 줄이 덜 풀리고 물고기가 빨리 지쳐요.<br />점프("수면이 부풀어요")나 깊이 파고들기("줄이 무거워져요")는 막대가 없어요 — 감지 말고 기다리기만 해요.</p></div></div>
       </div>
+      <h3 class="howH">이벤트 — 인면어</h3>
+      <p class="howNote">도감 → 이벤트에서 <b>내 얼굴로 인면어</b>를 만들 수 있어요. 그러면 입질 5%로 내 얼굴을 한 인면어가 낚여요. 사진은 이 기기(브라우저)에만 저장되고, 같은 곳에서 언제든 지울 수 있어요.</p>
       <h3 class="howH">화면 보는 법</h3>
       <ul class="howList">
         <li><b>남은 줄</b> — 0m가 되면 잡혀요.</li>

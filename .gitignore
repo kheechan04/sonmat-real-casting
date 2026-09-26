@@ -8,3 +8,5 @@ assets-src/models/raw/
 # never commit API tokens
 *token*.txt
 .sketchfab-token
+# stray screenshots in the project root (headless checks go to the scratchpad)
+/*.png

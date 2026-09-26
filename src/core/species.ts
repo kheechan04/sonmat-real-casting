@@ -57,6 +57,8 @@ export interface SpeciesDef {
   /** one line for the 도감 (collection) */
   blurb: string;
   behavior?: Behavior;
+  /** an event fish (M4 인면어): not a place's species, not in the tier odds, its own 도감 section */
+  event?: boolean;
 }
 
 const W = { slim: 0.008, fish: 0.013, deep: 0.02, shark: 0.009, flat: 0.018, ribbon: 0.0015 };
@@ -101,7 +103,18 @@ export const SPECIES: readonly SpeciesDef[] = [
   { id: 'nile_perch', behavior: 'jump', name: '나일퍼치', loc: 'river', tier: 'legend', lenMin: 100, lenMax: 200, weightK: 0.013, biteWindowS: 1.2, fakeMax: 1, bite: 'drag', power: 62, runEveryS: 3, runS: 2.2, trophyCm: 180, trophyLabel: '전설의 대물!', blurb: '사람보다 큰 나일 강의 왕' },
 ];
 
-export const SPECIES_BY_ID: Record<string, SpeciesDef> = Object.fromEntries(SPECIES.map((s) => [s.id, s]));
+/**
+ * M4 (user: "내 얼굴을 한 인면어도 … 낚시로 잡히게", 5% of bites once the player has saved a face).
+ * A carp with the player's face (the old pond legend). Its face photo never leaves the browser —
+ * src/app/face.ts, docs/PRIVACY.md. Fights like a carp: a special catch shouldn't be lost unfairly.
+ */
+export const FACE_FISH: SpeciesDef = {
+  id: 'face_fish', event: true, behavior: 'thrash', name: '인면어', loc: 'reservoir', tier: 'rare',
+  lenMin: 40, lenMax: 80, weightK: 0.016, biteWindowS: 2, fakeMax: 1, bite: 'sink', power: 35, runEveryS: 4, runS: 1.5,
+  trophyCm: 999, trophyLabel: '', blurb: '어디서 많이 본 얼굴인데… 사람 얼굴을 한 잉어. 옛이야기 속 연못의 그 물고기',
+};
+
+export const SPECIES_BY_ID: Record<string, SpeciesDef> = Object.fromEntries([...SPECIES, FACE_FISH].map((s) => [s.id, s]));
 
 // ---------------------------------------------------------------- places
 

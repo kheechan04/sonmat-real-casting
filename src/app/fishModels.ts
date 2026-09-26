@@ -180,7 +180,7 @@ function profile(u: number, spec: FishSpec): number {
 export function buildSpecies(id: string): THREE.Group {
   if (id === 'isopod') return buildIsopod();
   if (id === 'blobfish') return buildBlobfish();
-  const spec = SPECS[id] ?? SPECS.crucian;
+  const spec = SPECS[id === 'face_fish' ? 'carp' : id] ?? SPECS.crucian;
   const g = new THREE.Group();
 
   // ---- body: a sphere reshaped by the profile, coloured per vertex

@@ -85,6 +85,8 @@ const DEFS = {
   'event.thief': [0.07, m('훼방 이벤트', '도둑이 나타날 확률 (한 판당)', 0, 1, 0.01)],
   'event.warnS': [2.8, m('훼방 이벤트', '도둑이 오기까지 시간', 0.5, 6, 0.1, '초')],
   'event.escapeTurns': [6, m('훼방 이벤트', '그 안에 감아야 하는 횟수', 1, 20, 0.5, '회')],
+  // M4 인면어: share of bites that are the face fish — only when the player has saved a face
+  'event.faceFish': [0.05, m('훼방 이벤트', '인면어 확률 (얼굴 등록했을 때, 입질당)', 0, 0.5, 0.01)],
   'event.spooker': [0.08, m('훼방 이벤트', '하마가 나타날 확률 (한 번 던질 때)', 0, 1, 0.01)],
 
   // ---- reeling fight ("밀당")

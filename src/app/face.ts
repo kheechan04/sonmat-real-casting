@@ -1,0 +1,112 @@
+// M4 인면어: the player's face, cut from the webcam and kept ONLY in this browser (IndexedDB).
+//
+// Privacy (DESIGN.md §6 checklist, reviewed with the user before this code — docs/PRIVACY.md):
+//  - nothing here talks to the network — no fetch / XHR / beacon / socket (tests/privacy.test.ts scans
+//    every source file for those; the game page's CSP also blocks any other host, index.html);
+//  - the photo is stored in IndexedDB under this site only, never in localStorage or a URL;
+//  - deleteFace() removes it for good; the 인면어 stops appearing at once;
+//  - the capture needs an explicit "확인했어요" first, and shows the crop so the player can retake it.
+
+import type { P4 } from '../core/pose';
+
+const DB = 'sonmat-face';
+const STORE = 'face';
+const KEY = 'face';
+/** Saved face size, px (square). Small on purpose: it is a fish's face, not a photo archive. */
+export const FACE_PX = 256;
+
+/** Pose landmarks used to find the face (MediaPipe pose: nose, eyes, ears). */
+const NOSE = 0;
+const EYE_L = 2;
+const EYE_R = 5;
+const EAR_L = 7;
+const EAR_R = 8;
+
+/**
+ * The face, cut square out of the camera frame around the nose (size from the ears / eyes), with a
+ * soft oval edge so it blends into the fish. null when the face isn't clearly seen.
+ */
+export function cropFace(video: HTMLVideoElement, lm: P4[] | null, out?: HTMLCanvasElement): HTMLCanvasElement | null {
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+  if (!lm || !w || !h) return null;
+  const vis = (i: number) => lm[i][3] >= 0.5;
+  if (!vis(NOSE) || !vis(EYE_L) || !vis(EYE_R)) return null;
+  const px = (i: number) => ({ x: lm[i][0] * w, y: lm[i][1] * h });
+  const nose = px(NOSE);
+  const eyes = { x: (px(EYE_L).x + px(EYE_R).x) / 2, y: (px(EYE_L).y + px(EYE_R).y) / 2 };
+  const eyeD = Math.hypot(px(EYE_L).x - px(EYE_R).x, px(EYE_L).y - px(EYE_R).y);
+  const earD = vis(EAR_L) && vis(EAR_R) ? Math.hypot(px(EAR_L).x - px(EAR_R).x, px(EAR_L).y - px(EAR_R).y) : 0;
+  const size = Math.max(earD * 1.35, eyeD * 3.4);
+  if (size < 40) return null; // too far away to be a face worth keeping
+  // centre a little above the nose (between the eyes and the nose), so forehead and chin both fit
+  const cx = nose.x;
+  const cy = (nose.y * 2 + eyes.y) / 3;
+  const c = out ?? document.createElement('canvas');
+  c.width = c.height = FACE_PX;
+  const g = c.getContext('2d')!;
+  g.clearRect(0, 0, FACE_PX, FACE_PX);
+  g.drawImage(video, cx - size / 2, cy - size / 2, size, size, 0, 0, FACE_PX, FACE_PX);
+  // soft oval mask
+  g.globalCompositeOperation = 'destination-in';
+  const grad = g.createRadialGradient(FACE_PX / 2, FACE_PX / 2, FACE_PX * 0.3, FACE_PX / 2, FACE_PX / 2, FACE_PX * 0.5);
+  grad.addColorStop(0, 'rgba(0,0,0,1)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grad;
+  g.beginPath();
+  g.ellipse(FACE_PX / 2, FACE_PX / 2, FACE_PX * 0.42, FACE_PX * 0.5, 0, 0, Math.PI * 2);
+  g.fill();
+  g.globalCompositeOperation = 'source-over';
+  return c;
+}
+
+function openDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function withStore<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  const db = await openDb();
+  try {
+    return await new Promise<T>((resolve, reject) => {
+      const tx = db.transaction(STORE, mode);
+      const req = run(tx.objectStore(STORE));
+      tx.oncomplete = () => resolve(req.result);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+/** Save the face (PNG blob) in this browser. */
+export async function saveFace(face: HTMLCanvasElement): Promise<void> {
+  const blob = await new Promise<Blob | null>((r) => face.toBlob(r, 'image/png'));
+  if (!blob) throw new Error('could not encode the face');
+  await withStore('readwrite', (s) => s.put(blob, KEY));
+}
+
+/** The saved face as an image, or null (none saved, or storage unavailable — e.g. a private window). */
+export async function loadFace(): Promise<ImageBitmap | null> {
+  try {
+    const blob = await withStore<Blob | undefined>('readonly', (s) => s.get(KEY) as IDBRequest<Blob | undefined>);
+    return blob ? await createImageBitmap(blob) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Remove the saved face for good (the whole database, so nothing is left behind). */
+export function deleteFace(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.deleteDatabase(DB);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+    req.onblocked = () => resolve(); // closed connections finish the delete right after
+  });
+}

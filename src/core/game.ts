@@ -40,6 +40,7 @@ import {
   type LocationId,
   type SpeciesDef,
   type Tier,
+  FACE_FISH,
 } from './species';
 
 export type Phase = 'place' | 'bait' | 'ready' | 'flight' | 'waiting' | 'nibble' | 'bite' | 'reeling' | 'caught' | 'missed';
@@ -174,6 +175,8 @@ export class FishingGame {
   reelRate = 0;
   /** in the nibble phase: is a fake nibble showing right now */
   nibbling = false;
+  /** M4: the player has saved a face, so the 인면어 can bite (set by the app; off = never, no rng used) */
+  faceFish = false;
   /** where this cast was aimed, −1 … 1 (+ = the player's left) */
   aim = 0;
   /** signs of fish on the water for the next cast */
@@ -393,6 +396,8 @@ export class FishingGame {
         break;
       }
     }
+    // M4: the 인면어 — any place, only for a player who saved a face
+    if (this.faceFish && this.rng() < P['event.faceFish']) def = { ...FACE_FISH, loc: this.location.id };
     // bait size bias: > 0 skews toward big fish, < 0 toward small ones
     const u = this.rng();
     const bias = b.sizeBias + P['spot.sizeBias'] * this.spotBonus;

@@ -4,7 +4,9 @@
 
 import { FishingGame, FLIGHT_S, MISS_TEXT, type Fish, type GameEvent, type RunKind } from '../core/game';
 import { GestureTracker, type GestureEvent } from '../core/gestures';
-import { EVENT_NAME, LOCATIONS, SPECIES, speciesAt, TIER_NAME, type EventKind, type LocationId } from '../core/species';
+import { EVENT_NAME, FACE_FISH, LOCATIONS, SPECIES, speciesAt, TIER_NAME, type EventKind, type LocationId } from '../core/species';
+import { cropFace, deleteFace, loadFace, saveFace } from './face';
+import { setFaceImage } from './fishAssets';
 import { ARM, LM, other, type PoseFrame, type Side } from '../core/pose';
 import { serializeRecording, type RecordedFrame, type Recording } from '../core/recording';
 import './game.css';
@@ -84,7 +86,9 @@ scene.ready.catch((e) => showBanner(`배경을 불러오지 못했어요: ${e in
 function prepareScene(): void {
   const loc = game.location;
   const animals = [loc.thief, loc.spooker].filter((k): k is EventKind => !!k);
-  scene.prepare(game.speciesHere().map((s) => s.id), animals).catch((e) => console.warn('prepare failed', e));
+  const ids = game.speciesHere().map((s) => s.id);
+  if (game.faceFish) ids.push(FACE_FISH.id);
+  scene.prepare(ids, animals).catch((e) => console.warn('prepare failed', e));
 }
 
 const rodSel = $<HTMLSelectElement>('rodHand');
@@ -316,6 +320,142 @@ function fillDex(): void {
     sec.append(grid);
     box.append(sec);
   }
+  box.append(faceDexSection());
+}
+
+// ---------------------------------------------------------------- M4 인면어 (my face)
+// Privacy: docs/PRIVACY.md. The face is only ever in this page (canvas / GPU texture) and IndexedDB.
+
+/** the saved face, for the 도감 thumbnail (null = none) */
+let faceImage: ImageBitmap | HTMLCanvasElement | null = null;
+
+function applyFace(img: ImageBitmap | HTMLCanvasElement | null): void {
+  faceImage = img;
+  setFaceImage(img);
+  game.faceFish = !!img;
+}
+void loadFace().then((img) => img && applyFace(img));
+
+function faceDexSection(): HTMLElement {
+  const sec = document.createElement('section');
+  sec.innerHTML = '<h3>이벤트</h3>';
+  const grid = document.createElement('div');
+  grid.className = 'dexGrid';
+  const card = document.createElement('div');
+  const n = records.count[FACE_FISH.id] ?? 0;
+  card.className = `dexCard event${n ? '' : ' unknown'}`;
+  if (faceImage) {
+    const c = document.createElement('canvas');
+    c.className = 'faceThumb';
+    c.width = c.height = 128;
+    c.getContext('2d')!.drawImage(faceImage, 0, 0, 128, 128);
+    card.innerHTML = `<b>${n ? FACE_FISH.name : '???'}</b><em>이벤트</em>`;
+    card.append(c);
+    card.insertAdjacentHTML('beforeend', `<span>${n ? `${n}마리 · 최고 ${records.best[FACE_FISH.id]}cm` : '입질 5%로 나와요'}</span>`);
+  } else {
+    card.innerHTML = `<b>인면어</b><em>이벤트</em><span>내 얼굴을 등록하면 가끔 낚여요</span>`;
+  }
+  const acts = document.createElement('div');
+  acts.className = 'faceActs';
+  const make = document.createElement('button');
+  make.className = 'ghost';
+  make.textContent = faceImage ? '다시 찍기' : '내 얼굴로 만들기';
+  make.addEventListener('click', openFaceBox);
+  acts.append(make);
+  if (faceImage) {
+    const del = document.createElement('button');
+    del.className = 'ghost';
+    del.textContent = '내 얼굴 삭제';
+    del.addEventListener('click', async () => {
+      await deleteFace();
+      applyFace(null);
+      fillDex();
+    });
+    acts.append(del);
+  }
+  card.append(acts);
+  grid.append(card);
+  sec.append(grid);
+  return sec;
+}
+
+/** capture flow state: live preview until "찍기", then the shot until "저장" / "다시 찍기" */
+let faceLive = false;
+let faceShot: HTMLCanvasElement | null = null;
+
+function openFaceBox(): void {
+  show('dexBox', false);
+  show('faceBox', true);
+  ($('faceAgree') as HTMLInputElement).checked = false;
+  faceShot = null;
+  faceLive = false;
+  setFaceButtons();
+  const c = $('faceLive') as HTMLCanvasElement;
+  c.getContext('2d')!.clearRect(0, 0, c.width, c.height);
+  $('faceMsg').textContent = source.running ? '위 내용을 확인하면 미리보기가 켜져요' : '카메라를 켜고 시작해야 찍을 수 있어요';
+}
+
+function setFaceButtons(): void {
+  const agreed = ($('faceAgree') as HTMLInputElement).checked;
+  show('faceShoot', !faceShot);
+  show('faceRetake', !!faceShot);
+  show('faceSave', !!faceShot);
+  ($('faceShoot') as HTMLButtonElement).disabled = !agreed || !source.running;
+}
+
+function closeFaceBox(): void {
+  faceLive = false;
+  faceShot = null;
+  const c = $('faceLive') as HTMLCanvasElement;
+  c.getContext('2d')!.clearRect(0, 0, c.width, c.height); // nothing left on screen
+  show('faceBox', false);
+}
+
+$('faceAgree').addEventListener('change', () => {
+  faceLive = ($('faceAgree') as HTMLInputElement).checked && source.running && !faceShot;
+  setFaceButtons();
+});
+$('faceCancel').addEventListener('click', closeFaceBox);
+$('faceShoot').addEventListener('click', () => {
+  const shot = cropFace(source.video, lastFrame?.lm ?? null);
+  if (!shot) {
+    $('faceMsg').textContent = '얼굴이 잘 안 보여요 — 카메라를 정면으로 봐 주세요';
+    return;
+  }
+  faceShot = shot;
+  faceLive = false;
+  const c = $('faceLive') as HTMLCanvasElement;
+  const g = c.getContext('2d')!;
+  g.clearRect(0, 0, c.width, c.height);
+  g.drawImage(shot, 0, 0, c.width, c.height);
+  $('faceMsg').textContent = '';
+  setFaceButtons();
+});
+$('faceRetake').addEventListener('click', () => {
+  faceShot = null;
+  faceLive = ($('faceAgree') as HTMLInputElement).checked && source.running;
+  setFaceButtons();
+});
+$('faceSave').addEventListener('click', async () => {
+  if (!faceShot) return;
+  try {
+    await saveFace(faceShot);
+    applyFace(faceShot);
+    closeFaceBox();
+    popText('인면어가 생겼어요!', 'gold', true);
+    if (game.phase !== 'place') prepareScene();
+  } catch {
+    $('faceMsg').textContent = '이 브라우저에는 저장할 수 없어요 (사생활 보호 창일 수 있어요)';
+  }
+});
+
+/** the live face preview, drawn each frame while the capture window is open and agreed to */
+function updateFacePreview(): void {
+  if (!faceLive) return;
+  const c = $('faceLive') as HTMLCanvasElement;
+  const face = cropFace(source.video, lastFrame?.lm ?? null, c);
+  $('faceMsg').textContent = face ? '' : '얼굴이 잘 안 보여요 — 카메라를 정면으로 봐 주세요';
+  if (!face) c.getContext('2d')!.clearRect(0, 0, c.width, c.height);
 }
 
 // ---------------------------------------------------------------- results
@@ -336,7 +476,9 @@ function showCatch(f: Fish): boolean {
   const badge = trophy ? f.def.trophyLabel : isNew ? '도감 등록!' : isRecord ? '개인 기록!' : '';
   $('resBadge').textContent = badge;
   show('resBadge', !!badge);
-  $('resKicker').innerHTML = `<span class="tierTag tier-${f.def.tier}">${TIER_NAME[f.def.tier]}</span> 낚았어요`;
+  $('resKicker').innerHTML = f.def.event
+    ? '<span class="tierTag tier-event">이벤트</span> 낚았어요'
+    : `<span class="tierTag tier-${f.def.tier}">${TIER_NAME[f.def.tier]}</span> 낚았어요`;
   $('resTitle').className = '';
   $('resTitle').textContent = f.def.name;
   const w = f.weightG >= 1000 ? `${(f.weightG / 1000).toFixed(f.weightG >= 100000 ? 0 : 1)}<small>kg</small>` : `${f.weightG}<small>g</small>`;
@@ -491,12 +633,13 @@ function onGameEvent(e: GameEvent, now: number): void {
     }
     case 'caught': {
       const trophy = showCatch(e.fish);
-      sfx.caught(trophy);
+      const big = trophy || e.fish.def.tier === 'legend' || !!e.fish.def.event;
+      sfx.caught(big);
       scene.fx('catch');
       flash('gold');
-      popText(trophy ? e.fish.def.trophyLabel : e.fish.def.tier === 'legend' ? '전설!!' : '낚았다!', 'gold');
-      show('rays', trophy || e.fish.def.tier === 'legend');
-      confetti(trophy || e.fish.def.tier === 'legend' ? 160 : 70);
+      popText(e.fish.def.event ? '인면어?!' : trophy ? e.fish.def.trophyLabel : e.fish.def.tier === 'legend' ? '전설!!' : '낚았다!', 'gold');
+      show('rays', big);
+      confetti(big ? 160 : 70);
       // let the leap out of the water play before the card slides up
       show('resultBox', false);
       setTimeout(() => {
@@ -715,6 +858,7 @@ function updateHud(now: number): void {
     updateTug(); // (the red pill above the console repeated the top line — removed)
   }
   updateSpotTags();
+  updateFacePreview();
 
   const warn = postureWarning();
   $('pipWarn').textContent = warn;
@@ -854,5 +998,5 @@ void fillCameras();
 requestAnimationFrame(loop);
 
 if (import.meta.env.DEV) {
-  (window as unknown as { __game: unknown }).__game = { game, params, tracker, start, source, scene };
+  (window as unknown as { __game: unknown }).__game = { game, params, tracker, start, source, scene, applyFace }; // applyFace: headless checks with a test image, dev only
 }

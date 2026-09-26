@@ -442,3 +442,28 @@ describe('fight length (real species table)', () => {
     }
   });
 });
+
+describe('M4: 인면어 (face fish)', () => {
+  /** how many of `n` bites are the 인면어 */
+  const faceShare = (enabled: boolean, n = 2000) => {
+    let seed = 99;
+    const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const s = setup({}, rng);
+    s.g.faceFish = enabled;
+    let faces = 0;
+    for (let i = 0; i < n; i++) {
+      s.g.again(s.now());
+      s.act('bait');
+      s.act(cast(0));
+      for (let k = 0; k < 200 && s.g.phase !== 'bite' && s.g.phase !== 'nibble'; k++) s.step(50);
+      if (s.g.fish?.def.id === 'face_fish') faces++;
+    }
+    return faces / n;
+  };
+  it('never bites without a saved face; about 5% of bites with one', () => {
+    expect(faceShare(false, 400)).toBe(0);
+    const share = faceShare(true);
+    expect(share).toBeGreaterThan(0.03);
+    expect(share).toBeLessThan(0.07);
+  });
+});

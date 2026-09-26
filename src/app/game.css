@@ -1479,3 +1479,95 @@ a {
   display: block;
   margin: 18px auto 0;
 }
+
+/* M4: face capture */
+.face {
+  width: min(520px, calc(100vw - 32px));
+}
+.faceRules {
+  text-align: left;
+  margin: 10px 0 12px;
+  padding-left: 4px;
+  list-style: none;
+  font-size: 13.5px;
+  line-height: 1.8;
+  color: var(--ink-2);
+}
+.consent {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.facePreview {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(244, 213, 141, 0.5);
+}
+.facePreview canvas {
+  width: 100%;
+  height: 100%;
+  transform: scaleX(-1); /* shown mirrored like the webcam view; saved the right way round */
+}
+.faceMsg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  font-size: 13px;
+  color: var(--ink-2);
+  text-align: center;
+}
+.faceBtns {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+/* 도감: the event section and the 인면어 card */
+.dexCard.event {
+  border-color: rgba(200, 160, 255, 0.5);
+}
+.dexCard .faceThumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: block;
+  margin: 4px auto;
+  transform: scaleX(-1);
+}
+.dexCard .faceActs {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 6px;
+}
+.dexCard .faceActs button {
+  font-size: 12px;
+  padding: 5px 10px;
+}
+.tierTag.tier-event {
+  background: rgba(200, 160, 255, 0.25);
+  color: #e6d6ff;
+}
+button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.dexCard .faceActs button {
+  white-space: nowrap;
+}
+.howNote {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
