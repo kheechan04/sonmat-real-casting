@@ -12,7 +12,7 @@ import { serializeRecording, type RecordedFrame, type Recording } from '../core/
 import './game.css';
 import { drawOverlay } from './overlay';
 import { listCameras, PoseSource } from './poseSource';
-import { FishingScene } from './scene';
+import { clockTime, FishingScene, type TimeOfDay } from './scene';
 import { Sfx } from './sfx';
 import { store } from './store';
 import { buildTuningPanel, loadParams } from './tuning';
@@ -268,6 +268,40 @@ const PLACE_ART: Record<LocationId, string> = {
   river: 'linear-gradient(160deg, #b58d4a, #4d5b2a)',
 };
 
+// ---------------------------------------------------------------- M5 time of day
+
+const TOD_NAME: Record<TimeOfDay, string> = { day: '낮', dusk: '노을', night: '밤' };
+type TodPick = TimeOfDay | 'auto';
+let todPick: TodPick = ((): TodPick => {
+  const v = store.get('timeOfDay');
+  return v === 'day' || v === 'dusk' || v === 'night' ? v : 'auto';
+})();
+const todWanted = (): TimeOfDay => (todPick === 'auto' ? clockTime() : todPick);
+
+function applyTime(): void {
+  const t = todWanted();
+  void scene.setTimeOfDay(t).then(() => sfx.setTime(scene.timeShown));
+  $('todNow').textContent = `(지금 ${TOD_NAME[clockTime()]})`;
+  for (const b of document.querySelectorAll<HTMLButtonElement>('#todPick button')) b.classList.toggle('on', b.dataset.tod === todPick);
+}
+for (const b of document.querySelectorAll<HTMLButtonElement>('#todPick button')) {
+  b.addEventListener('click', () => {
+    sfx.pick();
+    todPick = b.dataset.tod as TodPick;
+    store.set('timeOfDay', todPick);
+    applyTime();
+  });
+}
+applyTime();
+// 자동: follow the clock while playing (checked once a minute)
+let lastClock = clockTime();
+setInterval(() => {
+  if (clockTime() === lastClock) return;
+  lastClock = clockTime();
+  if (todPick === 'auto') applyTime();
+  else $('todNow').textContent = `(지금 ${TOD_NAME[lastClock]})`;
+}, 60_000);
+
 function fillPlaces(): void {
   const box = $('places');
   box.textContent = '';
@@ -485,6 +519,7 @@ function showCatch(f: Fish): boolean {
   const isRecord = f.lengthCm > prevBest;
   const isNew = !prevBest;
   if (isRecord) records.best[id] = f.lengthCm;
+  lastCatch = f;
   saveRecords();
   renderTally();
 
@@ -501,12 +536,77 @@ function showCatch(f: Fish): boolean {
   const len = f.lengthCm >= 100 ? `${(f.lengthCm / 100).toFixed(2)}<small>m</small>` : `${f.lengthCm}<small>cm</small>`;
   $('resStats').innerHTML = `<div><b>${len}</b><span>길이</span></div><div><b>${w}</b><span>무게</span></div>`;
   show('resStats', true);
+  // M5: how this one compares with the best so far
+  const note = isNew ? '' : isRecord ? `이전 최고 ${prevBest}cm → <b>+${f.lengthCm - prevBest}cm</b> 새 기록` : `내 최고 기록 ${prevBest}cm`;
+  $('resNote').innerHTML = note;
+  show('resNote', !!note);
+  // not for the 인면어: the face photo is never written to a file (docs/PRIVACY.md)
+  show('keepsake', !f.def.event);
   $('resBody').textContent = f.def.blurb;
   return trophy;
 }
 
+/** the fish on the result card, for the keepsake photo */
+let lastCatch: Fish | null = null;
+
+/**
+ * M5 keepsake: the 3D view of the catch with its name, size, place and date, saved as a PNG on this
+ * device (a download — nothing is sent anywhere; for a 인면어 it is the player's own face, their choice).
+ */
+function saveKeepsake(): void {
+  const f = lastCatch;
+  if (!f) return;
+  const shot = scene.snapshot();
+  const c = document.createElement('canvas');
+  c.width = shot.width;
+  c.height = shot.height;
+  const g = c.getContext('2d')!;
+  g.drawImage(shot, 0, 0);
+  const s = c.height / 720;
+  const pad = 28 * s;
+  const w = 430 * s;
+  const h = 150 * s;
+  g.fillStyle = 'rgba(12, 16, 20, 0.62)';
+  g.beginPath();
+  g.roundRect(pad, c.height - pad - h, w, h, 18 * s);
+  g.fill();
+  const x = pad + 24 * s;
+  let y = c.height - pad - h + 44 * s;
+  g.fillStyle = '#f4d58d';
+  g.font = `700 ${15 * s}px "Pretendard", "Malgun Gothic", sans-serif`;
+  g.fillText(f.def.event ? '이벤트' : TIER_NAME[f.def.tier], x, y);
+  y += 40 * s;
+  g.fillStyle = '#ffffff';
+  g.font = `800 ${34 * s}px "Pretendard", "Malgun Gothic", sans-serif`;
+  const len = f.lengthCm >= 100 ? `${(f.lengthCm / 100).toFixed(2)}m` : `${f.lengthCm}cm`;
+  const wt = f.weightG >= 1000 ? `${(f.weightG / 1000).toFixed(1)}kg` : `${f.weightG}g`;
+  g.fillText(`${f.def.name}  ${len} · ${wt}`, x, y);
+  y += 36 * s;
+  g.fillStyle = 'rgba(255,255,255,0.72)';
+  g.font = `500 ${15 * s}px "Pretendard", "Malgun Gothic", sans-serif`;
+  const d = new Date();
+  g.fillText(`${game.location.name} · ${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} · 손맛: 리얼 캐스팅`, x, y);
+  c.toBlob((blob) => {
+    if (!blob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `손맛-${f.def.name}-${f.lengthCm}cm.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, 'image/png');
+}
+$('keepsake').addEventListener('click', saveKeepsake);
+
+// M5 PWA: offline copies of the game's files (public/sw.js; privacy: docs/PRIVACY.md). Built site only —
+// in development it would serve stale files.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => void navigator.serviceWorker.register('./sw.js').catch(() => undefined));
+}
+
 function showMiss(reason: keyof typeof MISS_TEXT): void {
   show('resBadge', false);
+  show('resNote', false);
+  show('keepsake', false);
   $('resKicker').textContent = '놓쳤어요';
   $('resTitle').className = 'bad';
   const thief = game.stolenBy ? EVENT_NAME[game.stolenBy] : '';

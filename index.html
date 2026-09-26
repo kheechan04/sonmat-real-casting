@@ -3,7 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="data:," />
+    <link rel="icon" type="image/png" href="./icons/favicon-32.png" />
+    <!-- M5 PWA: install to the home screen / desktop, plays offline once loaded (public/sw.js) -->
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0b1a1f" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="손맛" />
     <!-- Privacy (M4 인면어, docs/PRIVACY.md): this page may only connect to itself and the two hosts the
          pose model comes from (blob:/data: = in-page memory), and load images only from itself / in-page data. Even a bug could not send
          the camera or the saved face anywhere else — the browser blocks it. -->
@@ -81,6 +88,14 @@
     <section id="placeBox" class="modal wide hidden">
       <h2>어디서 낚시할까요?</h2>
       <p class="modalSub">장소마다 사는 물고기가 달라요 — 전설의 물고기는 아주 가끔</p>
+      <!-- M5: time of day (자동 = the player's clock) -->
+      <div class="todPick" id="todPick">
+        <span class="todLabel">시간</span>
+        <button data-tod="auto">자동 <small id="todNow"></small></button>
+        <button data-tod="day">☀ 낮</button>
+        <button data-tod="dusk">🌇 노을</button>
+        <button data-tod="night">🌙 밤</button>
+      </div>
       <div id="places" class="places"></div>
     </section>
 
@@ -127,8 +142,9 @@
       <div id="resKicker" class="kicker"></div>
       <h2 id="resTitle"></h2>
       <div id="resStats" class="stats"></div>
+      <p id="resNote" class="resNote hidden"></p>
       <p id="resBody" class="resBody"></p>
-      <div class="resBtns"><button id="toPlaces" class="ghost">장소 바꾸기</button><button id="again" class="primary">다시 던지기</button></div>
+      <div class="resBtns"><button id="keepsake" class="ghost hidden" title="지금 화면을 이 기기에 사진으로 저장해요">📸 기념사진</button><button id="toPlaces" class="ghost">장소 바꾸기</button><button id="again" class="primary">다시 던지기</button></div>
     </section>
 
     <!-- start -->

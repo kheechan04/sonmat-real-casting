@@ -45,6 +45,53 @@ interface PlaceConfig {
   exposure: number;
   ground: 'deck' | 'rock' | 'boat';
   grass: boolean;
+  /** when the photo was taken (default day) — a sunset photo can't be graded back to day */
+  native?: TimeOfDay;
+}
+
+/**
+ * M5: time of day. The photos are daytime (the deep sea's is a sunset); dusk and night are colour-
+ * graded from the same photo in the sky shader (skyGrade) — an 8K copy per time would cost ~130 MB
+ * each — and the lights, the water and the haze follow. The water reflects the graded sky by itself.
+ */
+export type TimeOfDay = 'day' | 'dusk' | 'night';
+interface Grade {
+  /** saturation kept */
+  sat: number;
+  /** colour multiplier of the upper sky / near the horizon (and below it) */
+  high: [number, number, number];
+  low: [number, number, number];
+  /** added along the horizon, scaled by the photo's brightness there */
+  glow: [number, number, number];
+  stars: number;
+  /** image-based light strength, the directional light's colour / strength */
+  env: number;
+  sun: number;
+  sunI: number;
+  /** the water's highlight colour, its body colour multiplier */
+  waterSun: number;
+  waterDark: number;
+  exposure: number;
+}
+const GRADES: Record<'dusk' | 'night', Grade> = {
+  dusk: {
+    sat: 0.9, high: [0.8, 0.68, 0.84], low: [1.0, 0.78, 0.62], glow: [0.36, 0.15, 0.04], stars: 0,
+    env: 0.7, sun: 0xffa66e, sunI: 1.0, waterSun: 0xc88a60, waterDark: 0.8, exposure: 0.95,
+  },
+  night: {
+    sat: 0.3, high: [0.055, 0.08, 0.17], low: [0.1, 0.12, 0.21], glow: [0.012, 0.02, 0.05], stars: 1,
+    env: 0.18, sun: 0x9fb4ff, sunI: 0.45, waterSun: 0xdfe6ff, waterDark: 0.4, exposure: 1,
+  },
+};
+/** Where the moon hangs at night (camera space before the place's yaw: −z ahead, +x right). */
+const MOON_DIR = new THREE.Vector3(-0.38, 0.17, -1).normalize();
+
+/** The time of day for the player's clock: 06–17 day, 17–19:30 and 05–06 dusk (노을·새벽), else night. */
+export function clockTime(d = new Date()): TimeOfDay {
+  const h = d.getHours() + d.getMinutes() / 60;
+  if (h >= 6 && h < 17) return 'day';
+  if ((h >= 17 && h < 19.5) || (h >= 5 && h < 6)) return 'dusk';
+  return 'night';
 }
 
 const PLACES: Record<LocationId, PlaceConfig> = {
@@ -57,7 +104,7 @@ const PLACES: Record<LocationId, PlaceConfig> = {
     water: { color: 0x0c3a4c, distortion: 1.4, size: 1.4, sunColor: 0xfff0d0, sunDir: [0, 0.35, -1] },
   },
   deep: {
-    photo: 'the_sky_is_on_fire', yaw: 0, shoreRow: 0.5, exposure: 0.9, ground: 'boat', grass: false,
+    photo: 'the_sky_is_on_fire', yaw: 0, shoreRow: 0.5, exposure: 0.9, ground: 'boat', grass: false, native: 'dusk',
     water: { color: 0x0b1726, distortion: 0.55, size: 1.2, sunColor: 0xff9a50, sunDir: [0, 0.12, -1] },
   },
   river: {
@@ -104,6 +151,32 @@ function horizonColor(c: HTMLCanvasElement, shoreRow: number): THREE.Color {
     b += d[i + 2];
   }
   return new THREE.Color().setRGB(r / n / 255, gr / n / 255, b / n / 255, THREE.SRGBColorSpace);
+}
+
+/** The same grade as the sky shader at the horizon, for the haze colour the far water fades into. */
+function gradeHaze(c: THREE.Color, g: Grade | null): THREE.Color {
+  if (!g) return c.clone();
+  const l = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  const out = new THREE.Color(l + (c.r - l) * g.sat, l + (c.g - l) * g.sat, l + (c.b - l) * g.sat);
+  out.multiply(new THREE.Color(...g.low));
+  return out.add(new THREE.Color(...g.glow).multiplyScalar(l + 0.2));
+}
+
+/** A soft round light (the moon, the LED float's glow), white in the middle. */
+function glowTexture(core: number): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(core, 'rgba(255,255,255,0.95)');
+  grad.addColorStop(core + 0.06, 'rgba(255,255,255,0.28)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 /**
@@ -169,6 +242,24 @@ export class FishingScene {
   private placeCache = new Map<LocationId, Promise<{ sky: THREE.Texture; env: THREE.Texture; haze: THREE.Color }>>();
   private groups = { deck: new THREE.Group(), rock: new THREE.Group(), boat: new THREE.Group(), grass: new THREE.Group() };
   private place: LocationId | null = null;
+  // ---- M5 time of day
+  private tod: TimeOfDay = 'day';
+  private shownTod: TimeOfDay | null = null;
+  private sun!: THREE.DirectionalLight;
+  /** a warm lantern by the player, lit at night so the deck, rod and the catch stay readable */
+  private lantern = new THREE.PointLight(0xffc27a, 0, 9, 1.4);
+  private moon!: THREE.Sprite;
+  /** the 찌톱 bands, and a glow on top at night (전자찌, an LED float) */
+  private floatBands: THREE.MeshStandardMaterial[] = [];
+  private floatGlow!: THREE.Sprite;
+  private skyU = {
+    uSat: { value: 1 },
+    uHigh: { value: new THREE.Vector3(1, 1, 1) },
+    uLow: { value: new THREE.Vector3(1, 1, 1) },
+    uGlow: { value: new THREE.Vector3(0, 0, 0) },
+    uStars: { value: 0 },
+    uTime: { value: 0 },
+  };
   private rodBase = new THREE.Group();
   private rodSegs: THREE.Group[] = [];
   private rodTip = new THREE.Object3D();
@@ -227,9 +318,16 @@ export class FishingScene {
     this.camera.position.set(0, EYE_M, 0);
     this.camera.rotation.set(-0.11, 0, 0, 'YXZ');
 
-    const sun = new THREE.DirectionalLight(0xfff2e0, 0.8);
-    sun.position.set(-5, 8, 6);
-    this.scene.add(sun);
+    this.sun = new THREE.DirectionalLight(0xfff2e0, 0.8);
+    this.sun.position.set(-5, 8, 6);
+    this.scene.add(this.sun);
+    this.lantern.position.set(0.9, DECK_Y + 1.1, -0.6);
+    this.scene.add(this.lantern);
+    this.moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(0.16), color: 0xf4f1e6, fog: false, toneMapped: false, depthWrite: false }));
+    this.moon.scale.setScalar(150);
+    this.moon.visible = false;
+    this.moon.renderOrder = -0.5;
+    this.scene.add(this.moon);
 
     this.buildRod();
     this.buildFloat();
@@ -260,7 +358,9 @@ export class FishingScene {
     for (const g of Object.values(this.groups)) this.scene.add(g);
     const sky = new THREE.SphereGeometry(800, 96, 48);
     sky.scale(-1, 1, 1);
-    this.skyMesh = new THREE.Mesh(sky, new THREE.MeshBasicMaterial({ toneMapped: false, depthWrite: false, fog: false }));
+    const skyMat = new THREE.MeshBasicMaterial({ toneMapped: false, depthWrite: false, fog: false });
+    this.skyGrade(skyMat);
+    this.skyMesh = new THREE.Mesh(sky, skyMat);
     this.skyMesh.frustumCulled = false;
     this.skyMesh.position.y = EYE_M; // centred on the eye like the camera that took the photo
     this.skyMesh.renderOrder = -1;
@@ -273,6 +373,54 @@ export class FishingScene {
     // props are decoration: a failed download must not stop the game
     await this.loadProps().catch((e) => console.warn('props failed to load', e));
     await this.setPlace('reservoir');
+  }
+
+  /**
+   * Time-of-day grading of the backdrop photo, in the sky shader: saturation, a colour multiplier from
+   * the horizon up, a glow along the horizon, and at night stars where the photo shows open sky
+   * (bright, not warmer than it is blue) — never over hills or trees.
+   */
+  private skyGrade(mat: THREE.MeshBasicMaterial): void {
+    mat.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, this.skyU);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vSkyDir;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSkyDir = normalize(position);');
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+          varying vec3 vSkyDir;
+          uniform float uSat; uniform vec3 uHigh; uniform vec3 uLow; uniform vec3 uGlow; uniform float uStars; uniform float uTime;
+          float skyHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`,
+        )
+        .replace(
+          '#include <map_fragment>',
+          `#include <map_fragment>
+          {
+            vec3 c = diffuseColor.rgb;
+            float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+            float up = abs(vSkyDir.y);
+            vec3 g = mix(vec3(l), c, uSat) * mix(uLow, uHigh, smoothstep(0.0, 0.45, up));
+            g += uGlow * exp(-up * 14.0) * (l + 0.2);
+            if (uStars > 0.0 && vSkyDir.y > 0.015) {
+              // ~0.3° cells over the sphere; a few hold a star, placed off-centre, gently twinkling
+              vec2 sph = vec2(atan(vSkyDir.z, vSkyDir.x), asin(vSkyDir.y)) * 190.0;
+              vec2 cell = floor(sph);
+              float r = skyHash(cell);
+              if (r > 0.982) {
+                vec2 at = vec2(skyHash(cell + 7.1), skyHash(cell + 3.3)) * 0.6 + 0.2;
+                float d = length(fract(sph) - at);
+                float tw = 0.75 + 0.25 * sin(uTime * (1.5 + r * 4.0) + r * 50.0);
+                float open = smoothstep(0.3, 0.6, l) * step(c.r, c.b + 0.06) * smoothstep(0.015, 0.08, vSkyDir.y);
+                g += vec3(0.95, 0.97, 1.0) * smoothstep(0.16, 0.0, d) * (r - 0.982) / 0.018 * 1.6 * tw * open * uStars;
+              }
+            }
+            diffuseColor.rgb = g;
+          }`,
+        );
+    };
+    mat.customProgramCacheKey = () => 'sky-grade';
   }
 
   /** Backdrop + lighting of one place (downloaded once, then cached). */
@@ -307,24 +455,48 @@ export class FishingScene {
 
   /** Switch the world to another fishing place (M2). Resolves when its photos are shown. */
   async setPlace(id: LocationId): Promise<void> {
-    if (this.place === id) return;
     const cfg = PLACES[id];
+    const native = cfg.native ?? 'day';
+    // a sunset photo stays a sunset for "day"
+    const shown: TimeOfDay = this.tod === 'day' && native === 'dusk' ? 'dusk' : this.tod;
+    if (this.place === id && this.shownTod === shown) return;
     const { sky, env, haze } = await this.loadPlace(id);
+    const grade = shown === native ? null : GRADES[shown as 'dusk' | 'night'];
     // far water fades into the photo's horizon colour — hides the reflection breaking up at grazing angles
-    this.scene.fog = new THREE.Fog(haze, 500, 3500);
+    this.scene.fog = new THREE.Fog(gradeHaze(haze, grade), 500, 3500);
     this.place = id;
+    this.shownTod = shown;
     (this.skyMesh!.material as THREE.MeshBasicMaterial).map = sky;
     (this.skyMesh!.material as THREE.MeshBasicMaterial).needsUpdate = true;
     this.scene.environment = env;
     this.setYaw(cfg.yaw);
-    this.renderer.toneMappingExposure = cfg.exposure;
+    const u = this.skyU;
+    u.uSat.value = grade?.sat ?? 1;
+    u.uHigh.value.set(...(grade?.high ?? [1, 1, 1]));
+    u.uLow.value.set(...(grade?.low ?? [1, 1, 1]));
+    u.uGlow.value.set(...(grade?.glow ?? [0, 0, 0]));
+    u.uStars.value = grade?.stars ?? 0;
+    this.scene.environmentIntensity = grade?.env ?? 1;
+    this.sun.color.setHex(grade?.sun ?? 0xfff2e0);
+    this.sun.intensity = grade?.sunI ?? 0.8;
+    this.renderer.toneMappingExposure = cfg.exposure * (grade?.exposure ?? 1);
+    const night = shown === 'night';
+    this.lantern.intensity = night ? 6 : 0;
+    // the moon: ahead and to the left, over the water
+    const moonDir = MOON_DIR;
+    this.moon.visible = night;
+    this.moon.position.copy(moonDir).multiplyScalar(700).add(new THREE.Vector3(0, EYE_M, 0));
+    for (const m of this.floatBands) m.emissiveIntensity = night ? 2.2 : 0.45;
+    this.floatGlow.visible = night;
     if (this.water) {
-      const u = this.water.material.uniforms;
-      u.waterColor.value.setHex(cfg.water.color);
-      u.distortionScale.value = cfg.water.distortion;
-      u.size.value = cfg.water.size;
-      u.sunColor.value.setHex(cfg.water.sunColor);
-      u.sunDirection.value.set(...cfg.water.sunDir).normalize();
+      const w = this.water.material.uniforms;
+      w.waterColor.value.setHex(cfg.water.color).multiplyScalar(grade?.waterDark ?? 1);
+      w.distortionScale.value = cfg.water.distortion;
+      w.size.value = cfg.water.size;
+      w.sunColor.value.setHex(grade?.waterSun ?? cfg.water.sunColor);
+      // at night the glitter path runs toward the moon
+      if (night) w.sunDirection.value.copy(moonDir);
+      else w.sunDirection.value.set(...cfg.water.sunDir).normalize();
     }
     this.groups.deck.visible = cfg.ground === 'deck';
     this.groups.rock.visible = cfg.ground === 'rock';
@@ -402,6 +574,28 @@ export class FishingScene {
   }
 
   /** Turn the panorama (tuning aid; also used by setPlace). */
+  /** M5: day / dusk / night for the current place (and every place after). */
+  async setTimeOfDay(tod: TimeOfDay): Promise<void> {
+    this.tod = tod;
+    if (this.place) await this.setPlace(this.place);
+  }
+
+  /** M5 keepsake: the current view as an image — drawn now, so the canvas still holds it. */
+  snapshot(): HTMLCanvasElement {
+    this.renderer.render(this.scene, this.camera);
+    const src = this.renderer.domElement;
+    const c = document.createElement('canvas');
+    c.width = src.width;
+    c.height = src.height;
+    c.getContext('2d')!.drawImage(src, 0, 0);
+    return c;
+  }
+
+  /** What is on screen now (a sunset photo shows dusk even for "day"). */
+  get timeShown(): TimeOfDay {
+    return this.shownTod ?? this.tod;
+  }
+
   setYaw(yaw: number): void {
     if (this.skyMesh) this.skyMesh.rotation.y = yaw;
     this.scene.environmentRotation.set(0, yaw, 0);
@@ -655,6 +849,7 @@ export class FishingScene {
         new THREE.CylinderGeometry(0.004, 0.004, bandH, 10),
         new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.45, roughness: 0.4 }),
       );
+      this.floatBands.push(m.material as THREE.MeshStandardMaterial);
       m.position.y = bandH * (bands.length - i - 0.5);
       this.float.add(m);
     });
@@ -664,6 +859,14 @@ export class FishingScene {
     );
     body.position.y = -0.08;
     this.float.add(body);
+    // 전자찌 at night: the top glows (M5)
+    this.floatGlow = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: glowTexture(0.08), color: 0xff4a2a, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }),
+    );
+    this.floatGlow.scale.setScalar(0.09);
+    this.floatGlow.position.y = bandH * bands.length;
+    this.floatGlow.visible = false;
+    this.float.add(this.floatGlow);
     this.float.scale.setScalar(FLOAT_SCALE);
     this.scene.add(this.float);
   }
@@ -1040,6 +1243,8 @@ export class FishingScene {
   /** Draw one frame for the game's current state. `now` in ms (same clock as the game). */
   render(g: FishingGame, now: number): void {
     if (this.water) this.water.material.uniforms.time.value = now / 1000 * 0.35;
+    this.skyU.uTime.value = now / 1000;
+    if (this.floatGlow.visible) this.floatGlow.material.opacity = 0.8 + 0.2 * Math.sin(now / 260);
     const dt = this.lastRenderT ? Math.min(0.1, (now - this.lastRenderT) / 1000) : 0;
     this.lastRenderT = now;
     const since = now - g.phaseT;

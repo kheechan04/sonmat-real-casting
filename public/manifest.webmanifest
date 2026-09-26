@@ -1,0 +1,19 @@
+{
+  "name": "손맛: 리얼 캐스팅",
+  "short_name": "손맛",
+  "description": "웹캠 앞에서 빈손으로 던지고, 채고, 감는 힐링 낚시 게임",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#0b1a1f",
+  "theme_color": "#0b1a1f",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

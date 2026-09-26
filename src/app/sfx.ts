@@ -25,6 +25,8 @@ export class Sfx {
   private creakAcc = 0;
   private beatAcc = 0;
   muted = false;
+  /** M5: what the ambience sounds like — birds by day, fewer at dusk, insects and frogs at night */
+  private time: 'day' | 'dusk' | 'night' = 'day';
 
   start(): void {
     if (this.ctx) return;
@@ -159,11 +161,40 @@ export class Sfx {
     this.scheduleBird();
   }
 
+  /** M5: the ambience follows the time of day on screen. */
+  setTime(t: 'day' | 'dusk' | 'night'): void {
+    this.time = t;
+  }
+
   private scheduleBird(): void {
+    // day: a bird every 4–13 s; dusk: every 10–25 s; night: crickets now, a frog now and then
+    const wait = this.time === 'night' ? 700 + Math.random() * 1600 : this.time === 'dusk' ? 10000 + Math.random() * 15000 : 4000 + Math.random() * 9000;
     window.setTimeout(() => {
-      this.bird();
+      if (this.time === 'night') {
+        this.cricket();
+        if (Math.random() < 0.12) this.frog();
+      } else this.bird();
       this.scheduleBird();
-    }, 4000 + Math.random() * 9000);
+    }, wait);
+  }
+
+  /** a cricket: a few fast chirps of a high, pure tone */
+  private cricket(): void {
+    if (!this.amb) return;
+    const f = 4200 + Math.random() * 700;
+    const n = 2 + Math.floor(Math.random() * 3);
+    const vol = 0.008 + Math.random() * 0.01;
+    for (let i = 0; i < n; i++) this.tone(f, 0.035, vol, 'sine', i * 0.075, 1, this.amb, 0.004);
+  }
+
+  /** a frog far off: two low, buzzy croaks */
+  private frog(): void {
+    if (!this.amb) return;
+    const f = 110 + Math.random() * 60;
+    for (let i = 0; i < 2; i++) {
+      this.tone(f, 0.12, 0.03, 'square', i * 0.22, 0.8, this.amb, 0.02);
+      this.tone(f * 2.01, 0.1, 0.012, 'sawtooth', i * 0.22, 0.8, this.amb, 0.02);
+    }
   }
 
   private bird(): void {

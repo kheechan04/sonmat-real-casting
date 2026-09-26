@@ -42,7 +42,7 @@ describe('privacy: the camera and the saved face never leave the browser', () =>
     for (const f of src) {
       const code = strip(f.code);
       // the only storage keys the app writes (store.set) are settings and records — never the face
-      for (const m of code.matchAll(/store\.set\(\s*'([^']+)'/g)) expect(['records.v1', 'rodHand', 'camera', 'howto.v1', 'pipSize', 'muted', 'preset', 'tsRole', 'tsSpace']).toContain(m[1]);
+      for (const m of code.matchAll(/store\.set\(\s*'([^']+)'/g)) expect(['records.v1', 'rodHand', 'camera', 'howto.v1', 'pipSize', 'muted', 'preset', 'tsRole', 'tsSpace', 'timeOfDay']).toContain(m[1]);
       if (f.p.endsWith('face.ts')) continue;
       expect(code, f.p).not.toMatch(/faceShot[^;\n]*(toDataURL|toBlob|createObjectURL)/);
     }
@@ -55,6 +55,25 @@ describe('privacy: the camera and the saved face never leave the browser', () =>
     expect(connect.sort()).toEqual(["'self'", 'blob:', 'data:', 'https://cdn.jsdelivr.net', 'https://storage.googleapis.com'].sort());
     expect(csp).toMatch(/img-src 'self' data: blob:/);
     expect(csp).toMatch(/form-action 'none'/);
+  });
+
+  it("the offline worker (PWA, public/sw.js) only repeats the page's own GETs to the allowed hosts", () => {
+    const sw = strip(readFileSync('public/sw.js', 'utf8'));
+    expect(sw).toMatch(/if \(req\.method !== 'GET'\) return;/);
+    // (read from the raw file: stripping comments would cut the URLs at their //)
+    const hosts = readFileSync('public/sw.js', 'utf8').match(/const HOSTS = \[([^\]]+)\]/)?.[1].split(',').map((s) => s.trim()) ?? [];
+    expect(hosts.sort()).toEqual(['self.location.origin', "'https://cdn.jsdelivr.net'", "'https://storage.googleapis.com'"].sort());
+    expect(sw).toMatch(/if \(!HOSTS\.includes\(url\.origin\)\) return;/);
+    // every network call is the page's own request, passed on unchanged
+    const calls = [...sw.matchAll(/\bfetch\s*\(([^)]*)\)/g)].map((m) => m[1]);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const c of calls) expect(c).toBe('req');
+    expect(sw).not.toMatch(/postMessage|importScripts|XMLHttpRequest|sendBeacon|WebSocket|addEventListener\('(push|sync|message)'/);
+  });
+
+  it('the keepsake photo is never offered for the 인면어 (the face is never written to a file)', () => {
+    const main = strip(readFileSync('src/app/main.ts', 'utf8'));
+    expect(main).toMatch(/show\('keepsake', !f\.def\.event\)/);
   });
 
   it('the capture asks for consent first and says where the photo is kept', () => {

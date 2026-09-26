@@ -16,10 +16,12 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 | `public/models/wooden_bucket_01/` | 나무 양동이 (glTF 1k) | [Poly Haven — Wooden Bucket 01](https://polyhaven.com/a/wooden_bucket_01) | James Ray Cock | CC0 | 2026-09-25 |
 | `public/models/grass_medium_02/` | 물가 풀 (glTF 1k) | [Poly Haven — Grass Medium 02](https://polyhaven.com/a/grass_medium_02) | Rico Cilliers | CC0 | 2026-09-25 |
 
+| `public/icons/*.png` | 앱 아이콘(찌·물결·달) | 코드로 직접 그림(헤드리스 크롬 캔버스, 2026-09-26) | 이 프로젝트 | 직접 제작 | 2026-09-26 |
+
 배경 원본 JPG는 `assets-src/env/`(배포 안 함). `node scripts/make-backdrops.mjs`가 물가선 위만 잘라 WebP로 만든다(22MB → 2.4MB).
 배경 사진의 물 부분(물가선 아래, 2036/4096행)은 코드에서 물가선 위 풍경을 뒤집어 채운다 (`scene.ts` `mirroredBackdrop`) — 3D 물이 사진 속 밝은 물을 비춰 수평선 아래에 띠가 생겼기 때문.
 
-같은 장소의 새벽 버전 [Bell Park Dawn](https://polyhaven.com/a/bell_park_dawn)(CC0)이 있어서 시간대 변화(M5)에 쓸 수 있다.
+시간대(M5)는 새 사진 없이 같은 사진을 셰이더에서 보정한다(노을·밤, 별) — 장소마다 8K 사진을 더 받으면 용량·메모리가 크게 늘어서. 달·전자찌 빛도 코드로 그림.
 
 ## 물고기 3D 모델 (실사, 사용자: "진짜 실제 물고기처럼")
 
