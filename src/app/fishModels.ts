@@ -640,9 +640,15 @@ export function setFaceImage(img: ImageBitmap | HTMLCanvasElement | null): void 
   }
 }
 
-/** Face "sticker" half-size on the head, measured along the skin (unit fish), 1 : 1.3 like the face. */
+/** Face half-width on the head, measured along the skin (unit fish). */
 const FACE_ARC_W = 0.19;
-const FACE_ARC_H = FACE_ARC_W * 1.3;
+/**
+ * Face half-height, straight up/down as seen from the front (unit fish). Side to side the face curves
+ * around the head (FACE_ARC_W, seen at an angle in the catch close-up), up and down it is laid flat,
+ * so its 1 : 1.3 proportions hold from the front: the full face edge (0.88 of the half-size) is
+ * 0.167 high vs 0.128 wide on screen.
+ */
+const FACE_FLAT_H = 0.19;
 
 /**
  * Face UVs measured along the skin from the nose tip — like a sticker on the rounded head, not a
@@ -650,6 +656,11 @@ const FACE_ARC_H = FACE_ARC_W * 1.3;
  * 옆으로 늘어지는데 … 얼굴 원형 눈코입 보존"; the straight-on projection smeared them across the
  * sides of the nose when seen at an angle). Arc length from the tip along each meridian of the
  * profile; direction = the vertex's angle around the body (seen from the front: right = −z, up = +y).
+ *
+ * Up and down, the arc put the nose over most of the height and pushed the eyes and mouth to the top
+ * and bottom of the head, where it curves away (user: "상하 비율이 좀 늘어져서 코 쪽이 길어지고 눈이랑
+ * 입이 … 상단 하단 쪽으로 붙어버렸는데") — so the vertical part is measured flat, as seen from the front,
+ * blending from the arc (side to side) to flat (up and down) with the direction.
  */
 function faceUvs(pos: THREE.BufferAttribute, spec: FishSpec): THREE.BufferAttribute {
   const uv = new Float32Array(pos.count * 2);
@@ -677,8 +688,12 @@ function faceUvs(pos: THREE.BufferAttribute, spec: FishSpec): THREE.BufferAttrib
       pz = qz;
     }
     const len = Math.hypot(dy, dz) || 1;
-    uv[i * 2] = 0.5 + (s * (-dz / len)) / (2 * FACE_ARC_W);
-    uv[i * 2 + 1] = 0.5 + (s * (dy / len)) / (2 * FACE_ARC_H);
+    const up = (dy / len) ** 2; // 0 side to side … 1 up and down
+    const reach = (1 - up) * (s / FACE_ARC_W) + up * (Math.hypot(y, z) / FACE_FLAT_H); // in half-sizes
+    uv[i * 2] = 0.5 + 0.5 * reach * (-dz / len);
+    uv[i * 2 + 1] = 0.5 + 0.5 * reach * (dy / len);
+    // the flat part would reach back along the top of the head: only paint near the front
+    uv[i * 2] += s > 0.33 ? 9 : 0;
   }
   return new THREE.BufferAttribute(uv, 2);
 }
