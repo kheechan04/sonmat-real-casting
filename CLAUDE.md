@@ -57,6 +57,7 @@
 ## 헤드리스 확인 (Windows, 전작과 동일)
 - 크롬 `C:/Program Files/Google/Chrome/Application/chrome.exe`, `npm i --no-save puppeteer-core`.
 - `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`. 먼저 `getUserMedia`를 한 번 열었다 닫고, 버튼은 `element.click()`.
+- 빌드판에서 자동화 브라우저(navigator.webdriver, 퍼페티어 포함)는 3D를 켜지 않는다(Vercel 스크린샷용) — 빌드판 3D 확인은 주소에 `?3d`.
 - 개발 모드에서만 `window.__obs`(관찰 도구)·`window.__game`(game, params, tracker, start, source)이 열려 있다.
 - 게임은 개발 모드나 `?keys`에서 키보드 대체 입력: C 던지기 · H 챔질 · R(누르고 있기) 감기. "카메라 없이 시작" 버튼도 이때만 보인다.
 - 헤드리스의 GPU는 소프트웨어 GL이라 실제 GPU 성능 확인이 아니다.

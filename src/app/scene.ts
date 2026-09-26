@@ -136,6 +136,24 @@ const BAND_H = 0.03;
  * reflects the backdrop; reflecting the photo's (bright) water showed as a light band under the horizon.
  * A still-lake mirror of the hills is what real water there would reflect.
  */
+/**
+ * The heavy 3D (8K photo, HDR light, textures, props) starts loading only after the page has loaded and
+ * painted once — the still photo (body background, public/poster.jpg) shows meanwhile. The page's own
+ * load then finishes about as fast as a light page. In an automated browser on the built site
+ * (a screenshot bot, e.g. the Vercel dashboard preview, which stayed "No screenshot available") the
+ * 3D never starts: the still and the start screen are what it should capture. `?3d` forces it.
+ */
+function when3dMayLoad(): Promise<void> {
+  if (import.meta.env.PROD && navigator.webdriver && !new URLSearchParams(location.search).has('3d')) {
+    return new Promise(() => undefined);
+  }
+  return new Promise((res) => {
+    const go = () => requestAnimationFrame(() => setTimeout(res, 50));
+    if (document.readyState === 'complete') go();
+    else addEventListener('load', go, { once: true });
+  });
+}
+
 /** Average colour of the backdrop just above the shore line — the haze the far water fades into. */
 function horizonColor(c: HTMLCanvasElement, shoreRow: number): THREE.Color {
   const g = c.getContext('2d')!;
@@ -358,7 +376,7 @@ export class FishingScene {
 
 
     this.buildDrops();
-    this.ready = this.loadEnvironment();
+    this.ready = when3dMayLoad().then(() => this.loadEnvironment());
     this.resize();
   }
 
