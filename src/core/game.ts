@@ -177,6 +177,8 @@ export class FishingGame {
   nibbling = false;
   /** M4: the player has saved a face, so the 인면어 can bite (set by the app; off = never, no rng used) */
   faceFish = false;
+  /** the player has caught a 인면어 before: its odds drop from event.faceFishFirst to event.faceFish (set by the app from the records, and here on a catch) */
+  faceFishCaught = false;
   /** where this cast was aimed, −1 … 1 (+ = the player's left) */
   aim = 0;
   /** signs of fish on the water for the next cast */
@@ -407,7 +409,9 @@ export class FishingGame {
       }
     }
     // M4: the 인면어 — any place, only for a player who saved a face
-    if (this.faceFish && this.rng() < P['event.faceFish']) def = { ...FACE_FISH, loc: this.location.id };
+    // 10% until the first one is caught (meet it soon after saving a face), then 5% (user: "처음 10% 나중 5%")
+    const faceP = this.faceFishCaught ? P['event.faceFish'] : P['event.faceFishFirst'];
+    if (this.faceFish && this.rng() < faceP) def = { ...FACE_FISH, loc: this.location.id };
     // bait size bias: > 0 skews toward big fish, < 0 toward small ones
     const u = this.rng();
     const bias = b.sizeBias + P['spot.sizeBias'] * this.spotBonus;
@@ -583,6 +587,7 @@ export class FishingGame {
       this.running = false;
       this.runSoon = false;
       this.thief = null;
+      if (fish.def.id === FACE_FISH.id) this.faceFishCaught = true;
       this.emit({ type: 'caught', fish });
       this.setPhase('caught', now);
     }

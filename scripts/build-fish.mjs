@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { compactPrimitive, prune, weld } from '@gltf-transform/functions';
+import { compactPrimitive, metalRough, prune, weld } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptSimplifier } from 'meshoptimizer';
 
 const TARGET_TRIS = { scan: 100000, other: 20000 };
@@ -47,14 +47,20 @@ function simplifyUV(doc, ratio) {
       }
       const idx = Uint32Array.from(idxA.getArray());
       const target = Math.max(3, Math.floor((idx.length * ratio) / 3) * 3);
-      const [out] = MeshoptSimplifier.simplifyWithAttributes(idx, pos, 3, uv, 2, [1, 1], null, target, 0.05);
+      let [out] = MeshoptSimplifier.simplifyWithAttributes(idx, pos, 3, uv, 2, [1, 1], null, target, 0.05);
+      // a texture cut into countless tiny pieces locks nearly every vertex (the porcupinefish scan kept
+      // 99%): fall back to the sloppy simplifier, which ignores seams — vertices keep their UVs
+      if (out.length > target * 1.5) [out] = MeshoptSimplifier.simplifySloppy(idx, pos, 3, null, target, 0.02);
       idxA.setArray(out);
       compactPrimitive(prim);
     }
   }
 }
 
-const SCANS = new Set(JSON.parse(readFileSync('assets-src/models/sources.json', 'utf8')).filter((s) => s.user.startsWith('ffishAsia')).map((s) => s.id));
+const SOURCES = JSON.parse(readFileSync('assets-src/models/sources.json', 'utf8'));
+const SCANS = new Set(SOURCES.filter((s) => s.user.startsWith('ffishAsia')).map((s) => s.id));
+/** other photogrammetry scans (hundreds of thousands of faces, texture in tiny pieces): the scan budget too */
+const DENSE = new Set(SOURCES.filter((s) => s.faces > 300000).map((s) => s.id));
 const verts = (mesh) => mesh.listPrimitives().reduce((n, p) => n + p.getAttribute('POSITION').getCount(), 0);
 const tris = (mesh) => mesh.listPrimitives().reduce((n, p) => n + (p.getIndices()?.getCount() ?? p.getAttribute('POSITION').getCount()) / 3, 0);
 
@@ -81,9 +87,10 @@ for (const f of readdirSync(RAW).filter((x) => x.endsWith('.glb'))) {
   for (const mesh of doc.getRoot().listMeshes())
     for (const prim of mesh.listPrimitives()) for (const a of ['JOINTS_0', 'WEIGHTS_0']) prim.setAttribute(a, null);
   doc.setLogger({ debug() {}, info() {}, warn: console.warn, error: console.error });
-  await doc.transform(prune());
+  // old spec/gloss materials (the lungfish scan) → metal/rough, or three.js shows them untextured white
+  await doc.transform(metalRough(), prune());
   const total = doc.getRoot().listMeshes().reduce((n, m) => n + tris(m), 0);
-  const ratio = Math.min(1, TARGET_TRIS[scan ? 'scan' : 'other'] / total);
+  const ratio = Math.min(1, TARGET_TRIS[scan || DENSE.has(id) ? 'scan' : 'other'] / total);
   await doc.transform(weld());
   simplifyUV(doc, ratio);
   const tmp = join(tmpdir(), `fish-${id}.glb`);

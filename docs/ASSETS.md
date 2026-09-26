@@ -56,6 +56,22 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 | 백상아리 | `public/models/fish/great_white.glb` | Sketchfab [White Pointer](https://sketchfab.com/3d-models/8e429052939a4677861d0d550a0e27cd) | 3dartstevenz | CC-BY 4.0 (저작자 표시) | 2026-09-25 |
 | 나일퍼치 (바라문디 — 같은 Lates속) | `public/models/fish/nile_perch.glb` | Sketchfab [Barramundi fish](https://sketchfab.com/3d-models/699ae7b41ed14962a4d1afa008a8ba2a) | ryan_saputra | CC-BY 4.0 (저작자 표시) | 2026-09-25 |
 | 틸라피아 | `public/models/fish/tilapia.glb` | TRELLIS.2 ← [Tilapia oreochromis niloticus fish.jpg](https://commons.wikimedia.org/wiki/File:Tilapia_oreochromis_niloticus_fish.jpg) | (Wikimedia Commons, 퍼블릭 도메인) | 퍼블릭 도메인 사진 → 생성 모델 | 2026-09-25 |
+| 자라 (중국자라 P. sinensis) | `public/models/fish/softshell.glb` | Sketchfab [CC0 スッポン 🐢 ♀ Soft-shelled Turtle, P. sinensis](https://sketchfab.com/3d-models/3f9a4a4922b94540973035c8f01a7a01) | ffishAsia-and-floraZia | CC0 | 2026-09-26 |
+| 뱀장어 | `public/models/fish/eel.glb` | Sketchfab [CC0 ニホンウナギ 🐟 Japanese Eel, Anguilla japonica](https://sketchfab.com/3d-models/4e32ce898e4b4fad96860c45d9ac04af) | ffishAsia-and-floraZia | CC0 | 2026-09-26 |
+| 문어 (참문어) | `public/models/fish/octopus.glb` | Sketchfab [CC0 マダコ 🐙 Common Octopus, Octopus vulgaris](https://sketchfab.com/3d-models/7860bbb4a7044522a308e5b527121a62) | ffishAsia-and-floraZia | CC0 | 2026-09-26 |
+| 복어 (복섬 — クサフグ) | `public/models/fish/puffer.glb` | Sketchfab [CC0 クサフグ 🐡 Grass Puffer, Takifugu niphobles](https://sketchfab.com/3d-models/586210558f404005bf25d8a19720de41) | ffishAsia-and-floraZia | CC0 | 2026-09-26 |
+| 가시복 (가시복과 Long-spine Porcupinefish) | `public/models/fish/porcupinefish.glb` | Sketchfab [Long-spine Porcupinefish](https://sketchfab.com/3d-models/79b46383e9a14fd6ab83cbbc31a2ab16) | RISDNaturelab | CC-BY 4.0 (저작자 표시) | 2026-09-26 |
+| 쏠배감펭 (ミノカサゴ — 쏠배감펭속) | `public/models/fish/lionfish.glb` | Sketchfab [CC0 ミノカサゴ 🐟 Luna Lionfish, Pterois lunulata](https://sketchfab.com/3d-models/701f33ba0db84058900232bf7ee91fec) | ffishAsia-and-floraZia | CC0 | 2026-09-26 |
+| 곰치 (ウツボ — 곰치과) | `public/models/fish/moray.glb` | Sketchfab [CC0 ウツボ 🐟 Brutal Moray, Gymnothorax kidako](https://sketchfab.com/3d-models/f7b2e7e06e454392bf7d7ab739658d57) | ffishAsia-and-floraZia | CC0 | 2026-09-26 |
+| 무늬오징어 | `public/models/fish/bigfin_squid.glb` | Sketchfab [CC0 アオリイカ Bigfin Reef Squid, S. lessoniana](https://sketchfab.com/3d-models/8457fc5fb9bc4db8a00fdec43a3f4456) | ffishAsia-and-floraZia | CC0 | 2026-09-26 |
+| 노랑가오리 | `public/models/fish/stingray.glb` | Sketchfab [CC0 アカエイ 🦈 ♀ Red Stingray, Hemitrygon akajei](https://sketchfab.com/3d-models/f309cd53efd544f4b22b33f0ebd2e07b) | ffishAsia-and-floraZia | CC0 | 2026-09-26 |
+| 대왕오징어 (색은 코드로 입힘) | `public/models/fish/giant_squid.glb` | Sketchfab [Sculptjanuary 2019, day 1: Giant Squid](https://sketchfab.com/3d-models/1f97e07935bf42e3a9cf1aa02f925d7e) | mvick13497 | CC-BY 4.0 (저작자 표시) | 2026-09-26 |
+| 덤보문어 | `public/models/fish/dumbo.glb` | Sketchfab [Flapjack Dumbo Octopus Adorabilis](https://sketchfab.com/3d-models/977d38f89ca54c8b91b9667d52cb3d79) | andrearosini | CC-BY 4.0 (저작자 표시) | 2026-09-26 |
+| 흡혈오징어 | `public/models/fish/vampire_squid.glb` | Sketchfab [Squid](https://sketchfab.com/3d-models/8ad9904e278948feb61e9db1bf399263) | gabrielfontenelle | CC-BY 4.0 (저작자 표시) | 2026-09-26 |
+| 실러캔스 | `public/models/fish/coelacanth.glb` | Sketchfab [Coelacanth](https://sketchfab.com/3d-models/2400195832b64f698096ed0fdac85d51) | TimFallas | CC-BY 4.0 (저작자 표시) | 2026-09-26 |
+| 풍선장어 | `public/models/fish/gulper.glb` | Sketchfab [Gulper Eel (Eurypharynx pelecanoides)](https://sketchfab.com/3d-models/fbae0106acab48f4869141df9d8c37da) | SpaceGolby | CC-BY 4.0 (저작자 표시) | 2026-09-26 |
+| 아프리카 폐어 (P. annectens) | `public/models/fish/lungfish.glb` | Sketchfab [African Lungfish - Protopterus annectens](https://sketchfab.com/3d-models/3c0e32d2b3784c1080ce79d495f844d5) | MTSUichthyology | CC-BY 4.0 (저작자 표시) | 2026-09-26 |
+| 비키르 | (없음) | 무료 모델이 없어 코드로 만든 모델(`fishModels.ts`) | 이 프로젝트 | — | 2026-09-26 |
 
 ## 코드로 만든 것 (외부 파일 아님)
 

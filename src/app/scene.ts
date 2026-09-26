@@ -260,9 +260,6 @@ export class FishingScene {
     uStars: { value: 0 },
     uTime: { value: 0 },
   };
-  /** 살림통: water and fish tails in each ground's bucket, shown while the player keeps catches here */
-  private keeps: { ground: THREE.Group; inner: THREE.Group; tails: THREE.Mesh[]; top: THREE.Vector3 }[] = [];
-  private keepN = 0;
   private rodBase = new THREE.Group();
   private rodSegs: THREE.Group[] = [];
   private rodTip = new THREE.Object3D();
@@ -767,11 +764,9 @@ export class FishingScene {
       return o;
     };
     place(stool.scene, -0.8, DECK_Y, -3.3, 0.5, 1, this.groups.deck);
-    for (const b of [
-      place(bucket.scene, 0.85, DECK_Y, -3.6, -0.3, 1, this.groups.deck),
-      place(bucket.scene, -1.1, DECK_Y + 0.02, -2.6, 0.8, 1, this.groups.rock),
-      place(bucket.scene, 1.0, DECK_Y + 0.16, -2.3, 0.2, 1, this.groups.boat),
-    ]) this.buildKeep(b);
+    place(bucket.scene, 0.85, DECK_Y, -3.6, -0.3, 1, this.groups.deck);
+    place(bucket.scene, -1.1, DECK_Y + 0.02, -2.6, 0.8, 1, this.groups.rock);
+    place(bucket.scene, 1.0, DECK_Y + 0.16, -2.3, 0.2, 1, this.groups.boat);
     // grass in patches along both shores (shallow water), not scattered over open water
     const rng = (i: number) => Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
     let k = 0;
@@ -782,55 +777,6 @@ export class FishingScene {
           place(grass.scene, cx + (rng(k) - 0.5) * 2.4, -0.05, pz + (rng(k + 50) - 0.5) * 2.4, rng(k + 99) * Math.PI * 2, 1.6 + rng(k + 7) * 1.2);
         }
       }
-    }
-  }
-
-  /** 살림통 contents for one bucket: a water surface just under the rim and up to three tails sticking out. */
-  private buildKeep(bucket: THREE.Object3D): void {
-    bucket.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(bucket);
-    const size = box.getSize(new THREE.Vector3());
-    const r = Math.min(size.x, size.z) / 2;
-    const top = new THREE.Vector3((box.min.x + box.max.x) / 2, box.max.y, (box.min.z + box.max.z) / 2);
-    const inner = new THREE.Group();
-    inner.position.copy(top);
-    const water = new THREE.Mesh(
-      new THREE.CircleGeometry(r * 0.8, 24),
-      new THREE.MeshStandardMaterial({ color: 0x24403e, roughness: 0.15, metalness: 0.2 }),
-    );
-    water.rotation.x = -Math.PI / 2;
-    water.position.y = -size.y * 0.12;
-    inner.add(water);
-    // a forked tail fin, like a fish head-down in the bucket
-    const sh = new THREE.Shape();
-    sh.moveTo(0, 0);
-    sh.quadraticCurveTo(-0.05, 0.08, -0.09, 0.15);
-    sh.quadraticCurveTo(0, 0.1, 0.09, 0.15);
-    sh.quadraticCurveTo(0.05, 0.08, 0, 0);
-    const tailGeo = new THREE.ShapeGeometry(sh, 8);
-    const tails: THREE.Mesh[] = [];
-    for (let i = 0; i < 3; i++) {
-      const t = new THREE.Mesh(tailGeo, new THREE.MeshStandardMaterial({ color: [0x4a4630, 0x6b5a3a, 0x3a4a44][i], roughness: 0.6, side: THREE.DoubleSide }));
-      const a = i * 2.1 + 0.4;
-      t.position.set(Math.cos(a) * r * 0.35, water.position.y, Math.sin(a) * r * 0.35);
-      t.rotation.set(0, a, (i - 1) * 0.25);
-      t.scale.setScalar(r * 3);
-      t.visible = false;
-      inner.add(t);
-      tails.push(t);
-    }
-    inner.visible = false;
-    bucket.parent!.add(inner);
-    this.keeps.push({ ground: bucket.parent as THREE.Group, inner, tails, top });
-  }
-
-  /** 살림통: how many fish are kept at this place (0 = an empty bucket). `splash`: one was just put in. */
-  setKeep(n: number, splash = false): void {
-    this.keepN = n;
-    for (const k of this.keeps) {
-      k.inner.visible = n > 0;
-      k.tails.forEach((t, i) => (t.visible = n > i));
-      if (splash && n > 0 && k.ground.visible) this.splashAt(k.top, 24, 1.6);
     }
   }
 
@@ -1298,7 +1244,6 @@ export class FishingScene {
   render(g: FishingGame, now: number): void {
     if (this.water) this.water.material.uniforms.time.value = now / 1000 * 0.35;
     this.skyU.uTime.value = now / 1000;
-    if (this.keepN > 0) for (const k of this.keeps) k.tails.forEach((t, i) => (t.rotation.z = (i - 1) * 0.25 + Math.sin(now / 180 + i * 2) * 0.12));
     if (this.floatGlow.visible) this.floatGlow.material.opacity = 0.8 + 0.2 * Math.sin(now / 260);
     const dt = this.lastRenderT ? Math.min(0.1, (now - this.lastRenderT) / 1000) : 0;
     this.lastRenderT = now;

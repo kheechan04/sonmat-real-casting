@@ -151,5 +151,140 @@
   "user": "ryan_saputra",
   "url": "https://sketchfab.com/3d-models/699ae7b41ed14962a4d1afa008a8ba2a",
   "faces": 4104
+ },
+ {
+  "id": "softshell",
+  "uid": "3f9a4a4922b94540973035c8f01a7a01",
+  "name": "CC0 スッポン 🐢 ♀ Soft-shelled Turtle, P. sinensis",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/3f9a4a4922b94540973035c8f01a7a01",
+  "faces": 1024082
+ },
+ {
+  "id": "eel",
+  "uid": "4e32ce898e4b4fad96860c45d9ac04af",
+  "name": "CC0 ニホンウナギ 🐟 Japanese Eel, Anguilla japonica",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/4e32ce898e4b4fad96860c45d9ac04af",
+  "faces": 925536
+ },
+ {
+  "id": "octopus",
+  "uid": "7860bbb4a7044522a308e5b527121a62",
+  "name": "CC0 マダコ 🐙 Common Octopus, Octopus vulgaris",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/7860bbb4a7044522a308e5b527121a62",
+  "faces": 924663
+ },
+ {
+  "id": "puffer",
+  "uid": "586210558f404005bf25d8a19720de41",
+  "name": "CC0 クサフグ 🐡 Grass Puffer, Takifugu niphobles",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/586210558f404005bf25d8a19720de41",
+  "faces": 707083
+ },
+ {
+  "id": "porcupinefish",
+  "uid": "79b46383e9a14fd6ab83cbbc31a2ab16",
+  "name": "Long-spine Porcupinefish",
+  "lic": "CC Attribution",
+  "user": "RISDNaturelab",
+  "url": "https://sketchfab.com/3d-models/79b46383e9a14fd6ab83cbbc31a2ab16",
+  "faces": 999999
+ },
+ {
+  "id": "lionfish",
+  "uid": "701f33ba0db84058900232bf7ee91fec",
+  "name": "CC0 ミノカサゴ 🐟 Luna Lionfish, Pterois lunulata",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/701f33ba0db84058900232bf7ee91fec",
+  "faces": 546376
+ },
+ {
+  "id": "moray",
+  "uid": "f7b2e7e06e454392bf7d7ab739658d57",
+  "name": "CC0 ウツボ 🐟 Brutal Moray, Gymnothorax kidako",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/f7b2e7e06e454392bf7d7ab739658d57",
+  "faces": 1987725
+ },
+ {
+  "id": "bigfin_squid",
+  "uid": "8457fc5fb9bc4db8a00fdec43a3f4456",
+  "name": "CC0 アオリイカ Bigfin Reef Squid, S. lessoniana",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/8457fc5fb9bc4db8a00fdec43a3f4456",
+  "faces": 2313341
+ },
+ {
+  "id": "stingray",
+  "uid": "f309cd53efd544f4b22b33f0ebd2e07b",
+  "name": "CC0 アカエイ 🦈 ♀ Red Stingray, Hemitrygon akajei",
+  "lic": "CC0 Public Domain",
+  "user": "ffishAsia-and-floraZia",
+  "url": "https://sketchfab.com/3d-models/f309cd53efd544f4b22b33f0ebd2e07b",
+  "faces": 1108670
+ },
+ {
+  "id": "giant_squid",
+  "uid": "1f97e07935bf42e3a9cf1aa02f925d7e",
+  "name": "Sculptjanuary 2019, day 1: Giant Squid",
+  "lic": "CC Attribution",
+  "user": "mvick13497",
+  "url": "https://sketchfab.com/3d-models/1f97e07935bf42e3a9cf1aa02f925d7e",
+  "faces": 176412
+ },
+ {
+  "id": "dumbo",
+  "uid": "977d38f89ca54c8b91b9667d52cb3d79",
+  "name": "Flapjack Dumbo Octopus Adorabilis",
+  "lic": "CC Attribution",
+  "user": "andrearosini",
+  "url": "https://sketchfab.com/3d-models/977d38f89ca54c8b91b9667d52cb3d79",
+  "faces": 4524
+ },
+ {
+  "id": "vampire_squid",
+  "uid": "8ad9904e278948feb61e9db1bf399263",
+  "name": "Squid",
+  "lic": "CC Attribution",
+  "user": "gabrielfontenelle",
+  "url": "https://sketchfab.com/3d-models/8ad9904e278948feb61e9db1bf399263",
+  "faces": 10178
+ },
+ {
+  "id": "coelacanth",
+  "uid": "2400195832b64f698096ed0fdac85d51",
+  "name": "Coelacanth",
+  "lic": "CC Attribution",
+  "user": "TimFallas",
+  "url": "https://sketchfab.com/3d-models/2400195832b64f698096ed0fdac85d51",
+  "faces": 13812
+ },
+ {
+  "id": "gulper",
+  "uid": "fbae0106acab48f4869141df9d8c37da",
+  "name": "Gulper Eel (Eurypharynx pelecanoides)",
+  "lic": "CC Attribution",
+  "user": "SpaceGolby",
+  "url": "https://sketchfab.com/3d-models/fbae0106acab48f4869141df9d8c37da",
+  "faces": 284226
+ },
+ {
+  "id": "lungfish",
+  "uid": "3c0e32d2b3784c1080ce79d495f844d5",
+  "name": "African Lungfish - Protopterus annectens",
+  "lic": "CC Attribution",
+  "user": "MTSUichthyology",
+  "url": "https://sketchfab.com/3d-models/3c0e32d2b3784c1080ce79d495f844d5",
+  "faces": 599999
  }
 ]

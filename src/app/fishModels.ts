@@ -81,6 +81,8 @@ const SPECS: Record<string, FishSpec> = {
   vundu: { nose: 2.6, stalk: 0.3, depth: 0.18, width: 0.17, peak: 0.7, sharp: 0.81, back: 0x3a3e30, side: 0x6a6e56, belly: 0xd6d4bc, pattern: 'mottled', patternColor: 0x262a1e, fin: 0x444834, tail: 'fork', dorsal: 'normal', extras: ['barbels8', 'bigMouth'], eye: 0.5, smooth: true },
   electric_catfish: { nose: 2.6, stalk: 0.4, depth: 0.3, width: 0.28, peak: 0.6, sharp: 0.63, back: 0x5a4a3a, side: 0x8a7458, belly: 0xd8c8aa, pattern: 'spots', patternColor: 0x2e241a, fin: 0x6a5840, tail: 'round', dorsal: 'none', extras: ['barbels4'], eye: 0.45, smooth: true },
   tigerfish: { nose: 1.6, stalk: 0.16, depth: 0.28, width: 0.13, peak: 0.55, sharp: 1.26, back: 0x3a4550, side: 0xc6ccd0, belly: 0xf0f2f2, pattern: 'stripes', patternColor: 0x1a2028, fin: 0xd8452a, tail: 'fork', dorsal: 'normal', extras: ['fangs', 'bigMouth'], metal: 0.6 },
+  // 비키르 (added 2026-09-26, no free model): long, olive, a row of small sail-like finlets along the back
+  bichir: { nose: 2.2, stalk: 0.25, depth: 0.14, width: 0.12, peak: 0.6, sharp: 0.7, back: 0x4a4a32, side: 0x7a7550, belly: 0xd8d0a8, pattern: 'mottled', patternColor: 0x2a281a, fin: 0x5a5638, tail: 'round', dorsal: 'crest', eye: 0.7, smooth: true },
   nile_perch: { nose: 1.8, depth: 0.3, width: 0.15, peak: 0.6, sharp: 1.08, back: 0x4c5458, side: 0xb0b8ba, belly: 0xe8ecec, pattern: 'none', fin: 0x5a6266, tail: 'round', dorsal: 'two', extras: ['bigMouth'], eye: 1.4, eyeColor: 0xd8c050, metal: 0.55 },
 };
 

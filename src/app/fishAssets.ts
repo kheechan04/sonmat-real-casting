@@ -23,6 +23,8 @@ interface ModelDef {
   /** mirror top ↔ bottom after turning (a flatfish shown eyed-side-on with its head right has its
    *  dorsal edge down — anatomically right, but reads as upside down; user: "대광어 … 뒤집혀서") */
   flipY?: boolean;
+  /** colour for an untextured model's light-coloured parts (a grey sculpt → a living animal) */
+  color?: number;
   /** add a glowing lure on the forehead (the goosefish scan stands in for a deep-sea anglerfish) */
   lure?: boolean;
 }
@@ -46,10 +48,27 @@ export const MODELS: Record<string, ModelDef> = {
   hammerhead: { rot: [0, 180, 0] },
   isopod: { rot: [0, 180, 0] },
   anglerfish: { rot: [0, 180, 0], lure: true },
+  // added 2026-09-26 (more species) — ffish.asia scans. Flat animals are shown from above (back to the
+  // camera, head right), like the flounder: a turtle, octopus, squid or ray side-on is just a thin line
+  softshell: { rot: [90, 180, 0] },
+  eel: { rot: [0, 180, 0] },
+  octopus: { rot: [90, 180, 0] },
+  puffer: { rot: [0, 180, 0] },
+  lionfish: { rot: [0, 180, 0] },
+  moray: { rot: [0, 180, 0] },
+  bigfin_squid: { rot: [90, 180, 0] },
+  stingray: { rot: [90, 180, 0] },
   // others
   great_white: { rot: [90, 0, -90] }, // modelled head-up along +y ([-90, 0, -90] showed it belly-up)
   nile_perch: {}, // barramundi (same genus) — already head +x
   tilapia: { rot: [0, -90, 0] }, // TRELLIS.2: head −z
+  porcupinefish: {},
+  giant_squid: { rot: [0, 0, -90], color: 0xa8402f }, // sculpted mantle-up, untextured → mantle ahead, deep red
+  dumbo: {}, // faces the camera already
+  vampire_squid: {},
+  coelacanth: { rot: [0, 90, 0] }, // head +z
+  gulper: { rot: [0, 90, 0] }, // head +z
+  lungfish: { rot: [0, -46, 0] }, // scanned lying diagonally (body axis −46° in x–z, head at the thicker end)
 };
 
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
@@ -112,6 +131,8 @@ async function loadModel(file: string, def: ModelDef): Promise<THREE.Group> {
     m.rotation.set(0, 0, 0);
     m.scale.set(1, 1, 1);
     m.material = swimMaterial(m.material as THREE.MeshStandardMaterial, def.tint);
+    const mat = m.material as THREE.MeshStandardMaterial;
+    if (def.color !== undefined && !mat.map && mat.color.getHSL({ h: 0, s: 0, l: 0 }).l > 0.4) mat.color.setHex(def.color);
     g.add(m);
   }
   if (def.lure) addLure(g, size.y / size.x / 2);

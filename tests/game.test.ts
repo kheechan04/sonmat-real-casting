@@ -460,11 +460,12 @@ describe('fight length (real species table)', () => {
 
 describe('M4: 인면어 (face fish)', () => {
   /** how many of `n` bites are the 인면어 */
-  const faceShare = (enabled: boolean, n = 2000) => {
+  const faceShare = (enabled: boolean, n = 2000, caughtBefore = true) => {
     let seed = 99;
     const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const s = setup({}, rng);
     s.g.faceFish = enabled;
+    s.g.faceFishCaught = caughtBefore;
     let faces = 0;
     for (let i = 0; i < n; i++) {
       s.g.again(s.now());
@@ -475,11 +476,16 @@ describe('M4: 인면어 (face fish)', () => {
     }
     return faces / n;
   };
-  it('never bites without a saved face; about 5% of bites with one', () => {
+  it('never bites without a saved face; about 5% of bites once one has been caught', () => {
     expect(faceShare(false, 400)).toBe(0);
     const share = faceShare(true);
     expect(share).toBeGreaterThan(0.03);
     expect(share).toBeLessThan(0.07);
+  });
+  it('about 10% until the first 인면어 is caught (user: "처음 10% 나중 5%")', () => {
+    const share = faceShare(true, 2000, false);
+    expect(share).toBeGreaterThan(0.075);
+    expect(share).toBeLessThan(0.125);
   });
 });
 
