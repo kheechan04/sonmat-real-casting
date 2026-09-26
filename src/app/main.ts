@@ -940,10 +940,10 @@ function updateTug(): void {
 function postureWarning(): string {
   if (!source.running) return '';
   const f = lastFrame;
-  if (!f?.lm || performance.now() - f.t > 1000) return '사람이 안 보여요 — 카메라 앞에 서 주세요';
+  if (!f?.lm || performance.now() - f.t > 1000) return '사람이 안 보여요 — 카메라 앞으로 와 주세요';
   const lm = f.lm;
   // hips may be out of frame (framed from the navel up) — the shoulders carry the scale then
-  if (lm[LM.SHOULDER_L][3] < params.minVis || lm[LM.SHOULDER_R][3] < params.minVis) return '양쪽 어깨가 화면에 들어오게 서 주세요';
+  if (lm[LM.SHOULDER_L][3] < params.minVis || lm[LM.SHOULDER_R][3] < params.minVis) return '양쪽 어깨가 화면에 들어오게 해 주세요';
   if (game.phase === 'reeling' && lm[ARM[other(rodHand)].wrist][3] < params.minVis) return '릴 손이 안 보여요';
   if ((game.phase === 'ready' || game.phase === 'bite') && lm[ARM[rodHand].wrist][3] < params.minVis) return '대 든 손이 안 보여요';
   return '';
