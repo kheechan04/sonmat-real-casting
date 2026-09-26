@@ -62,6 +62,9 @@ export const MODELS: Record<string, ModelDef> = {
   great_white: { rot: [90, 0, -90] }, // modelled head-up along +y ([-90, 0, -90] showed it belly-up)
   nile_perch: {}, // barramundi (same genus) — already head +x
   tilapia: { rot: [0, -90, 0] }, // TRELLIS.2: head −z
+  // TRELLIS.2 from licensed photos (2026-09-27, docs/ASSETS.md)
+  alfonsino: { rot: [0, 90, 0] }, // head +z
+  bichir: { rot: [0, 180, 0], tint: 0x8a8a5a }, // the only full-body free photo was an albino → olive, keeping the pattern
   porcupinefish: {},
   giant_squid: { rot: [0, 0, -90], color: 0xa8402f }, // sculpted mantle-up, untextured → mantle ahead, deep red
   dumbo: {}, // faces the camera already

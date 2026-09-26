@@ -88,7 +88,8 @@ for (const f of readdirSync(RAW).filter((x) => x.endsWith('.glb'))) {
     for (const prim of mesh.listPrimitives()) for (const a of ['JOINTS_0', 'WEIGHTS_0']) prim.setAttribute(a, null);
   doc.setLogger({ debug() {}, info() {}, warn: console.warn, error: console.error });
   // old spec/gloss materials (the lungfish scan) → metal/rough, or three.js shows them untextured white
-  await doc.transform(metalRough(), prune());
+  const specGloss = doc.getRoot().listExtensionsUsed().some((e) => e.extensionName === 'KHR_materials_pbrSpecularGlossiness');
+  await doc.transform(...(specGloss ? [metalRough()] : []), prune());
   const total = doc.getRoot().listMeshes().reduce((n, m) => n + tris(m), 0);
   const ratio = Math.min(1, TARGET_TRIS[scan || DENSE.has(id) ? 'scan' : 'other'] / total);
   await doc.transform(weld());
