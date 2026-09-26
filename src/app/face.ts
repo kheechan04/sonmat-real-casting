@@ -20,12 +20,14 @@ export const FACE_PX = 256;
  */
 export const FACE_ASPECT = 1.3;
 
-/** Pose landmarks used to find the face (MediaPipe pose: nose, eyes, ears). */
+/** Pose landmarks used to find the face (MediaPipe pose: nose, eyes, ears, mouth). */
 const NOSE = 0;
 const EYE_L = 2;
 const EYE_R = 5;
 const EAR_L = 7;
 const EAR_R = 8;
+const MOUTH_L = 9;
+const MOUTH_R = 10;
 
 /**
  * Just the face — forehead to chin, cheek to cheek, no hair or background (user: "여백 없이 얼굴로만 꽉
@@ -43,12 +45,25 @@ export function cropFace(video: HTMLVideoElement, lm: P4[] | null, out?: HTMLCan
   const eyes = { x: (px(EYE_L).x + px(EYE_R).x) / 2, y: (px(EYE_L).y + px(EYE_R).y) / 2 };
   const eyeD = Math.hypot(px(EYE_L).x - px(EYE_R).x, px(EYE_L).y - px(EYE_R).y);
   const earD = vis(EAR_L) && vis(EAR_R) ? Math.hypot(px(EAR_L).x - px(EAR_R).x, px(EAR_L).y - px(EAR_R).y) : 0;
-  const fw = earD ? earD * 0.95 : eyeD * 2.3;
-  const fh = fw * FACE_ASPECT;
-  if (fw < 30) return null; // too far away to be a face worth keeping
+  let fw = earD ? earD * 0.95 : eyeD * 2.3;
+  let fh = fw * FACE_ASPECT;
   // the eyes sit a little above the middle of a face (≈ 42% down from the hairline)
   const cx = (eyes.x + nose.x) / 2;
-  const cy = eyes.y + fh * 0.08;
+  let cy = eyes.y + fh * 0.08;
+  if (vis(MOUTH_L) && vis(MOUTH_R)) {
+    // with the mouth seen, size the height from it so the mouth and chin are always in (user: "눈코입 다
+    // 들어가게 … 입쪽이 좀 잘려"): hairline ≈ 1 eye→mouth above the eyes, chin ≈ 0.8 below the mouth
+    const mouthY = (px(MOUTH_L).y + px(MOUTH_R).y) / 2;
+    const em = mouthY - eyes.y;
+    if (em > 0) {
+      const top = eyes.y - em * 1.0;
+      const bottom = mouthY + em * 0.8;
+      fh = Math.max(bottom - top, fh);
+      fw = fh / FACE_ASPECT;
+      cy = (top + bottom) / 2;
+    }
+  }
+  if (fw < 30) return null; // too far away to be a face worth keeping
   const c = out ?? document.createElement('canvas');
   c.width = c.height = FACE_PX;
   const g = c.getContext('2d')!;

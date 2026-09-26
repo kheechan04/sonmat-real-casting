@@ -611,9 +611,9 @@ function faceSkin(mat: THREE.MeshPhysicalMaterial): void {
         '#include <begin_vertex>',
         `#include <begin_vertex>
         // seen from the front (+x): screen right = −z, up = +y; the oval face fills the blunt nose
-        // bigger than the front's outline (user: "얼굴이 좀 더 크게"), in the saved face's 1 : 1.3 oval
-        vFaceUv = vec2(-position.z, position.y - 0.01) / vec2(0.30, 0.39) + 0.5;
-        vFaceW = smoothstep(0.24, 0.38, position.x) * smoothstep(0.05, 0.5, normalize(objectNormal).x);`,
+        // bigger than the front's outline (user: "얼굴이 좀 더 크게", then "너무 늘어져 … 중간 정도로"), in the saved face's 1 : 1.3 oval
+        vFaceUv = vec2(-position.z, position.y - 0.01) / vec2(0.285, 0.36) + 0.5;
+        vFaceW = smoothstep(0.27, 0.40, position.x) * smoothstep(0.1, 0.58, normalize(objectNormal).x);`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform sampler2D uFaceMap;\nuniform float uFaceOn;\nvarying vec2 vFaceUv;\nvarying float vFaceW;')
