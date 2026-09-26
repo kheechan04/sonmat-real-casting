@@ -29,6 +29,27 @@ const CAST_SETTLE_FRAC = 0.5;
 const CAST_SETTLE_MS = 200;
 /** Aim = sideways wrist travel over this span before the cast fires (G1–G3: 0.4 s separated best). */
 const AIM_SPAN_MS = 400;
+/** Reeling: the circle's centre is the hand's mean position over this span, ms (≥ one slow turn). */
+const REEL_CENTRE_MS = 700;
+/** Reeling speed is averaged over at least this many frame steps (at 10 fps 300 ms is only 3). */
+const REEL_MIN_STEPS = 4;
+
+/**
+ * A fast circle seen at a low frame rate is a few corners, and the straight steps between them cut the
+ * circle short (in-game 10 fps: fast reeling read a third slower than at 30 fps, the close-up
+ * recording at 6–8 fps lost up to two thirds — user: "빠르게 감아도 잘 안 감기네"). Stretch each step
+ * back to its arc by the angle it spans around the circle's centre. Small steps (30 fps) stay ≈ 1×.
+ */
+function arcStretch(q0: V3, q1: V3, cx: number, cy: number): number {
+  const r0 = Math.hypot(q0[0] - cx, q0[1] - cy);
+  const r1 = Math.hypot(q1[0] - cx, q1[1] - cy);
+  // only for circling: both ends at a similar distance from the centre, not through it
+  if (Math.min(r0, r1) < 0.5 * Math.max(r0, r1) || Math.max(r0, r1) < 1e-4) return 1;
+  let th = Math.abs(Math.atan2(q1[1] - cy, q1[0] - cx) - Math.atan2(q0[1] - cy, q0[0] - cx));
+  if (th > Math.PI) th = 2 * Math.PI - th;
+  if (th < 0.05) return 1;
+  return Math.min(Math.PI / 2, th / 2 / Math.sin(th / 2));
+}
 
 export type GestureEvent =
   | { type: 'cast'; t: number; /** 0–1 */ strength: number; peakSpeed: number; /** −1 … 1, + = the player's left */ aim: number }
@@ -174,16 +195,34 @@ export class GestureTracker {
     // ---- reel wrist: path speed (image, torso lengths/s, relative to its shoulder) → turns/s
     const reelP =
       lm && lm[reelArm.wrist][3] >= P.minVis ? imageRel(lm, reelArm.wrist, reelArm.shoulder, aspect) : null;
-    this.reel.push(t, reelP, P['reel.windowMs']);
+    this.reel.push(t, reelP, Math.max(P['reel.windowMs'], REEL_CENTRE_MS));
     if (reelP) {
+      const rt = this.reel.t;
+      const rp = this.reel.p;
+      // the circle's centre ≈ the hand's mean position over the last REEL_CENTRE_MS
+      let cx = 0;
+      let cy = 0;
+      let k = 0;
+      for (let i = 0; i < rt.length; i++) {
+        const q = rp[i];
+        if (!q || t - rt[i] > REEL_CENTRE_MS) continue;
+        cx += q[0];
+        cy += q[1];
+        k++;
+      }
+      cx /= k;
+      cy /= k;
+      // average over windowMs, but over at least REEL_MIN_STEPS frame steps (slow frame rates)
+      let from = rt.length - 1;
+      while (from > 0 && (t - rt[from - 1] <= P['reel.windowMs'] || rt.length - from <= REEL_MIN_STEPS)) from--;
       let path = 0;
       let span = 0;
-      for (let i = 1; i < this.reel.t.length; i++) {
-        const q0 = this.reel.p[i - 1];
-        const q1 = this.reel.p[i];
+      for (let i = from + 1; i < rt.length; i++) {
+        const q0 = rp[i - 1];
+        const q1 = rp[i];
         if (!q0 || !q1) continue;
-        path += Math.hypot(q1[0] - q0[0], q1[1] - q0[1]);
-        span += this.reel.t[i] - this.reel.t[i - 1];
+        path += Math.hypot(q1[0] - q0[0], q1[1] - q0[1]) * arcStretch(q0, q1, cx, cy);
+        span += rt[i] - rt[i - 1];
       }
       const v = span > 0 ? path / (span / 1000) : 0;
       this.reelRate = v >= P['reel.speedMin'] ? Math.min(P['reel.maxRate'], v * P['reel.turnsPerTorso']) : 0;

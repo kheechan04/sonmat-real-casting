@@ -132,12 +132,12 @@ async function start(withCamera: boolean): Promise<void> {
   show('tally', true);
   renderTally();
   game.toPlaces(performance.now());
-  // the how-to opens by itself once, the first time (after that: the ? button); then, once, the 인면어 offer
+  // the how-to opens by itself once, the first time (after that: the ? button); then the 인면어 capture
   if (store.get('howto.v1') !== '1') {
     show('helpBox', true);
     store.set('howto.v1', '1');
     askFaceAfterHelp = true;
-  } else maybeAskFace();
+  } else void maybeAskFace();
 }
 
 $('start').addEventListener('click', () => void start(true));
@@ -335,7 +335,8 @@ function applyFace(img: ImageBitmap | HTMLCanvasElement | null): void {
   setFaceImage(img);
   game.faceFish = !!img;
 }
-void loadFace().then((img) => img && applyFace(img));
+/** the saved face has been looked up (so "no face" is known for sure before offering the capture) */
+const faceLoaded = loadFace().then((img) => img && applyFace(img));
 
 function faceDexSection(): HTMLElement {
   const sec = document.createElement('section');
@@ -383,20 +384,16 @@ function faceDexSection(): HTMLElement {
 /** the first-run how-to is open: offer the 인면어 once it's closed */
 let askFaceAfterHelp = false;
 
-/** Once per browser, with the camera on and no face saved: "내 얼굴로 인면어를 만들까요?" */
-function maybeAskFace(): void {
-  if (!source.running || faceImage || store.get('faceAsk.v1') === '1') return;
-  show('faceAsk', true);
-}
-$('askLater').addEventListener('click', () => {
-  store.set('faceAsk.v1', '1');
-  show('faceAsk', false);
-});
-$('askYes').addEventListener('click', () => {
-  store.set('faceAsk.v1', '1');
-  show('faceAsk', false);
+/**
+ * Every start with the camera on and no face saved: the capture window opens by itself (user: "사진
+ * 등록이 안 돼있으면 사진 등록 창 뜨게 … 가끔 … 창이 안 뜨더라" — it used to ask once per browser, and
+ * could ask before the saved face had been looked up). Consent is still needed before any preview.
+ */
+async function maybeAskFace(): Promise<void> {
+  await faceLoaded;
+  if (!source.running || faceImage) return;
   openFaceBox();
-});
+}
 
 /** capture flow state: live preview until "찍기", then the shot until "저장" / "다시 찍기" */
 let faceLive = false;
@@ -921,7 +918,7 @@ $('helpClose').addEventListener('click', () => {
   show('helpBox', false);
   if (askFaceAfterHelp) {
     askFaceAfterHelp = false;
-    maybeAskFace();
+    void maybeAskFace();
   }
 });
 

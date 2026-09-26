@@ -42,7 +42,7 @@ describe('privacy: the camera and the saved face never leave the browser', () =>
     for (const f of src) {
       const code = strip(f.code);
       // the only storage keys the app writes (store.set) are settings and records — never the face
-      for (const m of code.matchAll(/store\.set\(\s*'([^']+)'/g)) expect(['records.v1', 'rodHand', 'camera', 'howto.v1', 'pipSize', 'muted', 'preset', 'tsRole', 'tsSpace', 'faceAsk.v1']).toContain(m[1]);
+      for (const m of code.matchAll(/store\.set\(\s*'([^']+)'/g)) expect(['records.v1', 'rodHand', 'camera', 'howto.v1', 'pipSize', 'muted', 'preset', 'tsRole', 'tsSpace']).toContain(m[1]);
       if (f.p.endsWith('face.ts')) continue;
       expect(code, f.p).not.toMatch(/faceShot[^;\n]*(toDataURL|toBlob|createObjectURL)/);
     }

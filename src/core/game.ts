@@ -293,7 +293,9 @@ export class FishingGame {
       case 'cast':
         if (this.phase !== 'ready') return;
         this.castStrength = ev.strength;
-        this.distanceM = MIN_DISTANCE_M + (MAX_DISTANCE_M - MIN_DISTANCE_M) * ev.strength;
+        // a curve, so a gentle cast lands near (user: "새떼가 가까이 있을 때는 약하게 던지는데도 멀리"):
+        // recorded casts are mostly 7–10 body/s, which a straight line put at 14–22 m
+        this.distanceM = MIN_DISTANCE_M + (MAX_DISTANCE_M - MIN_DISTANCE_M) * Math.pow(ev.strength, this.params()['cast.distCurve']);
         this.aim = Math.max(-1, Math.min(1, ev.aim ?? 0));
         this.emit({ type: 'cast', strength: ev.strength, distanceM: this.distanceM, aim: this.aim });
         this.setPhase('flight', now);

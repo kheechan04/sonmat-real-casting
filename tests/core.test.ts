@@ -13,7 +13,9 @@ import {
   worldImageAgreement,
   worldTrack,
 } from '../src/core/analysis';
+import { GestureTracker } from '../src/core/gestures';
 import { mirrorRecording } from '../src/core/mirror';
+import { defaultParams } from '../src/core/params';
 import { ARM, LM } from '../src/core/pose';
 import { matchNote, noteFor, PROTOCOL } from '../src/core/protocol';
 import { parseRecording, serializeRecording } from '../src/core/recording';
@@ -200,7 +202,7 @@ describe('analysis', () => {
         recordingOf(
           animate(ms, (t) => {
             const a = dir * (t / ms) * 3 * 2 * Math.PI;
-            return withWrist(standing(), R, [0.1 * Math.cos(a), 0.1 * Math.sin(a), 0]);
+            return withWrist(standing(), R, [0.03 * Math.cos(a), 0.03 * Math.sin(a), 0]);
           }),
         ),
         R,
@@ -208,5 +210,34 @@ describe('analysis', () => {
       );
     expect(circleStats(mk(1), 'world-xy').turns).toBeGreaterThan(2.5);
     expect(circleStats(mk(-1), 'world-xy').turns).toBeLessThan(-2.5);
+  });
+});
+
+describe('reel rate', () => {
+  // user: "빠르게 감아도 잘 안 감기네" — at the game's lower frame rates a fast circle is only a few
+  // corners per turn; the rate must not drop just because fewer frames were seen
+  const rateAt = (fps: number, turnsPerS: number) => {
+    const tr = new GestureTracker(() => defaultParams());
+    const frames = animate(
+      2000,
+      (t) => {
+        const a = (2 * Math.PI * turnsPerS * t) / 1000;
+        return withWrist(standing(), LM.WRIST_L, [0.03 * Math.cos(a), 0.03 * Math.sin(a), 0]);
+      },
+      fps,
+    );
+    const rates: number[] = [];
+    for (const f of frames) {
+      tr.update(f, 'right', ASPECT);
+      if (f.t > 800) rates.push(tr.state(f.t).reelRate);
+    }
+    return rates.reduce((a, b) => a + b, 0) / rates.length;
+  };
+  it('fast reeling reads about the same at 30, 15 and 10 fps', () => {
+    const r30 = rateAt(30, 3.5);
+    expect(r30).toBeGreaterThan(2);
+    expect(r30).toBeLessThan(5); // below the reel.maxRate cap, so the comparison means something
+    expect(rateAt(15, 3.5)).toBeGreaterThan(r30 * 0.9);
+    expect(rateAt(10, 3.5)).toBeGreaterThan(r30 * 0.85);
   });
 });

@@ -48,8 +48,10 @@ const SPECS: Record<string, FishSpec> = {
   // 저수지
   crucian: { nose: 2.1, depth: 0.4, width: 0.15, peak: 0.55, sharp: 0.99, back: 0x2f3320, side: 0xa88d45, belly: 0xe8dcb2, pattern: 'none', fin: 0x5b4d2a, tail: 'fork', dorsal: 'long' },
   // M4 인면어: a golden koi-like carp with a broad, blunt front for the face (user: "몸통은 그냥 코드로 … 퀄리티
-  // 그렇게 높은 필요 없을 거 같아") — a kohaku koi; the face is painted onto its blunt front (faceSkin), no seam
-  face_fish: { nose: 3.2, depth: 0.36, width: 0.3, peak: 0.6, sharp: 0.95, back: 0xf3ede4, side: 0xf6f1ea, belly: 0xfbf8f2, pattern: 'koi', patternColor: 0xd9401c, fin: 0xf0b89a, tail: 'fork', dorsal: 'long', metal: 0.1, eye: 0 }, // eye 0: the face has the eyes
+  // 그렇게 높은 필요 없을 거 같아") — a koi in the player's own skin tone; the face is painted onto its blunt front (faceSkin), no seam
+  // colours here are multipliers of the player's skin tone (faceSkin uSkin): white = the skin itself,
+  // the koi patches a deeper, warmer shade of it (user: "몸통이 너무 얼굴이랑 따로 노는 거 같아서")
+  face_fish: { nose: 3.2, depth: 0.36, width: 0.3, peak: 0.6, sharp: 0.95, back: 0xd8ccc4, side: 0xf4efec, belly: 0xffffff, pattern: 'koi', patternColor: 0xb87a5c, fin: 0xffffff, tail: 'fork', dorsal: 'long', metal: 0.1, eye: 0 }, // eye 0: the face has the eyes
   carp: { nose: 2.1, depth: 0.3, width: 0.15, peak: 0.6, sharp: 0.99, back: 0x2b2216, side: 0x8e6c3a, belly: 0xe0cfa0, pattern: 'none', fin: 0x5a3f22, tail: 'fork', dorsal: 'long', extras: ['barbels4'] },
   bass: { nose: 1.8, depth: 0.3, width: 0.14, peak: 0.55, sharp: 1.08, back: 0x2e3d22, side: 0x7c8a4e, belly: 0xe6e2c4, pattern: 'stripe', patternColor: 0x1e2615, fin: 0x4e5a30, tail: 'truncate', dorsal: 'spiny', extras: ['bigMouth'] },
   catfish: { nose: 2.6, stalk: 0.3, depth: 0.18, width: 0.16, peak: 0.75, sharp: 0.81, back: 0x2a2a22, side: 0x4d4a3a, belly: 0xd8d2b8, pattern: 'mottled', patternColor: 0x1a1a14, fin: 0x333026, tail: 'round', dorsal: 'none', extras: ['barbels2', 'bigMouth'], eye: 0.5, smooth: true },
@@ -134,6 +136,11 @@ function vnoise(x: number, y: number): number {
   return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
 }
 
+/** GLSL-style smoothstep */
+function smooth(a: number, b: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
 /** Pattern strength 0–1 at body position u (0 tail…1 head), v (−1 belly…1 back). */
 function patternAt(p: Pattern, u: number, v: number): number {
   switch (p) {
@@ -154,10 +161,12 @@ function patternAt(p: Pattern, u: number, v: number): number {
     case 'mottled':
       return Math.max(0, vnoise(u * 14, v * 6) * 1.6 - 0.7);
     case 'koi': {
-      // kohaku: large soft-edged red patches over the back and flanks, the belly and the face stay white
-      if (u > 0.8 || v < -0.35) return 0;
+      // kohaku: large soft-edged patches over the back and flanks, fading out toward the face and the belly
+      // (a hard stop drew a straight line across the body)
+      const fade = (1 - smooth(0.62, 0.8, u)) * smooth(-0.45, -0.25, v);
+      if (fade <= 0) return 0;
       const n = vnoise(u * 7 + 3, v * 3.5 + 1) * 0.7 + vnoise(u * 16, v * 7) * 0.3;
-      return Math.max(0, Math.min(1, (n - 0.44) * 4.5)); // soft edges (steeper looked blocky on the vertex grid)
+      return Math.max(0, Math.min(1, (n - 0.44) * 4.5)) * fade; // soft edges (steeper looked blocky on the vertex grid)
     }
     case 'chevrons':
       return Math.max(0, Math.sin(u * 30 + Math.abs(v) * 6) * 1.5 - 0.6) * (v > -0.5 ? 1 : 0);
@@ -223,6 +232,7 @@ export function buildSpecies(id: string): THREE.Group {
     colors.push(c.r, c.g, c.b);
   }
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  if (id === 'face_fish') geo.setAttribute('faceUv', faceUvs(pos, spec));
   geo.computeVertexNormals();
   const skin = new THREE.MeshPhysicalMaterial({
     vertexColors: true,
@@ -254,6 +264,10 @@ export function buildSpecies(id: string): THREE.Group {
     return new THREE.Mesh(new THREE.ShapeGeometry(sh, 16), mat);
   };
   const D = spec.depth;
+  if (id === 'face_fish') {
+    finMat.color.copy(skinTone);
+    faceFins.add(finMat);
+  }
 
   // ---- tail
   let tail: THREE.Mesh;
@@ -580,6 +594,31 @@ function buildBlobfish(): THREE.Group {
  */
 const faceU: { value: THREE.Texture | null } = { value: null };
 const faceOn = { value: 0 };
+/** the face's skin tone (linear), with a warm default until a face is set */
+const skinTone = new THREE.Color().setRGB(0.94, 0.78, 0.66, THREE.SRGBColorSpace);
+const skinU = { value: skinTone };
+/** fin materials of 인면어 built so far — recoloured with the skin tone */
+const faceFins = new Set<THREE.MeshPhysicalMaterial>();
+
+/** Average colour of the cheeks and forehead (inside the face oval, fully opaque pixels). */
+function skinOf(c: HTMLCanvasElement): THREE.Color | null {
+  const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let n = 0;
+  for (let y = Math.floor(c.height * 0.2); y < c.height * 0.8; y += 2)
+    for (let x = Math.floor(c.width * 0.2); x < c.width * 0.8; x += 2) {
+      const i = (y * c.width + x) * 4;
+      if (d[i + 3] < 250) continue;
+      r += d[i];
+      g += d[i + 1];
+      b += d[i + 2];
+      n++;
+    }
+  if (!n) return null;
+  return new THREE.Color().setRGB(r / n / 255, g / n / 255, b / n / 255, THREE.SRGBColorSpace);
+}
 
 export function setFaceImage(img: ImageBitmap | HTMLCanvasElement | null): void {
   faceU.value?.dispose();
@@ -594,32 +633,80 @@ export function setFaceImage(img: ImageBitmap | HTMLCanvasElement | null): void 
   t.colorSpace = THREE.SRGBColorSpace;
   faceU.value = t;
   faceOn.value = 1;
+  const skin = skinOf(c);
+  if (skin) {
+    skinTone.copy(skin);
+    for (const m of faceFins) m.color.copy(skin);
+  }
+}
+
+/** Face "sticker" half-size on the head, measured along the skin (unit fish), 1 : 1.3 like the face. */
+const FACE_ARC_W = 0.19;
+const FACE_ARC_H = FACE_ARC_W * 1.3;
+
+/**
+ * Face UVs measured along the skin from the nose tip — like a sticker on the rounded head, not a
+ * slide projected at it: the eyes, nose and mouth keep their shape from any angle (user: "눈 부분이
+ * 옆으로 늘어지는데 … 얼굴 원형 눈코입 보존"; the straight-on projection smeared them across the
+ * sides of the nose when seen at an angle). Arc length from the tip along each meridian of the
+ * profile; direction = the vertex's angle around the body (seen from the front: right = −z, up = +y).
+ */
+function faceUvs(pos: THREE.BufferAttribute, spec: FishSpec): THREE.BufferAttribute {
+  const uv = new Float32Array(pos.count * 2);
+  const STEPS = 48;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const h = profile(x + 0.5, spec);
+    // the vertex's direction around the body on the unit ring (undo the profile's scaling)
+    const dy = h > 1e-4 ? (y - (y > 0 ? 0.01 * h : 0)) / ((spec.depth / 2) * h) : 0;
+    const dz = h > 1e-4 ? z / ((spec.width / 2) * h) : 0;
+    let s = 0;
+    let px = 0.5;
+    let py = 0;
+    let pz = 0;
+    for (let k = 1; k <= STEPS; k++) {
+      const qx = 0.5 + ((x - 0.5) * k) / STEPS;
+      const hq = profile(qx + 0.5, spec);
+      const qy = dy * (spec.depth / 2) * hq + (dy > 0 ? 0.01 * hq : 0);
+      const qz = dz * (spec.width / 2) * hq;
+      s += Math.hypot(qx - px, qy - py, qz - pz);
+      px = qx;
+      py = qy;
+      pz = qz;
+    }
+    const len = Math.hypot(dy, dz) || 1;
+    uv[i * 2] = 0.5 + (s * (-dz / len)) / (2 * FACE_ARC_W);
+    uv[i * 2 + 1] = 0.5 + (s * (dy / len)) / (2 * FACE_ARC_H);
+  }
+  return new THREE.BufferAttribute(uv, 2);
 }
 
 /**
- * The face painted onto the front of the body: projected straight along the fish (+x, the way it
- * looks), only where the skin faces forward, fading out toward the sides — so the face and the body
- * are one surface with no seam from any angle (user: "얼굴이랑 몸통 이어지는 부분 좀만 더 자연스럽게").
+ * The face painted onto the front of the body (UVs along the skin, faceUvs; its own soft edge fades it
+ * out) — so the face and the body are one surface with no seam from any angle (user: "얼굴이랑 몸통
+ * 이어지는 부분 좀만 더 자연스럽게"), and the whole body is tinted with the face's skin tone.
  */
 function faceSkin(mat: THREE.MeshPhysicalMaterial): void {
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uFaceMap = faceU;
     shader.uniforms.uFaceOn = faceOn;
+    shader.uniforms.uSkin = skinU;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec2 vFaceUv;\nvarying float vFaceW;')
+      .replace('#include <common>', '#include <common>\nattribute vec2 faceUv;\nvarying vec2 vFaceUv;\nvarying float vFaceW;')
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
-        // seen from the front (+x): screen right = −z, up = +y; the oval face fills the blunt nose
-        // bigger than the front's outline (user: "얼굴이 좀 더 크게", then "너무 늘어져 … 중간 정도로"), in the saved face's 1 : 1.3 oval
-        vFaceUv = vec2(-position.z, position.y - 0.01) / vec2(0.285, 0.36) + 0.5;
-        vFaceW = smoothstep(0.27, 0.40, position.x) * smoothstep(0.1, 0.58, normalize(objectNormal).x);`,
+        vFaceUv = faceUv; // along the skin from the nose tip (faceUvs)
+        vFaceW = step(0.0, position.x); // front half only`,
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D uFaceMap;\nuniform float uFaceOn;\nvarying vec2 vFaceUv;\nvarying float vFaceW;')
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uFaceMap;\nuniform float uFaceOn;\nuniform vec3 uSkin;\nvarying vec2 vFaceUv;\nvarying float vFaceW;')
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
+        diffuseColor.rgb *= uSkin; // the body in the player's skin tone (the spec colours are multipliers)
         if (uFaceOn > 0.5 && vFaceW > 0.0 && all(greaterThan(vFaceUv, vec2(0.0))) && all(lessThan(vFaceUv, vec2(1.0)))) {
           vec4 faceC = texture2D(uFaceMap, vFaceUv);
           diffuseColor.rgb = mix(diffuseColor.rgb, faceC.rgb, faceC.a * vFaceW);

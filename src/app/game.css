@@ -1571,9 +1571,6 @@ button:disabled {
   line-height: 1.6;
   color: var(--ink-2);
 }
-.ask {
-  width: min(460px, calc(100vw - 32px));
-}
 .askHint {
   margin: 12px 0 0;
   font-size: 12.5px;

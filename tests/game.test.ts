@@ -467,3 +467,18 @@ describe('M4: 인면어 (face fish)', () => {
     expect(share).toBeLessThan(0.07);
   });
 });
+
+describe('cast distance', () => {
+  // user: "새떼가 가까이 있을 때는 약하게 던지는데도 멀리 캐스팅"
+  it('a gentle cast lands near, a full one at the far end', () => {
+    const at = (strength: number) => {
+      const s = setup();
+      s.act('bait');
+      s.act(cast(0, strength));
+      return s.g.distanceM;
+    };
+    expect(at(0.2)).toBeLessThan(10); // 6 body/s
+    expect(at(0.5)).toBeLessThan(16); // a usual cast (8.5 body/s) no longer 18 m
+    expect(at(1)).toBe(28);
+  });
+});

@@ -29,6 +29,8 @@ const DEFS = {
   'cast.moveMin': [0.6, m('캐스팅', '최소 이동 (0.45초)', 0.2, 1.5, 0.05, '몸통')], // casts ≥ 0.63
   'cast.dropMin': [0.3, m('캐스팅', '최소 하강 (0.45초)', 0, 1, 0.05, '몸통')], // side casts drop 0.45+
   'cast.speedFull': [12, m('캐스팅', '최대 세기 속도', 6, 20, 0.5, '몸통/s')],
+  // distance = 8 m + 20 m × strength^curve: 1.6 → gentle 6 body/s ≈ 9.5 m, usual 8.5 ≈ 15 m, 10 ≈ 20 m, 12 = 28 m
+  'cast.distCurve': [1.6, m('캐스팅', '세기 → 거리 곡선 (클수록 약하게 던지면 더 가까이)', 1, 3, 0.1)],
   'cast.cooldownMs': [1000, m('캐스팅', '재인식 간격', 200, 3000, 100, 'ms')],
   'hook.speedMin': [3, m('챔질', '최소 속도', 1, 8, 0.25, '몸통/s')], // weakest hook-set 4.3, fidget max 1.98
   'hook.riseMin': [0.4, m('챔질', '최소 상승 (0.45초)', 0.1, 1.2, 0.05, '몸통')], // weakest 0.52, fidget max 0.26

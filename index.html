@@ -92,15 +92,8 @@
       <button id="baitBack" class="ghost backBtn">← 장소 바꾸기</button>
     </section>
 
-    <!-- M4: asked once at the start (user: "시작할 때 등록할지 말지 한 번 묻는 게 나을 거 같아") -->
-    <section id="faceAsk" class="modal ask hidden">
-      <h2>내 얼굴로 인면어를 만들까요?</h2>
-      <p class="modalSub">얼굴을 찍어 두면 가끔(입질 5%) <b>내 얼굴을 한 인면어</b>가 낚여요.<br />사진은 이 기기(브라우저)에만 저장되고 어디로도 전송되지 않아요.</p>
-      <div class="faceBtns"><button id="askLater" class="ghost">나중에</button><button id="askYes" class="primary">만들기</button></div>
-      <p class="askHint">도감(📖) → 이벤트에서 언제든 만들거나 지울 수 있어요.</p>
-    </section>
-
-    <!-- M4: make a 인면어 with my face (consent first; stored only in this browser) -->
+    <!-- M4: make a 인면어 with my face (consent first; stored only in this browser). Opens by itself at
+         every start while no face is saved (main.ts maybeAskFace) -->
     <section id="faceBox" class="modal face hidden">
       <h2>내 얼굴 인면어 만들기</h2>
       <p class="modalSub">얼굴을 찍어 두면, 가끔(입질 5%) <b>내 얼굴을 한 인면어</b>가 낚여요.</p>
@@ -113,11 +106,12 @@
       <label class="consent"><input type="checkbox" id="faceAgree" /> 위 내용을 확인했어요</label>
       <div class="facePreview"><canvas id="faceLive" width="256" height="256"></canvas><div id="faceMsg" class="faceMsg"></div></div>
       <div class="faceBtns">
-        <button id="faceCancel" class="ghost">취소</button>
+        <button id="faceCancel" class="ghost">나중에</button>
         <button id="faceRetake" class="ghost hidden">다시 찍기</button>
         <button id="faceShoot" class="primary" disabled>찍기</button>
         <button id="faceSave" class="primary hidden">저장</button>
       </div>
+      <p class="askHint">얼굴이 없으면 시작할 때마다 이 창이 떠요. 도감(📖) → 이벤트에서도 언제든 만들거나 지울 수 있어요.</p>
     </section>
 
     <!-- collection -->
