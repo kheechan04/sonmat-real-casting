@@ -560,14 +560,20 @@ function onGameEvent(e: GameEvent, now: number): void {
 // ---------------------------------------------------------------- HUD
 
 /** What each kind of run says: [warning, while it lasts, sub line] */
-const RUN_TEXT: Record<RunKind, { soon: string; now: string; sub: string }> = {
-  run: { soon: '첨벙! 곧 차고 나가요', now: '손 멈춰요!', sub: '물고기가 줄을 차고 나가는 중 — 지금 감으면 끊어져요' },
-  jump: { soon: '수면이 부풀어요 — 점프 온다!', now: '점프!! 감지 마요', sub: '바늘을 털어내려고 뛰어올라요 — 감으면 줄이 확 팽팽해져요' },
-  dive: { soon: '줄이 무거워져요 — 파고들 거예요', now: '깊이 파고들어요!', sub: '줄이 쭉쭉 풀려요 — 끝날 때까지 기다려요' },
-  thrash: { soon: '첨벙첨벙! 몸부림 온다', now: '몸부림쳐요! 멈춰요', sub: '수면에서 요동쳐요 — 잠깐 기다려요' },
-  dig: { soon: '바닥으로 파고들어요!', now: '바닥에 붙었어요! 힘껏 감아요!', sub: '이번엔 반대로 — 계속 세게 감아야 떼어내요' },
-  shock: { soon: '', now: '찌릿!! 전기다!', sub: '잠깐 손이 저려요 — 곧 다시 감을 수 있어요' },
+/**
+ * What each kind of run says. Whenever reeling is wrong the top line is the same red "✋ 감지 마요!"
+ * and `what` (the small line) says what the fish is doing; "파고들" is only ever the dive — the bottom
+ * hug says "바닥에 붙" (user: "같은 파고들어요인데 언제는 감지 말고 언제는 감아도 되고").
+ */
+const RUN_TEXT: Record<RunKind, { soon: string; what: string }> = {
+  run: { soon: '첨벙! 곧 차고 나가요', what: '옆으로 차고 나가요 — 막대의 "여기로!"로 팔 옮기기' },
+  jump: { soon: '수면이 부풀어요 — 점프 온다!', what: '점프 중 — 잠깐 기다려요' },
+  dive: { soon: '줄이 무거워져요 — 깊이 파고들 거예요', what: '깊이 파고드는 중 — 잠깐 기다려요' },
+  thrash: { soon: '첨벙첨벙! 몸부림 온다', what: '몸부림 — 막대의 "여기로!"로 팔 옮기기' },
+  dig: { soon: '바닥에 붙으려 해요!', what: '바닥에 붙었어요 — 감아야 떨어져요' },
+  shock: { soon: '', what: '손이 저려서 잠깐 안 감겨요' },
 };
+const STOP_MSG = '✋ 감지 마요!';
 
 const BITE_MSG: Record<string, string> = {
   rise: '찌가 올라와요! 지금!',
@@ -587,7 +593,8 @@ const learning = () => Object.values(records.count).reduce((a, b) => a + (b ?? 0
  */
 function instruction(now: number): { msg: string; sub: string; tone?: 'alert' | 'danger' } {
   const r = instructionFull(now);
-  const keep = game.thief !== null; // the thief countdown is information, not a how-to
+  // the thief countdown and what a running fish is doing are information, not a how-to
+  const keep = game.thief !== null || game.running;
   return learning() || keep ? r : { ...r, sub: '' };
 }
 
@@ -611,11 +618,12 @@ function instructionFull(now: number): { msg: string; sub: string; tone?: 'alert
           tone: 'danger',
         };
       if (game.running) {
-        const t = RUN_TEXT[game.runKind];
-        if (game.countering) return { msg: '버텨요!', sub: '그대로 — 물고기가 지쳐 가요', tone: 'alert' };
-        if (game.mustStop && game.sideways) return { msg: t.now, sub: `감지 말고, 대 든 팔을 ${dirWord(-game.runDir)} 옆으로 — 아래 막대의 "여기로!"`, tone: 'danger' };
-        if (game.mustStop) return { msg: t.now, sub: t.sub, tone: 'danger' };
-        return { msg: t.now, sub: t.sub, tone: 'alert' };
+        const what = RUN_TEXT[game.runKind].what;
+        if (game.openingRun) return { msg: STOP_MSG, sub: '걸리자마자 줄을 끌고 가요 — 잠깐 기다려요', tone: 'danger' };
+        if (game.countering) return { msg: STOP_MSG, sub: '버티는 중 — 그대로! 물고기가 지쳐 가요', tone: 'danger' };
+        if (game.mustStop) return { msg: STOP_MSG, sub: what, tone: 'danger' };
+        if (game.runKind === 'dig') return { msg: '💪 세게 감아요!', sub: what, tone: 'alert' };
+        return { msg: '⚡ 찌릿! 잠깐 멈춤', sub: what, tone: 'alert' };
       }
       if (game.runSoon) return { msg: RUN_TEXT[game.runKind].soon, sub: '', tone: 'alert' };
       return { msg: '감아요', sub: now - game.phaseT < 4000 ? '릴 손으로 작은 원을 계속 돌려요' : '' };
@@ -667,9 +675,6 @@ function updateTug(): void {
   tug.classList.toggle('noArm', arm === null);
   tug.classList.toggle('ok', game.countering);
 }
-
-/** 1 = the player's left, −1 = right */
-const dirWord = (d: number) => (d > 0 ? '왼쪽' : '오른쪽');
 
 function postureWarning(): string {
   if (!source.running) return '';
