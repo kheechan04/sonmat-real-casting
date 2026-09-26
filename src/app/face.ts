@@ -14,6 +14,11 @@ const STORE = 'face';
 const KEY = 'face';
 /** Saved face size, px (square). Small on purpose: it is a fish's face, not a photo archive. */
 export const FACE_PX = 256;
+/**
+ * The face is cut as an oval this much taller than wide and stored squeezed into the square — the
+ * fish (fishModels faceSkin) and the previews (an oval frame, game.css) stretch it back.
+ */
+export const FACE_ASPECT = 1.3;
 
 /** Pose landmarks used to find the face (MediaPipe pose: nose, eyes, ears). */
 const NOSE = 0;
@@ -23,8 +28,9 @@ const EAR_L = 7;
 const EAR_R = 8;
 
 /**
- * The face, cut square out of the camera frame around the nose (size from the ears / eyes), with a
- * soft oval edge so it blends into the fish. null when the face isn't clearly seen.
+ * Just the face — forehead to chin, cheek to cheek, no hair or background (user: "여백 없이 얼굴로만 꽉
+ * 채워지게"): an oval as wide as the ears are apart and FACE_ASPECT times as tall, around the eyes and
+ * nose, with a thin soft edge so it blends into the fish. null when the face isn't clearly seen.
  */
 export function cropFace(video: HTMLVideoElement, lm: P4[] | null, out?: HTMLCanvasElement): HTMLCanvasElement | null {
   const w = video.videoWidth;
@@ -37,25 +43,24 @@ export function cropFace(video: HTMLVideoElement, lm: P4[] | null, out?: HTMLCan
   const eyes = { x: (px(EYE_L).x + px(EYE_R).x) / 2, y: (px(EYE_L).y + px(EYE_R).y) / 2 };
   const eyeD = Math.hypot(px(EYE_L).x - px(EYE_R).x, px(EYE_L).y - px(EYE_R).y);
   const earD = vis(EAR_L) && vis(EAR_R) ? Math.hypot(px(EAR_L).x - px(EAR_R).x, px(EAR_L).y - px(EAR_R).y) : 0;
-  const size = Math.max(earD * 1.35, eyeD * 3.4);
-  if (size < 40) return null; // too far away to be a face worth keeping
-  // centre a little above the nose (between the eyes and the nose), so forehead and chin both fit
-  const cx = nose.x;
-  const cy = (nose.y * 2 + eyes.y) / 3;
+  const fw = earD ? earD * 0.95 : eyeD * 2.3;
+  const fh = fw * FACE_ASPECT;
+  if (fw < 30) return null; // too far away to be a face worth keeping
+  // the eyes sit a little above the middle of a face (≈ 42% down from the hairline)
+  const cx = (eyes.x + nose.x) / 2;
+  const cy = eyes.y + fh * 0.08;
   const c = out ?? document.createElement('canvas');
   c.width = c.height = FACE_PX;
   const g = c.getContext('2d')!;
   g.clearRect(0, 0, FACE_PX, FACE_PX);
-  g.drawImage(video, cx - size / 2, cy - size / 2, size, size, 0, 0, FACE_PX, FACE_PX);
-  // soft oval mask
+  g.drawImage(video, cx - fw / 2, cy - fh / 2, fw, fh, 0, 0, FACE_PX, FACE_PX);
+  // the oval fills the square (it is squeezed); only the outer 12% fades
   g.globalCompositeOperation = 'destination-in';
-  const grad = g.createRadialGradient(FACE_PX / 2, FACE_PX / 2, FACE_PX * 0.3, FACE_PX / 2, FACE_PX / 2, FACE_PX * 0.5);
+  const grad = g.createRadialGradient(FACE_PX / 2, FACE_PX / 2, FACE_PX * 0.38, FACE_PX / 2, FACE_PX / 2, FACE_PX * 0.5);
   grad.addColorStop(0, 'rgba(0,0,0,1)');
   grad.addColorStop(1, 'rgba(0,0,0,0)');
   g.fillStyle = grad;
-  g.beginPath();
-  g.ellipse(FACE_PX / 2, FACE_PX / 2, FACE_PX * 0.42, FACE_PX * 0.5, 0, 0, Math.PI * 2);
-  g.fill();
+  g.fillRect(0, 0, FACE_PX, FACE_PX);
   g.globalCompositeOperation = 'source-over';
   return c;
 }

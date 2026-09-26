@@ -1502,8 +1502,8 @@ a {
 }
 .facePreview {
   position: relative;
-  width: 200px;
-  height: 200px;
+  width: 170px;
+  height: 221px; /* the face's 1 : 1.3 oval (face.ts FACE_ASPECT) */
   margin: 0 auto 14px;
   border-radius: 50%;
   overflow: hidden;
@@ -1536,8 +1536,8 @@ a {
   border-color: rgba(200, 160, 255, 0.5);
 }
 .dexCard .faceThumb {
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 73px;
   border-radius: 50%;
   display: block;
   margin: 4px auto;
