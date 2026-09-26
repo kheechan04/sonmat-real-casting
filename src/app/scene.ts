@@ -242,6 +242,8 @@ export class FishingScene {
   private placeCache = new Map<LocationId, Promise<{ sky: THREE.Texture; env: THREE.Texture; haze: THREE.Color }>>();
   private groups = { deck: new THREE.Group(), rock: new THREE.Group(), boat: new THREE.Group(), grass: new THREE.Group() };
   private place: LocationId | null = null;
+  /** software rendering (no graphics card): smaller backdrop, pixel ratio 1 */
+  readonly lowPower: boolean;
   // ---- M5 time of day
   private tod: TimeOfDay = 'day';
   private shownTod: TimeOfDay | null = null;
@@ -310,6 +312,12 @@ export class FishingScene {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     // pose inference shares the machine (Shadow Mitts: keep the render load small)
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+    // no graphics card (software rendering — some laptops' fallback, screenshot bots): a lighter scene
+    const gl = this.renderer.getContext();
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    const gpu = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '';
+    this.lowPower = /swiftshader|llvmpipe|software|basic render/i.test(gpu);
+    if (this.lowPower) this.renderer.setPixelRatio(1);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
@@ -440,7 +448,8 @@ export class FishingScene {
         pmrem.dispose();
         // (older GPUs: 8192 px can be over the texture limit — mirroredBackdrop downscales then)
         const img = photo.image as HTMLImageElement;
-        const canvas = mirroredBackdrop(img, this.renderer.capabilities.maxTextureSize);
+        // 8K backdrop on a real GPU; 4K in software rendering (uploading 8K there stalled the page for seconds)
+        const canvas = mirroredBackdrop(img, this.lowPower ? 4096 : this.renderer.capabilities.maxTextureSize);
         const haze = horizonColor(canvas, (img.height / img.width) * 2);
         const sky = new THREE.CanvasTexture(canvas);
         sky.colorSpace = THREE.SRGBColorSpace;

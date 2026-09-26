@@ -150,6 +150,8 @@ const startBtn = $<HTMLButtonElement>('start');
 startBtn.disabled = true;
 startBtn.textContent = '호수 불러오는 중…';
 void scene.ready.finally(() => {
+  // the 3D fades in over the still (body background) once the lake has loaded
+  requestAnimationFrame(() => $('world').classList.add('ready'));
   startBtn.disabled = false;
   startBtn.textContent = '카메라 켜고 시작';
 });
