@@ -13,10 +13,14 @@ export default defineConfig({
   worker: { format: 'es' },
   // pages: the game, the M0 observer (landmark recording / replay), the species model gallery
   build: {
-    rollupOptions: { input: { main: 'index.html', observe: 'observe.html', models: 'models.html' } },
-    // three.js in a file of its own: it rarely changes, so a returning player's browser keeps it across
-    // deploys. It is ~700 kB by itself (the 3D engine), hence the higher warning limit.
-    rolldownOptions: { output: { codeSplitting: { groups: [{ name: 'three', test: /node_modules[\/]three[\/]/ }] } } },
+    // (the page list lives here too — with rolldownOptions set, rollupOptions.input was ignored and only
+    // index.html got built)
+    rolldownOptions: {
+      input: { main: 'index.html', observe: 'observe.html', models: 'models.html' },
+      // three.js in a file of its own: it rarely changes, so a returning player's browser keeps it across
+      // deploys. It is ~700 kB by itself (the 3D engine), hence the higher warning limit.
+      output: { codeSplitting: { groups: [{ name: 'three', test: /node_modules[\/]three[\/]/ }] } },
+    },
     chunkSizeWarningLimit: 800,
   },
   test: {
