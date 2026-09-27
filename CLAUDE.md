@@ -81,6 +81,7 @@ GLB가 들어오면 "한 마리 처리" 순서대로 끝까지 하고 배포한�
 ## 배포
 - 배포: https://sonmat-real-casting.vercel.app — 사용자가 Vercel에 GitHub 저장소(https://github.com/kheechan04/sonmat-real-casting)를 연결해 둠(2026-09-26), `main` push → 자동 배포. push는 사용자가 요청할 때만.
 - PWA: `public/manifest.webmanifest`, `public/icons/`, `public/sw.js`(빌드판에서만 등록). 캐시 이름 `sonmat-v1` — 워커 동작을 바꾸면 버전을 올린다. 워커 규칙은 `tests/privacy.test.ts`가 검사.
+- 링크 미리보기 이미지 `public/og.jpg`를 바꾸면 index.html og:image의 `?v=` 숫자를 올린다(지금 v=2) — 메신저가 같은 주소의 미리보기를 며칠씩 저장해 둠. 카카오톡은 카카오 공유 디버거에서 캐시 초기화.
 - 배포판에선 ⚙ 패널·키보드 입력·`window.__game`이 꺼진다 (`?dev`, `?keys`로 켬).
 - 배경 원본 8K JPG는 `assets-src/env/`(배포 안 함), 게임은 `public/env/*_top.webp`.
 
