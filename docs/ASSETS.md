@@ -74,6 +74,8 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 | 아프리카 폐어 (P. annectens) | `public/models/fish/lungfish.glb` | Sketchfab [African Lungfish - Protopterus annectens](https://sketchfab.com/3d-models/3c0e32d2b3784c1080ce79d495f844d5) | MTSUichthyology | CC-BY 4.0 (저작자 표시) | 2026-09-26 |
 | 비키르 (알비노 사진 → 게임에서 올리브색으로 칠함) | `public/models/fish/bichir.glb` | TRELLIS.2 ← [Polypterus senegalus - Senegal-Flösselhecht - Albino.jpg](https://commons.wikimedia.org/wiki/File:Polypterus_senegalus_-_Senegal-Fl%C3%B6sselhecht_-_Albino.jpg) | 5snake5 | CC0 사진 → 생성 모델 | 2026-09-27 |
 | 금눈돔 | `public/models/fish/alfonsino.glb` | TRELLIS.2 ← [Splendid alfonsino ( Beryx splendens ).jpg](https://commons.wikimedia.org/wiki/File:Splendid_alfonsino_(_Beryx_splendens_).jpg) | NOAA's Fisheries Collection , SEFSC Pascagoula Laboratory; C | Public domain 사진 → 생성 모델 | 2026-09-27 |
+| 코끼리주둥이고기 | `public/models/fish/elephantfish.glb` | TRELLIS.2 ← [Gnathonemus petersii.jpg](https://commons.wikimedia.org/wiki/File:Gnathonemus_petersii.jpg) | billycorgan84 | Public domain 사진 → 생성 모델 | 2026-09-28 |
+| 분두 메기 | `public/models/fish/vundu.glb` | TRELLIS.2 ← [Heterobranchus longifilis (cropped).jpg](https://commons.wikimedia.org/wiki/File:Heterobranchus_longifilis_(cropped).jpg) | Cuvier & Valenciennes | Public domain 사진 → 생성 모델 | 2026-09-28 |
 
 ## 코드로 만든 것 (외부 파일 아님)
 

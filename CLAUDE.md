@@ -49,23 +49,21 @@ GLB가 들어오면 "한 마리 처리" 순서대로 끝까지 하고 배포한�
 | `node scripts/make-backdrops.mjs` | 배경 원본(`assets-src/env/*.jpg`) → 물가선 위만 WebP(`public/env/*_top.webp`) |
 
 ## 사진→3D 남은 목록 (사용자와 정한 순서 — 자주 보이는데 어색한 것부터, 만들기 어려운 모양은 뒤로)
-완료: tilapia(2026-09-25), bichir·alfonsino(2026-09-27). 남은 14종, 이 순서대로:
+완료: tilapia(2026-09-25), bichir·alfonsino(2026-09-27), elephantfish·vundu(2026-09-28). 남은 12종, 이 순서대로:
 | 순서 | id (파일 이름) | 어종 | 지금 모델 | 원본 사진 라이선스 |
 |---|---|---|---|---|
-| 1 | elephantfish | 코끼리주둥이고기 | 코드 | 퍼블릭 도메인 |
-| 2 | vundu | 분두 메기 | 코드 | 퍼블릭 도메인 |
-| 3 | blobfish | 블롭피시 | 코드 | 퍼블릭 도메인 |
-| 4 | gulper | 풍선장어 | CC-BY 모델(SpaceGolby) | CC BY 3.0 Alexei Orlov → 도움말 크레딧 필요 |
-| 5 | electric_catfish | 전기메기 | 코드 | 퍼블릭 도메인 |
-| 6 | tigerfish | 골리앗 타이거피시 | 코드 | 퍼블릭 도메인 |
-| 7 | sunfish | 개복치 | 코드 | CC0 |
-| 8 | dumbo | 덤보문어 | CC-BY 모델(andrearosini) | 퍼블릭 도메인(NOAA) |
-| 9 | vampire_squid | 흡혈오징어 | CC-BY 모델(gabrielfontenelle) | 퍼블릭 도메인(Carl Chun) |
-| 10 | marlin | 청새치 | 코드 | 퍼블릭 도메인 |
-| 11 | goblin_shark | 귀신고기 | 코드 | CC BY 3.0 AU Dianne Bray / Museum Victoria → 크레딧 필요 |
-| 12 | barreleye | 투명머리 물고기 | 코드 | CC BY 4.0 Hlidberg·Hjørne → 크레딧 필요 (투명한 머리 — 결과 확인) |
-| 13 | oarfish | 산갈치 | 코드 | CC BY 3.0 Sandstein → 크레딧 필요 (긴 리본 — 어려움) |
-| 14 | giant_squid | 대왕오징어 | CC-BY 모델(mvick13497) | CC BY 4.0 Museums Victoria → 크레딧 필요 (촉수 — 어려움) |
+| 1 | blobfish | 블롭피시 | 코드 | 퍼블릭 도메인 |
+| 2 | gulper | 풍선장어 | CC-BY 모델(SpaceGolby) | CC BY 3.0 Alexei Orlov → 도움말 크레딧 필요 |
+| 3 | electric_catfish | 전기메기 | 코드 | 퍼블릭 도메인 |
+| 4 | tigerfish | 골리앗 타이거피시 | 코드 | 퍼블릭 도메인 |
+| 5 | sunfish | 개복치 | 코드 | CC0 |
+| 6 | dumbo | 덤보문어 | CC-BY 모델(andrearosini) | 퍼블릭 도메인(NOAA) |
+| 7 | vampire_squid | 흡혈오징어 | CC-BY 모델(gabrielfontenelle) | 퍼블릭 도메인(Carl Chun) |
+| 8 | marlin | 청새치 | 코드 | 퍼블릭 도메인 |
+| 9 | goblin_shark | 귀신고기 | 코드 | CC BY 3.0 AU Dianne Bray / Museum Victoria → 크레딧 필요 |
+| 10 | barreleye | 투명머리 물고기 | 코드 | CC BY 4.0 Hlidberg·Hjørne → 크레딧 필요 (투명한 머리 — 결과 확인) |
+| 11 | oarfish | 산갈치 | 코드 | CC BY 3.0 Sandstein → 크레딧 필요 (긴 리본 — 어려움) |
+| 12 | giant_squid | 대왕오징어 | CC-BY 모델(mvick13497) | CC BY 4.0 Museums Victoria → 크레딧 필요 (촉수 — 어려움) |
 결과가 지금 모델보다 못하면 지금 모델을 유지하고 사용자에게 말한다(특히 CC-BY 모델이 있는 4종).
 
 ### 한 마리 처리 (GLB가 raw 폴더에 들어오면)
