@@ -10,3 +10,6 @@ assets-src/models/raw/
 .sketchfab-token
 # stray screenshots in the project root (headless checks go to the scratchpad)
 /*.png
+
+# Windows shortcuts made on this PC (e.g. the installed app) — local only
+*.lnk
