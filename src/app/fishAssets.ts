@@ -67,6 +67,7 @@ export const MODELS: Record<string, ModelDef> = {
   bichir: { rot: [0, 180, 0], tint: 0x8a8a5a }, // the only full-body free photo was an albino → olive, keeping the pattern
   elephantfish: { rot: [0, 90, 0] }, // head +z
   vundu: { rot: [0, 90, 0] }, // head +z
+  blobfish: { rot: [0, 90, 0] }, // head +z
   porcupinefish: {},
   giant_squid: { rot: [0, 0, -90], color: 0xa8402f }, // sculpted mantle-up, untextured → mantle ahead, deep red
   dumbo: {}, // faces the camera already
