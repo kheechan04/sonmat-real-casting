@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AIM_MAX_DEG, FishingGame, type GameEvent, type Tables } from '../src/core/game';
 import type { GestureEvent } from '../src/core/gestures';
 import { defaultParams, type Params } from '../src/core/params';
-import { BAITS, LOCATIONS, SPECIES, type SpeciesDef } from '../src/core/species';
+import { BAITS, LOCATIONS, SPECIES, speciesAt, TIER_ORDER, type SpeciesDef } from '../src/core/species';
 
 /** Deterministic RNG: cycles through the given values. */
 const seq = (...v: number[]) => {
@@ -224,6 +224,14 @@ describe('fishing loop', () => {
 });
 
 describe('species, places and baits (M2)', () => {
+  it('the dex lists each place common → legend, whatever order species were added in', () => {
+    for (const loc of LOCATIONS) {
+      const ranks = speciesAt(loc.id).map((s) => TIER_ORDER.indexOf(s.tier));
+      expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+      expect(ranks.length).toBe(SPECIES.filter((s) => s.loc === loc.id).length);
+    }
+  });
+
   it('rarity tiers and bait multipliers decide what bites', () => {
     const species = [fishDef({ id: 'common', tier: 'common' }), fishDef({ id: 'legend', tier: 'legend' })];
     const pick = (over: Partial<Params>, speciesMul?: Record<string, number>) => {

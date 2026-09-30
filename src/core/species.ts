@@ -201,6 +201,10 @@ export const BAITS: readonly BaitDef[] = [
 
 export const BAIT_BY_ID: Record<string, BaitDef> = Object.fromEntries(BAITS.map((b) => [b.id, b]));
 export const baitsAt = (loc: LocationId) => BAITS.filter((b) => b.loc === loc);
-export const speciesAt = (loc: LocationId) => SPECIES.filter((s) => s.loc === loc);
+/** A place's species in dex order: common → legend, table order within a tier (new species added
+ *  at the end of SPECIES still land with their tier — user, 2026-09-30). */
+export const speciesAt = (loc: LocationId) =>
+  SPECIES.filter((s) => s.loc === loc).sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
 
+export const TIER_ORDER: readonly Tier[] = ['common', 'uncommon', 'rare', 'legend'];
 export const TIER_NAME: Record<Tier, string> = { common: '흔함', uncommon: '보통', rare: '희귀', legend: '전설' };
