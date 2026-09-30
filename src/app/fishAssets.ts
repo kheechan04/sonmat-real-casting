@@ -68,6 +68,7 @@ export const MODELS: Record<string, ModelDef> = {
   elephantfish: { rot: [0, 90, 0] }, // head +z
   vundu: { rot: [0, 90, 0] }, // head +z
   blobfish: { rot: [0, 90, 0] }, // head +z
+  electric_catfish: { rot: [0, 90, 0] }, // head +z
   porcupinefish: {},
   giant_squid: { rot: [0, 0, -90], color: 0xa8402f }, // sculpted mantle-up, untextured → mantle ahead, deep red
   dumbo: {}, // faces the camera already

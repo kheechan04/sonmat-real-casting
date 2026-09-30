@@ -77,6 +77,7 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 | 코끼리주둥이고기 | `public/models/fish/elephantfish.glb` | TRELLIS.2 ← [Gnathonemus petersii.jpg](https://commons.wikimedia.org/wiki/File:Gnathonemus_petersii.jpg) | billycorgan84 | Public domain 사진 → 생성 모델 | 2026-09-28 |
 | 분두 메기 | `public/models/fish/vundu.glb` | TRELLIS.2 ← [Heterobranchus longifilis (cropped).jpg](https://commons.wikimedia.org/wiki/File:Heterobranchus_longifilis_(cropped).jpg) | Cuvier & Valenciennes | Public domain 사진 → 생성 모델 | 2026-09-28 |
 | 블롭피시 | `public/models/fish/blobfish.glb` | TRELLIS.2 ← [Psychrolutes phrictus.jpg](https://commons.wikimedia.org/wiki/File:Psychrolutes_phrictus.jpg) | (Commons에 작가 표기 없음) | Public domain 사진 → 생성 모델 | 2026-09-29 |
+| 전기메기 | `public/models/fish/electric_catfish.glb` | TRELLIS.2 ← [FMIB 47150 Malapterurus electricus.jpeg](https://commons.wikimedia.org/wiki/File:FMIB_47150_Malapterurus_electricus.jpeg) | Albert Günther | Public domain 사진 → 생성 모델 | 2026-09-30 |
 
 ## 코드로 만든 것 (외부 파일 아님)
 
