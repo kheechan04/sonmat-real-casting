@@ -16,8 +16,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { compactPrimitive, metalRough, prune, weld } from '@gltf-transform/functions';
+import { compactPrimitive, metalRough, normals, prune, weld } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptSimplifier } from 'meshoptimizer';
+import sharp from 'sharp'; // comes with @gltf-transform/cli
 
 const TARGET_TRIS = { scan: 100000, other: 20000 };
 const RAW = 'assets-src/models/raw';
@@ -57,10 +58,69 @@ function simplifyUV(doc, ratio) {
   }
 }
 
+/**
+ * Texture → vertex colours, for a generated model whose texture is cut into so many small pieces that
+ * simplifying tears it (the vampire squid: even the seam-keeping simplifier stalled at 208k triangles,
+ * and the fallbacks joined vertices from far-apart pieces — chrome and black speckles all over). Each
+ * position gets the average colour of its copies, the UVs and textures go, and the mesh can then be
+ * simplified freely with the colour as an attribute. Fine for an animal of one or two colours.
+ */
+async function bakeVertexColors(doc) {
+  const toLinear = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  for (const mesh of doc.getRoot().listMeshes())
+    for (const prim of mesh.listPrimitives()) {
+      const mat = prim.getMaterial();
+      const tex = mat?.getBaseColorTexture();
+      const uvA = prim.getAttribute('TEXCOORD_0');
+      if (!tex || !uvA) continue;
+      const { data, info } = await sharp(Buffer.from(tex.getImage())).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      const { width: W, height: H } = info;
+      const posA = prim.getAttribute('POSITION');
+      const n = posA.getCount();
+      // one vertex per position, colour = mean of the texels under its copies
+      const key = new Map();
+      const remap = new Uint32Array(n);
+      const pos = [];
+      const sum = [];
+      const p = [0, 0, 0];
+      const uv = [0, 0];
+      for (let i = 0; i < n; i++) {
+        posA.getElement(i, p);
+        const k = p.join();
+        let v = key.get(k);
+        if (v === undefined) {
+          v = pos.length / 3;
+          key.set(k, v);
+          pos.push(...p);
+          sum.push(0, 0, 0, 0);
+        }
+        remap[i] = v;
+        uvA.getElement(i, uv);
+        const x = Math.min(W - 1, Math.max(0, Math.floor(uv[0] * W)));
+        const y = Math.min(H - 1, Math.max(0, Math.floor(uv[1] * H)));
+        for (let c = 0; c < 3; c++) sum[v * 4 + c] += toLinear(data[(y * W + x) * 3 + c] / 255);
+        sum[v * 4 + 3]++;
+      }
+      const m = pos.length / 3;
+      const col = new Float32Array(m * 3);
+      for (let v = 0; v < m; v++) for (let c = 0; c < 3; c++) col[v * 3 + c] = sum[v * 4 + c] / sum[v * 4 + 3];
+      const idx = Uint32Array.from(prim.getIndices().getArray(), (i) => remap[i]);
+      const buf = posA.getBuffer();
+      for (const s of prim.listSemantics()) prim.setAttribute(s, null);
+      prim.setAttribute('POSITION', doc.createAccessor().setType('VEC3').setArray(new Float32Array(pos)).setBuffer(buf));
+      prim.setAttribute('COLOR_0', doc.createAccessor().setType('VEC3').setArray(col).setBuffer(buf));
+      prim.getIndices().setArray(idx);
+      mat.setBaseColorTexture(null).setMetallicRoughnessTexture(null).setNormalTexture(null).setMetallicFactor(0).setRoughnessFactor(0.5);
+    }
+  await doc.transform(prune());
+}
+
 const SOURCES = JSON.parse(readFileSync('assets-src/models/sources.json', 'utf8'));
 const SCANS = new Set(SOURCES.filter((s) => s.user.startsWith('ffishAsia')).map((s) => s.id));
 /** other photogrammetry scans (hundreds of thousands of faces, texture in tiny pieces): the scan budget too */
 const DENSE = new Set(SOURCES.filter((s) => s.faces > 300000).map((s) => s.id));
+/** generated models whose texture came out in many small pieces: simplifying tears it (bakeVertexColors) */
+const TORN = new Set(['vampire_squid', 'dumbo']);
 const verts = (mesh) => mesh.listPrimitives().reduce((n, p) => n + p.getAttribute('POSITION').getCount(), 0);
 const tris = (mesh) => mesh.listPrimitives().reduce((n, p) => n + (p.getIndices()?.getCount() ?? p.getAttribute('POSITION').getCount()) / 3, 0);
 
@@ -93,7 +153,9 @@ for (const f of readdirSync(RAW).filter((x) => x.endsWith('.glb'))) {
   const total = doc.getRoot().listMeshes().reduce((n, m) => n + tris(m), 0);
   const ratio = Math.min(1, TARGET_TRIS[scan || DENSE.has(id) ? 'scan' : 'other'] / total);
   await doc.transform(weld());
+  if (TORN.has(id)) await bakeVertexColors(doc);
   simplifyUV(doc, ratio);
+  if (TORN.has(id)) await doc.transform(normals({ overwrite: true })); // the bake dropped them
   const tmp = join(tmpdir(), `fish-${id}.glb`);
   await io.write(tmp, doc);
   const out = `${OUT}/${id}.glb`;

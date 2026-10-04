@@ -67,8 +67,6 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 | 무늬오징어 | `public/models/fish/bigfin_squid.glb` | Sketchfab [CC0 アオリイカ Bigfin Reef Squid, S. lessoniana](https://sketchfab.com/3d-models/8457fc5fb9bc4db8a00fdec43a3f4456) | ffishAsia-and-floraZia | CC0 | 2026-09-26 |
 | 노랑가오리 | `public/models/fish/stingray.glb` | Sketchfab [CC0 アカエイ 🦈 ♀ Red Stingray, Hemitrygon akajei](https://sketchfab.com/3d-models/f309cd53efd544f4b22b33f0ebd2e07b) | ffishAsia-and-floraZia | CC0 | 2026-09-26 |
 | 대왕오징어 (색은 코드로 입힘) | `public/models/fish/giant_squid.glb` | Sketchfab [Sculptjanuary 2019, day 1: Giant Squid](https://sketchfab.com/3d-models/1f97e07935bf42e3a9cf1aa02f925d7e) | mvick13497 | CC-BY 4.0 (저작자 표시) | 2026-09-26 |
-| 덤보문어 | `public/models/fish/dumbo.glb` | Sketchfab [Flapjack Dumbo Octopus Adorabilis](https://sketchfab.com/3d-models/977d38f89ca54c8b91b9667d52cb3d79) | andrearosini | CC-BY 4.0 (저작자 표시) | 2026-09-26 |
-| 흡혈오징어 | `public/models/fish/vampire_squid.glb` | Sketchfab [Squid](https://sketchfab.com/3d-models/8ad9904e278948feb61e9db1bf399263) | gabrielfontenelle | CC-BY 4.0 (저작자 표시) | 2026-09-26 |
 | 실러캔스 | `public/models/fish/coelacanth.glb` | Sketchfab [Coelacanth](https://sketchfab.com/3d-models/2400195832b64f698096ed0fdac85d51) | TimFallas | CC-BY 4.0 (저작자 표시) | 2026-09-26 |
 | 풍선장어 | `public/models/fish/gulper.glb` | Sketchfab [Gulper Eel (Eurypharynx pelecanoides)](https://sketchfab.com/3d-models/fbae0106acab48f4869141df9d8c37da) | SpaceGolby | CC-BY 4.0 (저작자 표시) | 2026-09-26 |
 | 아프리카 폐어 (P. annectens) | `public/models/fish/lungfish.glb` | Sketchfab [African Lungfish - Protopterus annectens](https://sketchfab.com/3d-models/3c0e32d2b3784c1080ce79d495f844d5) | MTSUichthyology | CC-BY 4.0 (저작자 표시) | 2026-09-26 |
@@ -80,6 +78,8 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 | 전기메기 | `public/models/fish/electric_catfish.glb` | TRELLIS.2 ← [FMIB 47150 Malapterurus electricus.jpeg](https://commons.wikimedia.org/wiki/File:FMIB_47150_Malapterurus_electricus.jpeg) | Albert Günther | Public domain 사진 → 생성 모델 | 2026-09-30 |
 | 골리앗 타이거피시 | `public/models/fish/tigerfish.glb` | TRELLIS.2 ← [Hydrocynus vittatus The fishes of the Nile (Pl. XVII) (6961607491).jpg](https://commons.wikimedia.org/wiki/File:Hydrocynus_vittatus_The_fishes_of_the_Nile_(Pl._XVII)_(6961607491).jpg) | Boulenger, George Albert; Loat, L. | Public domain 사진 → 생성 모델 | 2026-10-03 |
 | 개복치 | `public/models/fish/sunfish.glb` | TRELLIS.2 ← [Mola mola stuffed museum La Rochelle.jpg](https://commons.wikimedia.org/wiki/File:Mola_mola_stuffed_museum_La_Rochelle.jpg) | Jebulon | CC0 사진 → 생성 모델 | 2026-10-03 |
+| 덤보문어 | `public/models/fish/dumbo.glb` | TRELLIS.2 ← [Dumbo-hires (cropped).jpg](https://commons.wikimedia.org/wiki/File:Dumbo-hires_(cropped).jpg) | NOAA Okeanos Explorer | Public domain 사진 → 생성 모델 (텍스처를 꼭짓점 색으로) | 2026-10-04 |
+| 흡혈오징어 | `public/models/fish/vampire_squid.glb` | TRELLIS.2 ← [Vampyroteuthis infernalis.jpg](https://commons.wikimedia.org/wiki/File:Vampyroteuthis_infernalis.jpg) | Carl Chun | Public domain 사진 → 생성 모델 (텍스처를 꼭짓점 색으로) | 2026-10-04 |
 
 ## 코드로 만든 것 (외부 파일 아님)
 

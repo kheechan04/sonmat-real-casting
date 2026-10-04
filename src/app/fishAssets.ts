@@ -71,10 +71,10 @@ export const MODELS: Record<string, ModelDef> = {
   electric_catfish: { rot: [0, 90, 0] }, // head +z
   tigerfish: { rot: [0, 90, 0] }, // head +z
   sunfish: { rot: [0, 180, 0] }, // head −x
+  dumbo: { rot: [0, 90, 0] }, // mantle +z → mantle ahead, arms trailing
+  vampire_squid: {}, // mantle +x already
   porcupinefish: {},
   giant_squid: { rot: [0, 0, -90], color: 0xa8402f }, // sculpted mantle-up, untextured → mantle ahead, deep red
-  dumbo: {}, // faces the camera already
-  vampire_squid: {},
   coelacanth: { rot: [0, 90, 0] }, // head +z
   gulper: { rot: [0, 90, 0] }, // head +z
   lungfish: { rot: [0, -46, 0] }, // scanned lying diagonally (body axis −46° in x–z, head at the thicker end)
