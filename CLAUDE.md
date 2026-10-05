@@ -49,12 +49,11 @@ GLB가 들어오면 "한 마리 처리" 순서대로 끝까지 하고 배포한�
 | `node scripts/make-backdrops.mjs` | 배경 원본(`assets-src/env/*.jpg`) → 물가선 위만 WebP(`public/env/*_top.webp`) |
 
 ## 사진→3D 남은 목록 (사용자와 정한 순서 — 자주 보이는데 어색한 것부터, 만들기 어려운 모양은 뒤로)
-완료: tilapia(2026-09-25), bichir·alfonsino(2026-09-27), elephantfish·vundu(2026-09-28), blobfish(2026-09-29), electric_catfish(2026-09-30), tigerfish·sunfish(2026-10-03), dumbo·vampire_squid(2026-10-04 — 텍스처가 잘게 쪼개져 줄이면 찢어짐 → build-fish.mjs TORN으로 꼭짓점 색에 구움. 원래 CC-BY 모델은 `raw/_backup/*_sketchfab_built.glb`).
+완료: tilapia(2026-09-25), bichir·alfonsino(2026-09-27), elephantfish·vundu(2026-09-28), blobfish(2026-09-29), electric_catfish(2026-09-30), tigerfish·sunfish(2026-10-03), dumbo·vampire_squid(2026-10-04 — 텍스처가 잘게 쪼개져 줄이면 찢어짐 → build-fish.mjs TORN으로 꼭짓점 색에 구움. 원래 CC-BY 모델은 `raw/_backup/*_sketchfab_built.glb`), marlin(2026-10-05).
 시도 후 유지: gulper(2026-09-30 — 사진이 죽은 표본이라 아래턱이 몸에서 떨어져 늘어지고 꼬리가 몸 밑으로 말려 생성됨 → CC-BY 모델 유지, 결과는 `raw/_backup/gulper_trellis.glb`. 입 다문 살아 있는 사진이 생기면 재시도).
-남은 5종, 이 순서대로:
+남은 4종, 이 순서대로:
 | 순서 | id (파일 이름) | 어종 | 지금 모델 | 원본 사진 라이선스 |
 |---|---|---|---|---|
-| 7 | marlin | 청새치 | 코드 | 퍼블릭 도메인 |
 | 8 | goblin_shark | 귀신고기 | 코드 | CC BY 3.0 AU Dianne Bray / Museum Victoria → 크레딧 필요 |
 | 9 | barreleye | 투명머리 물고기 | 코드 | CC BY 4.0 Hlidberg·Hjørne → 크레딧 필요 (투명한 머리 — 결과 확인) |
 | 10 | oarfish | 산갈치 | 코드 | CC BY 3.0 Sandstein → 크레딧 필요 (긴 리본 — 어려움) |

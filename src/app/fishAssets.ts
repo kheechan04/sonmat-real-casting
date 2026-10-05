@@ -73,6 +73,7 @@ export const MODELS: Record<string, ModelDef> = {
   sunfish: { rot: [0, 180, 0] }, // head −x
   dumbo: { rot: [0, 90, 0] }, // mantle +z → mantle ahead, arms trailing
   vampire_squid: {}, // mantle +x already
+  marlin: { rot: [0, 180, 0] }, // head −x
   porcupinefish: {},
   giant_squid: { rot: [0, 0, -90], color: 0xa8402f }, // sculpted mantle-up, untextured → mantle ahead, deep red
   coelacanth: { rot: [0, 90, 0] }, // head +z

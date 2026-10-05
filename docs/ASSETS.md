@@ -80,6 +80,7 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 | 개복치 | `public/models/fish/sunfish.glb` | TRELLIS.2 ← [Mola mola stuffed museum La Rochelle.jpg](https://commons.wikimedia.org/wiki/File:Mola_mola_stuffed_museum_La_Rochelle.jpg) | Jebulon | CC0 사진 → 생성 모델 | 2026-10-03 |
 | 덤보문어 | `public/models/fish/dumbo.glb` | TRELLIS.2 ← [Dumbo-hires (cropped).jpg](https://commons.wikimedia.org/wiki/File:Dumbo-hires_(cropped).jpg) | NOAA Okeanos Explorer | Public domain 사진 → 생성 모델 (텍스처를 꼭짓점 색으로) | 2026-10-04 |
 | 흡혈오징어 | `public/models/fish/vampire_squid.glb` | TRELLIS.2 ← [Vampyroteuthis infernalis.jpg](https://commons.wikimedia.org/wiki/File:Vampyroteuthis_infernalis.jpg) | Carl Chun | Public domain 사진 → 생성 모델 (텍스처를 꼭짓점 색으로) | 2026-10-04 |
+| 청새치 | `public/models/fish/marlin.glb` | TRELLIS.2 ← [Blue marlin (Duane Raver).png](https://commons.wikimedia.org/wiki/File:Blue_marlin_(Duane_Raver).png) | Raver Duane, U.S. Fish and Wildlife Service | Public domain 사진 → 생성 모델 | 2026-10-05 |
 
 ## 코드로 만든 것 (외부 파일 아님)
 
