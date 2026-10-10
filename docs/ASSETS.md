@@ -82,6 +82,8 @@ DESIGN.md §4.1: 공개·배포 전에 모든 사진의 출처와 라이선스�
 | 흡혈오징어 | `public/models/fish/vampire_squid.glb` | TRELLIS.2 ← [Vampyroteuthis infernalis.jpg](https://commons.wikimedia.org/wiki/File:Vampyroteuthis_infernalis.jpg) | Carl Chun | Public domain 사진 → 생성 모델 (텍스처를 꼭짓점 색으로) | 2026-10-04 |
 | 청새치 | `public/models/fish/marlin.glb` | TRELLIS.2 ← [Blue marlin (Duane Raver).png](https://commons.wikimedia.org/wiki/File:Blue_marlin_(Duane_Raver).png) | Raver Duane, U.S. Fish and Wildlife Service | Public domain 사진 → 생성 모델 | 2026-10-05 |
 | 귀신고기 | `public/models/fish/goblin_shark.glb` | TRELLIS.2 ← [Mistukurina owstoni museum victoria.jpg](https://commons.wikimedia.org/wiki/File:Mistukurina_owstoni_museum_victoria.jpg) | Dianne Bray / Museum Victoria | CC BY 3.0 AU 사진 → 생성 모델 (게임 도움말에 크레딧) | 2026-10-09 |
+| 투명머리 물고기 | `public/models/fish/barreleye.glb` | TRELLIS.2 ← [Macropinna microstoma illustration.png](https://commons.wikimedia.org/wiki/File:Macropinna_microstoma_illustration.png) | J. Hlidberg (Jon?), K. and E. Hjørne | CC BY 4.0 그림 → 생성 모델 (텍스처를 꼭짓점 색으로, 게임 도움말에 크레딧) | 2026-10-10 |
+| 산갈치 | `public/models/fish/oarfish.glb` | TRELLIS.2 ← [Regalecus glesne, Naturhistorisches Museum Wien.jpg](https://commons.wikimedia.org/wiki/File:Regalecus_glesne,_Naturhistorisches_Museum_Wien.jpg) | Sandstein | CC BY 3.0 사진 → 생성 모델 (게임 도움말에 크레딧) | 2026-10-10 |
 
 ## 코드로 만든 것 (외부 파일 아님)
 

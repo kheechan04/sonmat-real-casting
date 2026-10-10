@@ -75,6 +75,8 @@ export const MODELS: Record<string, ModelDef> = {
   vampire_squid: {}, // mantle +x already
   marlin: { rot: [0, 180, 0] }, // head −x
   goblin_shark: { rot: [0, 90, 0] }, // head +z
+  barreleye: { rot: [0, 90, 0] }, // head +z
+  oarfish: { rot: [0, 90, 0] }, // head +z
   porcupinefish: {},
   giant_squid: { rot: [0, 0, -90], color: 0xa8402f }, // sculpted mantle-up, untextured → mantle ahead, deep red
   coelacanth: { rot: [0, 90, 0] }, // head +z

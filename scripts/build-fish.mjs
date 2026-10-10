@@ -120,7 +120,7 @@ const SCANS = new Set(SOURCES.filter((s) => s.user.startsWith('ffishAsia')).map(
 /** other photogrammetry scans (hundreds of thousands of faces, texture in tiny pieces): the scan budget too */
 const DENSE = new Set(SOURCES.filter((s) => s.faces > 300000).map((s) => s.id));
 /** generated models whose texture came out in many small pieces: simplifying tears it (bakeVertexColors) */
-const TORN = new Set(['vampire_squid', 'dumbo']);
+const TORN = new Set(['vampire_squid', 'dumbo', 'barreleye']);
 const verts = (mesh) => mesh.listPrimitives().reduce((n, p) => n + p.getAttribute('POSITION').getCount(), 0);
 const tris = (mesh) => mesh.listPrimitives().reduce((n, p) => n + (p.getIndices()?.getCount() ?? p.getAttribute('POSITION').getCount()) / 3, 0);
 
